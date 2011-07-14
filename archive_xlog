@@ -1,0 +1,113 @@
+#!/bin/bash
+
+# Message functions
+msg_error() {
+    echo "ERROR: $1" 1>&2
+}
+
+# Script help
+usage() {
+    echo "usage: `basename $0` XLOGFILE"
+    exit $1
+}
+
+# The first argument must be a WAL file
+if [ $# != 1 ]; then
+    msg_error "missing xlog filename to archive. Please consider modifying archive_command"
+    exit 1
+fi
+
+xlog=$1
+
+# Configuration defaults
+NODE_LIST=/etc/sysconfig/pgsql/archive_nodes.conf
+DEST=/var/lib/pgsql/archived_xlog
+ALLOW_LOCAL="no"
+SYSLOG="no"
+
+# Load configuration file
+CONFIG=/etc/sysconfig/pgsql/archive_xlog.conf
+if [ -f "$CONFIG" ]; then
+    . $CONFIG
+fi
+
+# Redirect output to syslog if configured
+if [ "$SYSLOG" = "yes" ]; then
+    SYSLOG_FACILITY=${SYSLOG_FACILITY:-local0}
+    SYSLOG_IDENT=${SYSLOG_IDENT:-postgres}
+
+    exec 1> >(logger -t ${SYSLOG_IDENT} -p ${SYSLOG_FACILITY}.info)
+    exec 2> >(logger -t ${SYSLOG_IDENT} -p ${SYSLOG_FACILITY}.err)
+fi
+
+# Do a basic check on the contents of the configuration file
+if [ ! -f "$NODE_LIST" ]; then
+    msg_error "target node list does not exists. aborting"
+    exit 1
+fi
+
+# Initialize counters
+error_count=0
+node_count=0
+
+# Send the WAL file to each node from the list
+for line in `cat $NODE_LIST | grep -vE "^(#|	| )"`; do
+    # Split the line on : which can be followed by an optional target path
+    node=`echo $line | cut -d':' -f1`
+    echo $line | grep -q ':'
+    if [ $? = 0 ]; then
+	destdir=`echo $line | cut -d':' -f2`
+	if [ -z "$destdir" ]; then
+            # the destination path was not given, fallback to default
+	    destdir=$DEST
+	fi
+    else
+	destdir=$DEST
+    fi
+
+    # Check if the target node is the local machine
+    # and use cp if local archiving is allowed
+    /sbin/ifconfig | grep -q ":${node}[[:space:]]"
+
+# this one catches an IPv4 address
+# `echo ${node} | grep "^[[:digit:]]\{1,3\}\.[[:digit:]]\{1,3\}\.[[:digit:]]\{1,3\}\.[[:digit:]]\{1,3\}$" >/dev/null`
+#if [ $? != 0 ]; then
+#    echo "ERROR:...."
+#fi
+
+    if [ $? = 0 ]; then
+	if [ "$ALLOW_LOCAL" = "yes" -a -n "$destdir" ]; then
+	    cp $xlog $destdir 1>&2
+	    if [ $? != 0 ]; then
+		msg_error "Unable to copy $xlog to $destdir"
+		error_count=$(($error_count + 1))
+	    fi
+
+            # Update node counter
+	    node_count=$(($node_count + 1))
+	fi
+    else
+	scp $xlog ${node}:${destdir} 1>&2
+	if [ $? != 0 ]; then
+	    msg_error "Unable to copy $xlog to ${node}:${destdir}"
+	    error_count=$(($error_count + 1))
+	fi
+
+        # Update node counter
+	node_count=$(($node_count + 1))
+    fi
+done
+
+# Compute return code
+# If the xlog file could be sent to one node at least
+# then the archive command is considered succesful. If
+# every node is failing then return an error.
+# Allowing archive command to fail on some nodes allow
+# maintenance task on the specific nodes without impacting
+# too much the archiving. Beware that logs must be followed
+# to detect these non critical failures.
+if [ $error_count -ge $node_count ]; then
+    exit 1
+else
+    exit 0
+fi
