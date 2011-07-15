@@ -51,51 +51,90 @@ error_count=0
 node_count=0
 
 # Send the WAL file to each node from the list
-for line in `cat $NODE_LIST | grep -vE "^(#|	| )"`; do
+for line in `cat $NODE_LIST | grep -vE "^(#|	| |$)" | sed -re 's/[[:space:]]+#.*$//' | sed -re 's/[[:space:]]+/,/g'`; do
     # Split the line on : which can be followed by an optional target path
-    node=`echo $line | cut -d':' -f1`
-    echo $line | grep -q ':'
-    if [ $? = 0 ]; then
-	destdir=`echo $line | cut -d':' -f2`
-	if [ -z "$destdir" ]; then
-            # the destination path was not given, fallback to default
-	    destdir=$DEST
-	fi
-    else
+    node=`echo $line | awk -F, '{ print $1 }' | sed -re 's/(\[|\])//g'`
+    destdir=`echo $line | awk -F, '{ print $2 }'`
+    mode=`echo $line | awk -F, '{ print $3 }'`
+
+    if [ -z "$destdir" ] || [ "$destdir" = "-" ]; then
+	# the destination path was not given, fallback to default
 	destdir=$DEST
+    fi
+
+    if [ -z "$mode" ] || [ "$mode" = "-" ]; then
+	# the mode was not given, fallback to default
+	mode="standby"
     fi
 
     # Check if the target node is the local machine
     # and use cp if local archiving is allowed
-    /sbin/ifconfig | grep -q ":${node}[[:space:]]"
+    local_copy="no"
+    /sbin/ifconfig | grep -qE "(adr:${node}[[:space:]]|inet6: ${node}/)" && local_copy="yes"
 
-# this one catches an IPv4 address
-# `echo ${node} | grep "^[[:digit:]]\{1,3\}\.[[:digit:]]\{1,3\}\.[[:digit:]]\{1,3\}\.[[:digit:]]\{1,3\}$" >/dev/null`
-#if [ $? != 0 ]; then
-#    echo "ERROR:...."
-#fi
+    # check if we have a IPv6, and put brackets for scp
+    echo $node | grep -q ':'
+    [ $? = 0 ] && node="[${node}]"
 
-    if [ $? = 0 ]; then
-	if [ "$ALLOW_LOCAL" = "yes" -a -n "$destdir" ]; then
-	    cp $xlog $destdir 1>&2
-	    if [ $? != 0 ]; then
-		msg_error "Unable to copy $xlog to $destdir"
-		error_count=$(($error_count + 1))
+
+    case $mode in
+	standby)
+	    if [ "$local_copy" = "yes" ]; then
+		if [ "$ALLOW_LOCAL" = "yes" -a -n "$destdir" ]; then
+		    [ -d $destdir ] || mkdir -p $destdir 1>&2
+		    if [ $? != 0 ]; then
+			msg_error "Unable to create $destdir"
+			error_count=$(($error_count + 1))
+		    else
+			cp $xlog $destdir 1>&2
+			if [ $? != 0 ]; then
+			    msg_error "Unable to copy $xlog to $destdir"
+			    error_count=$(($error_count + 1))
+			fi
+		    fi
+		else
+		    continue # do not update error count or node count
+		fi
+	    else
+                # copy with ssh
+		scp $xlog ${node}:${destdir} >/dev/null
+		if [ $? != 0 ]; then
+		    msg_error "Unable to copy $xlog to ${node}:${destdir}"
+		    error_count=$(($error_count + 1))
+		fi
 	    fi
+	    ;;
+	pitr)
+	    if [ "$local_copy" = "yes" -a -n "$destdir" ]; then
+		# 
 
-            # Update node counter
-	    node_count=$(($node_count + 1))
-	fi
-    else
-	scp $xlog ${node}:${destdir} 1>&2
-	if [ $? != 0 ]; then
-	    msg_error "Unable to copy $xlog to ${node}:${destdir}"
-	    error_count=$(($error_count + 1))
-	fi
+		# Copy the file then gzip it
+		cp $xlog $destdir 1>&2
+		if [ $? != 0 ]; then
+		    msg_error "Unable to copy $xlog to $destdir"
+		    error_count=$(($error_count + 1))
+		else
+		    gzip -f $destdir/`basename $xlog`
+		    if [ $? != 0 ]; then
+			msg_error "Unable to compress $destdir/`basename $xlog`"
+			# do count as error, the file is there after all
+		    fi
+		fi
+	    else
+		gzip -c $xlog | ssh ${node} "cat > ${destdir:-'~'}/`basename $xlog`.gz"
+		rc=(${PIPESTATUS[*]})
+		gzip_rc=${rc[0]}
+		ssh_rc=${rc[1]}
+		if [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
+		    msg_error "Unable to send compressed $xlog to ${node}:${destdir}"
+		    error_count=$(($error_count + 1))
+		fi
+	    fi
+	    ;;
+    esac
 
-        # Update node counter
-	node_count=$(($node_count + 1))
-    fi
+    # Update node counter
+    node_count=$(($node_count + 1))
 done
 
 # Compute return code
