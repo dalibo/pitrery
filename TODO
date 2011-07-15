@@ -1,0 +1,21 @@
+TODO
+- général:
+  . améliorer les messages d'erreurs
+  . ajouter la licence aux scripts
+  . documentation
+
+- script de restore: restore_pitr
+
+- backup_pitr
+  . garder les xlog dans un répertoire commun a tous les labels/backups
+  . la purge s'ocuppe de gérer le répertoire des wal
+  . prise en compte des tablespaces
+
+- Revoir l'arbo des backup
+  . actuellement:
+  root_configuré/label/date/pgdata.tar.gz
+                            tblspc/name.tar.gz
+                            xlog/wal.gz
+                            backup_label
+                 _common <- les fichiers xlog vont là si label/date/xlog n'existe pas
+  . repertoire commun pour les xlog
