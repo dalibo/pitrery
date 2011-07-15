@@ -7,29 +7,63 @@ msg_error() {
 
 # Script help
 usage() {
-    echo "usage: `basename $0` XLOGFILE"
+    echo "usage: `basename $0` [options] XLOGFILE"
+    echo "options:"
+    echo "    -L          allow local archiving"
+    echo "    -C conf     configuration file"
+    echo "    -n file     node list"
+    echo "    -d dir      target directory"
+    echo
+    echo "    -h          print help"
+    echo
     exit $1
 }
 
-# The first argument must be a WAL file
-if [ $# != 1 ]; then
-    msg_error "missing xlog filename to archive. Please consider modifying archive_command"
-    exit 1
-fi
-
-xlog=$1
-
 # Configuration defaults
+CONFIG=/etc/sysconfig/pgsql/archive_xlog.conf
 NODE_LIST=/etc/sysconfig/pgsql/archive_nodes.conf
 DEST=/var/lib/pgsql/archived_xlog
 ALLOW_LOCAL="no"
 SYSLOG="no"
 
+# Command line options
+args=`getopt "LC:l:n:d:h" $*`
+if [ $? -ne 0 ]
+then
+    usage 2
+fi
+
+set -- $args
+for i in $*
+do
+    case "$i" in
+        -L) CLI_ALLOW_LOCAL="yes"; shift;;
+	-C) CONFIG=$2; shift 2;;
+	-n) CLI_NODE_LIST=$2; shift 2;;
+	-d) CLI_DEST=$2; shift 2;;
+
+        -h) usage 1;;
+        --) shift; break;;
+    esac
+done
+
+# The first argument must be a WAL file
+if [ $# != 1 ]; then
+    msg_error "missing xlog filename to archive. Please consider modifying archive_command, eg add %p"
+    exit 1
+fi
+
+xlog=$1
+
 # Load configuration file
-CONFIG=/etc/sysconfig/pgsql/archive_xlog.conf
 if [ -f "$CONFIG" ]; then
     . $CONFIG
 fi
+
+# Override configuration with cli options
+[ -n "$CLI_ALLOW_LOCAL" ] && ALLOW_LOCAL=$CLI_ALLOW_LOCAL
+[ -n "$CLI_NODE_LIST" ] && NODE_LIST=$CLI_NODE_LIST
+[ -n "$CLI_DEST" ] && DEST=$CLI_DEST
 
 # Redirect output to syslog if configured
 if [ "$SYSLOG" = "yes" ]; then
@@ -138,11 +172,11 @@ for line in `cat $NODE_LIST | grep -vE "^(#|	| |$)" | sed -re 's/[[:space:]]+#.*
 done
 
 # Compute return code
-# If the xlog file could be sent to one node at least
+# If the xlog file could be sent to one node at least,
 # then the archive command is considered succesful. If
 # every node is failing then return an error.
 # Allowing archive command to fail on some nodes allow
-# maintenance task on the specific nodes without impacting
+# maintenance tasks on the specific nodes without impacting
 # too much the archiving. Beware that logs must be followed
 # to detect these non critical failures.
 if [ $error_count -ge $node_count ]; then
