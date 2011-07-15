@@ -82,7 +82,7 @@ stop_backup() {
     trap '' INT TERM EXIT
 
     # Tell PostgreSQL the backup is done
-    $psql_command -Atc "SELECT pg_stop_backup();" $psql_condb
+    $psql_command -Atc "SELECT pg_stop_backup();" $psql_condb >/dev/null
     if [ $? != 0 ]; then
 	echo "ERROR: could not stop backup process" 1>&2
         exit 1
