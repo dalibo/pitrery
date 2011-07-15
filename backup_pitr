@@ -1,74 +1,203 @@
 #!/bin/bash
 
-# vars
+
+usage() {
+    echo "`basename $0` performs a PITR base backup"
+    echo 
+    echo "Usage:"
+    echo "    `basename $0` [options] [hostname]"
+    echo
+    echo "Backup options:"
+    echo "    -L              Perform a local backup"
+    echo "    -b dir          Backup directory"
+    echo "    -l label        Backup label, it will be suffixed with the date and time"
+    echo "    -D dir          Path to \$PGDATA"
+    echo
+    echo "Connection options:"
+    echo "    -P PSQL         path to the psql command"
+    echo "    -h HOSTNAME     database server host or socket directory"
+    echo "    -p PORT         database server port number"
+    echo "    -U NAME         connect as specified database user"
+    echo "    -d DATABASE     database to use for connection"
+    echo
+    echo "    -?              Print help"
+    echo
+    exit $1
+}
+
+# Hard coded configuration
+local_backup="no"
 backup_root=/home/pgsql/pitr
+label_prefix=`basename $0`
 pgdata=/home/pgsql/postgresql-8.2.21/data
 
-label_prefix=`basename $0`
+# CLI options
+args=`getopt "Lb:l:D:P:h:p:U:d:?" $*`
+if [ $? -ne 0 ]
+then
+    usage 2
+fi
+
+set -- $args
+for i in $*
+do
+    case "$i" in
+        -L) local_backup="yes"; shift;;
+	-b) backup_root=$2; shift 2;;
+	-l) label_prefix=$2; shift 2;;
+	-D) pgdata=$2; shift 2;;
+
+	-P) psql_command=$2; shift;;
+	-h) dbhost=$2; shift 2;;
+	-p) dbport=$2; shift 2;;
+	-U) dbuser=$2; shift 2;;
+	-d) dbname=$2; shift 2;;
+
+        -\?) usage 1;;
+        --) shift; break;;
+    esac
+done
+
+target=$1
+# Destination host is mandatory unless the backup is local
+if [ -z "$target" ] && [ $local_backup != "yes" ]; then
+    echo "ERROR: missing target host" 1>&2
+    usage 1
+fi
+
+# Get current date and time in a sortable format
 current_time=`date +%Y.%m.%d-%H.%M.%S`
 
-psql_command="psql"
-psql_condb="postgres"
+# Prepare psql command line
+psql_command=${psql_command:-"psql"}
+[ -n "$dbhost" ] && psql_command="$psql_command -h $dbhost"
+[ -n "$dbport" ] && psql_command="$psql_command -p $dbport"
+[ -n "$dbuser" ] && psql_command="$psql_command -U $dbuser"
 
+psql_condb=${dbname:-postgres}
 
+# Functions
 stop_backup() {
+    # This function is a signal handler, so block signals it handles
     trap '' INT TERM EXIT
 
+    # Tell PostgreSQL the backup is done
     $psql_command -Atc "SELECT pg_stop_backup();" $psql_condb
     if [ $? != 0 ]; then
 	echo "ERROR: could not stop backup process" 1>&2
         exit 1
     fi
 
+    # Reset the signal handler, this function should only be called once
     trap - INT TERM KILL EXIT
 }
 
 # Prepare target directoties
 backup_dir=$backup_root/${label_prefix}/${current_time}
-mkdir -p $backup_dir
-mkdir -p $backup_dir/tblspc
-mkdir -p $backup_dir/xlog
+if [ $local_backup = "yes" ]; then
+    mkdir -p $backup_dir
+    if [ $? != 0 ]; then
+	echo "ERROR: could not create $backup_dir" 1>&2
+	exit 1
+    fi
+	
+    mkdir -p $backup_dir/tblspc
+    if [ $? != 0 ]; then
+	echo "ERROR: could not create $backup_dir/tblspc" 1>&2
+	exit 1
+    fi
 
-# Start backup
-start_pos=`$psql_command -Atc "SELECT pg_start_backup('${label_prefix}_${current_time}');" $psql_condb`
+    mkdir -p $backup_dir/xlog
+    if [ $? != 0 ]; then
+	echo "ERROR: could not create $backup_dir/xlog" 1>&2
+	exit 1
+    fi
+
+else
+    ssh $target "mkdir -p $backup_dir"
+    if [ $? != 0 ]; then
+	echo "ERROR: could not create $backup_dir" 1>&2
+	exit 1
+    fi
+
+    ssh $target "mkdir -p $backup_dir/tblspc"
+    if [ $? != 0 ]; then
+	echo "ERROR: could not create $backup_dir/tblspc" 1>&2
+	exit 1
+    fi
+
+    ssh $target "mkdir -p $backup_dir/xlog"
+    if [ $? != 0 ]; then
+	echo "ERROR: could not create $backup_dir/xlog" 1>&2
+	exit 1
+    fi
+
+fi
+
+# Start the backup
+start_backup_xlog=`$psql_command -Atc "SELECT pg_xlogfile_name(pg_start_backup('${label_prefix}_${current_time}'));" $psql_condb`
 if [ $? != 0 ]; then
     echo "ERROR: could not start backup process" 1>&2
     exit 1
 fi
 
-# Add a signal handler to avoid leaving the cluster in backup mode when exiting
+# Add a signal handler to avoid leaving the cluster in backup mode when exiting on error
 trap stop_backup INT TERM KILL EXIT
 
-start_xlog=`$psql_command -Atc "SELECT pg_xlogfile_name('${start_pos}');" $psql_condb`
-if [ $? != 0 ]; then
-    echo "ERROR: could not get xlog file name from backup start position" 1>&2
-    exit 1
-fi
-
-# Copy the backup label
-cp $pgdata/backup_label $backup_dir
-if [ $? != 0 ]; then
-    echo "ERROR: could not copy backup_label to backup store" 1>&2
-    exit 1
-fi
-
-# Tar everything
-cd $pgdata
-tar -cpf - --ignore-failed-read --exclude=pg_xlog * 2>/dev/null | gzip > $backup_dir/pgdata.tar.gz
-rc=(${PIPESTATUS[*]})
-tar_rc=${rc[0]}
-gzip_rc=${rc[1]}
-if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
-    echo "ERROR: could not tar PGDATA" 1>&2
-    exit 1
+# Tar $PGDATA
+if [ $local_backup = "yes" ]; then
+    was=`pwd`
+    cd $pgdata
+    if [ $? != 0 ]; then
+	echo "ERROR: could not change current directory to $pgdata" 1>&2
+	exit 1
+    fi
+    tar -cpf - --ignore-failed-read --exclude=pg_xlog * 2>/dev/null | gzip > $backup_dir/pgdata.tar.gz
+    rc=(${PIPESTATUS[*]})
+    tar_rc=${rc[0]}
+    gzip_rc=${rc[1]}
+    cd $was
+    if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
+	echo "ERROR: could not tar PGDATA" 1>&2
+	exit 1
+    fi
+else
+    was=`pwd`
+    cd $pgdata
+    if [ $? != 0 ]; then
+	echo "ERROR: could not change current directory to $pgdata" 1>&2
+	exit 1
+    fi
+    tar -cpf - --ignore-failed-read --exclude=pg_xlog * 2>/dev/null | gzip | ssh $target "cat > $backup_dir/pgdata.tar.gz"
+    rc=(${PIPESTATUS[*]})
+    tar_rc=${rc[0]}
+    gzip_rc=${rc[1]}
+    ssh_rc=${rc[2]}
+    cd $was
+    if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
+	echo "ERROR: could not tar PGDATA" 1>&2
+	exit 1
+    fi
 fi
 
 # Tar tplspc
+# TODO
 
 # Stop backup
 stop_backup
 
 # Copy the backup history file
-cp $pgdata/pg_xlog/${start_xlog}.*.backup $backup_dir/
+if [ $local_backup = "yes" ]; then
+    cp $pgdata/pg_xlog/${start_backup_xlog}.*.backup $backup_dir/backup_label
+    if [ $? != 0 ]; then
+	echo "ERROR: could not copy backup history file to $backup_dir" 1>&2
+	exit 1
+    fi
+else
+    scp $pgdata/pg_xlog/${start_backup_xlog}.*.backup ${target}:$backup_dir/backup_label > /dev/null
+    if [ $? != 0 ]; then
+	echo "ERROR: could not copy backup history file to ${target}:$backup_dir" 1>&2
+	exit 1
+    fi
+fi
 
-# move xlogs to the store
