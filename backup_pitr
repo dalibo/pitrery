@@ -133,43 +133,86 @@ fi
 trap stop_backup INT TERM KILL EXIT
 
 # Tar $PGDATA
+was=`pwd`
+cd $pgdata
+if [ $? != 0 ]; then
+    echo "ERROR: could not change current directory to $pgdata" 1>&2
+    exit 1
+fi
+
 if [ $local_backup = "yes" ]; then
-    was=`pwd`
-    cd $pgdata
-    if [ $? != 0 ]; then
-	echo "ERROR: could not change current directory to $pgdata" 1>&2
-	exit 1
-    fi
     tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip > $backup_dir/pgdata.tar.gz
     rc=(${PIPESTATUS[*]})
     tar_rc=${rc[0]}
     gzip_rc=${rc[1]}
-    cd $was
     if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
 	echo "ERROR: could not tar PGDATA" 1>&2
 	exit 1
     fi
 else
-    was=`pwd`
-    cd $pgdata
-    if [ $? != 0 ]; then
-	echo "ERROR: could not change current directory to $pgdata" 1>&2
-	exit 1
-    fi
     tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip | ssh $target "cat > $backup_dir/pgdata.tar.gz"
     rc=(${PIPESTATUS[*]})
     tar_rc=${rc[0]}
     gzip_rc=${rc[1]}
     ssh_rc=${rc[2]}
-    cd $was
     if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
 	echo "ERROR: could not tar PGDATA" 1>&2
 	exit 1
     fi
 fi
+cd $was
 
-# Tar tplspc
-# TODO
+# Tar the tablespaces.  The list comes from PostgreSQL to be sure to tar only
+# defined tablespaces.
+$psql_command -Atc "SELECT spcname,spclocation,oid FROM pg_tablespace WHERE spcname NOT IN ('pg_default', 'pg_global') AND spclocation <> '';" $psql_condb | while read line; do
+
+    name=`echo $line | cut -d '|' -f 1`
+    location=`echo $line | cut -d '|' -f 2`
+
+    # Change directory to the parent directory or the tablespace to be
+    # able to tar only the base directory
+    was=`pwd`
+    parent_location=`dirname $location`
+    cd $parent_location
+    if [ $? != 0 ]; then
+	echo "ERROR: could not change current directory to $parent_location" 1>&2
+	exit 1
+    fi
+
+    # Tar the directory, directly to the remote location if needed.  The name
+    # of the tar file is the tablespace name defined in the cluster, which is
+    # unique.
+    if [ $local_backup = "yes" ]; then
+	tar -cpf - --ignore-failed-read `basename $location` 2>/dev/null | gzip > $backup_dir/tblspc/${name}.tar.gz
+	rc=(${PIPESTATUS[*]})
+	tar_rc=${rc[0]}
+	gzip_rc=${rc[1]}
+	if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
+	    echo "ERROR: could not tar tablespace $name" 1>&2
+	    exit 1
+	fi
+
+	# Add the name and location of the tablespace to an helper file for
+	# the restoration script
+	echo $line >> $backup_dir/tblspc_list
+    else
+	tar -cpf - --ignore-failed-read `basename $location` 2>/dev/null | gzip | ssh $target "cat > $backup_dir/tblspc/${name}.tar.gz"
+	rc=(${PIPESTATUS[*]})
+	tar_rc=${rc[0]}
+	gzip_rc=${rc[1]}
+	ssh_rc=${rc[2]}
+	if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
+	    echo "ERROR: could not tar tablespace $name" 1>&2
+	    exit 1
+	fi
+
+	# Add the name and location of the tablespace to an helper file for
+	# the restoration script
+	ssh $target "echo \"$line\" >> $backup_dir/tblspc_list"
+    fi
+
+    cd $was
+done	
 
 # Stop backup
 stop_backup
