@@ -107,12 +107,6 @@ if [ $local_backup = "yes" ]; then
 	exit 1
     fi
 
-    mkdir -p $backup_dir/xlog
-    if [ $? != 0 ]; then
-	echo "ERROR: could not create $backup_dir/xlog" 1>&2
-	exit 1
-    fi
-
 else
     ssh $target "mkdir -p $backup_dir"
     if [ $? != 0 ]; then
@@ -123,12 +117,6 @@ else
     ssh $target "mkdir -p $backup_dir/tblspc"
     if [ $? != 0 ]; then
 	echo "ERROR: could not create $backup_dir/tblspc" 1>&2
-	exit 1
-    fi
-
-    ssh $target "mkdir -p $backup_dir/xlog"
-    if [ $? != 0 ]; then
-	echo "ERROR: could not create $backup_dir/xlog" 1>&2
 	exit 1
     fi
 
