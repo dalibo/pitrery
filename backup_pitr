@@ -140,7 +140,7 @@ if [ $local_backup = "yes" ]; then
 	echo "ERROR: could not change current directory to $pgdata" 1>&2
 	exit 1
     fi
-    tar -cpf - --ignore-failed-read --exclude=pg_xlog * 2>/dev/null | gzip > $backup_dir/pgdata.tar.gz
+    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip > $backup_dir/pgdata.tar.gz
     rc=(${PIPESTATUS[*]})
     tar_rc=${rc[0]}
     gzip_rc=${rc[1]}
@@ -156,7 +156,7 @@ else
 	echo "ERROR: could not change current directory to $pgdata" 1>&2
 	exit 1
     fi
-    tar -cpf - --ignore-failed-read --exclude=pg_xlog * 2>/dev/null | gzip | ssh $target "cat > $backup_dir/pgdata.tar.gz"
+    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip | ssh $target "cat > $backup_dir/pgdata.tar.gz"
     rc=(${PIPESTATUS[*]})
     tar_rc=${rc[0]}
     gzip_rc=${rc[1]}
