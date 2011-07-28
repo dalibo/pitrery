@@ -3,19 +3,18 @@ TODO
   . améliorer les messages d'erreurs
   . ajouter la licence aux scripts
   . documentation
+  . renommer
+  . faire un wrapper
 
-- script de restore: restore_pitr
+- restore_pitr:
+  . option pour forcer l'écrasement de fichiers dans les répertoires de destination
+  . option pour lister le contenu des backups et preparer les répertoires ??
+  . mode verbeux
+  . mieux gérer quand c'est lancé par root
 
-- backup_pitr
-  . garder les xlog dans un répertoire commun a tous les labels/backups
+- backup_pitr:
+  . mode verbeux
+
+- purge_pitr:
   . la purge s'ocuppe de gérer le répertoire des wal
-  . prise en compte des tablespaces
 
-- Revoir l'arbo des backup
-  . actuellement:
-  root_configuré/label/date/pgdata.tar.gz
-                            tblspc/name.tar.gz
-                            xlog/wal.gz
-                            backup_label
-                 _common <- les fichiers xlog vont là si label/date/xlog n'existe pas
-  . repertoire commun pour les xlog
