@@ -28,8 +28,8 @@ usage() {
 # Hard coded configuration
 local_backup="no"
 backup_root=/home/pgsql/pitr
-label_prefix=`basename $0`
-pgdata=/home/pgsql/postgresql-8.2.21/data
+label_prefix="replitr"
+pgdata=/var/lib/pgsql/data
 
 # CLI options
 args=`getopt "Lb:l:D:P:h:p:U:d:?" $*`
@@ -164,7 +164,10 @@ cd $was
 
 # Tar the tablespaces.  The list comes from PostgreSQL to be sure to tar only
 # defined tablespaces.
-$psql_command -Atc "SELECT spcname,spclocation,oid FROM pg_tablespace WHERE spcname NOT IN ('pg_default', 'pg_global') AND spclocation <> '';" $psql_condb | while read line; do
+tblspc_list=`mktemp -t backup_pitr.XXXXXX`
+$psql_command -Atc "SELECT spcname,spclocation,oid FROM pg_tablespace WHERE spcname NOT IN ('pg_default', 'pg_global') AND spclocation <> '';" $psql_condb | tr ' ' '_' > $tblspc_list
+
+for line in `cat $tblspc_list`; do
 
     name=`echo $line | cut -d '|' -f 1`
     location=`echo $line | cut -d '|' -f 2`
@@ -172,10 +175,9 @@ $psql_command -Atc "SELECT spcname,spclocation,oid FROM pg_tablespace WHERE spcn
     # Change directory to the parent directory or the tablespace to be
     # able to tar only the base directory
     was=`pwd`
-    parent_location=`dirname $location`
-    cd $parent_location
+    cd $location
     if [ $? != 0 ]; then
-	echo "ERROR: could not change current directory to $parent_location" 1>&2
+	echo "ERROR: could not change current directory to $location" 1>&2
 	exit 1
     fi
 
@@ -183,7 +185,7 @@ $psql_command -Atc "SELECT spcname,spclocation,oid FROM pg_tablespace WHERE spcn
     # of the tar file is the tablespace name defined in the cluster, which is
     # unique.
     if [ $local_backup = "yes" ]; then
-	tar -cpf - --ignore-failed-read `basename $location` 2>/dev/null | gzip > $backup_dir/tblspc/${name}.tar.gz
+	tar -cpf - --ignore-failed-read * 2>/dev/null | gzip > $backup_dir/tblspc/${name}.tar.gz
 	rc=(${PIPESTATUS[*]})
 	tar_rc=${rc[0]}
 	gzip_rc=${rc[1]}
@@ -196,7 +198,7 @@ $psql_command -Atc "SELECT spcname,spclocation,oid FROM pg_tablespace WHERE spcn
 	# the restoration script
 	echo $line >> $backup_dir/tblspc_list
     else
-	tar -cpf - --ignore-failed-read `basename $location` 2>/dev/null | gzip | ssh $target "cat > $backup_dir/tblspc/${name}.tar.gz"
+	tar -cpf - --ignore-failed-read * 2>/dev/null | gzip | ssh $target "cat > $backup_dir/tblspc/${name}.tar.gz"
 	rc=(${PIPESTATUS[*]})
 	tar_rc=${rc[0]}
 	gzip_rc=${rc[1]}
