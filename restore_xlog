@@ -1,0 +1,90 @@
+#!/bin/bash
+
+usage() {
+    echo "usage: `basename $0` [options] xlogfile destination"
+    echo "options:"
+    echo "   -n host       host storing WALs"
+    echo "   -d dir        directory containaing WALs on host"
+    echo
+    echo "   -s            send messages to syslog"
+    echo "   -f facility   syslog facility"
+    echo "   -t ident      syslog ident"
+    echo
+    echo "   -h            print help"
+    echo
+    exit $1
+}
+
+error() {
+    echo "ERROR: $*" 1>&2
+    exit 1
+}
+
+# Default configuration
+NODE=127.0.0.1
+SRCDIR=/var/lib/pgsql/archived_xlog
+SYSLOG="no"
+
+# CLI processing
+args=`getopt "n:d:sf:t:h" "$@"`
+if [ $? -ne 0 ]; then
+    usage 2
+fi
+set -- $args
+for i in $*; do
+    case "$i" in
+	-n) NODE=$2; shift 2;;
+	-d) SRCDIR=$2; shift 2;;
+	-s) SYSLOG="yes"; shift;;
+	-f) SYSLOG_FACILITY=$2; shift 2;;
+	-t) SYSLOG_IDENT=$2; shift 2;;
+
+	-h) usage 1;;
+	--) shift; break;;
+    esac
+done
+
+# Check input: the name of the xlog file (%f) is needed as well has the target path (%p)
+# PostgreSQL gives those two when executing restore_command
+[ $# != 2 ] && error "missing xlog filename and target path. Please use %f and %p in restore_command"
+xlog=$1
+target_path=$2
+
+# Redirect output to syslog if configured
+if [ "$SYSLOG" = "yes" ]; then
+    SYSLOG_FACILITY=${SYSLOG_FACILITY:-local0}
+    SYSLOG_IDENT=${SYSLOG_IDENT:-postgres}
+
+    exec 1> >(logger -t ${SYSLOG_IDENT} -p ${SYSLOG_FACILITY}.info)
+    exec 2> >(logger -t ${SYSLOG_IDENT} -p ${SYSLOG_FACILITY}.err)
+fi
+
+# Get the file: use cp when the file is on localhost, scp otherwise
+/sbin/ifconfig | grep -qE "(adr:${NODE}[[:space:]]|inet6: ${NODE}/)"
+if [ $? = 0 ]; then
+    # Local storage
+    if [ -f $SRCDIR/${xlog}.gz ]; then
+	cp $SRCDIR/${xlog}.gz ${target_path}.gz
+	if [ $? != 0 ]; then
+	    error "could not copy $SRCDIR/$xlog.gz to $target_path"
+	fi
+    else
+	error "could not find $SRCDIR/$xlog.gz"
+    fi
+else
+    # check if we have a IPv6, and put brackets for scp
+    echo $NODE | grep -q ':' && NODE="[${NODE}]"
+
+    scp ${NODE}:$SRCDIR/${xlog}.gz ${target_path}.gz >/dev/null
+    if [ $? != 0 ]; then
+	error "could not copy ${NODE}:$SRCDIR/$xlog.gz to $target_path"
+    fi
+fi
+
+# Uncompress the file
+gunzip -f ${target_path}.gz
+if [ $? != 0 ]; then
+    error "could not copy gunzip file"
+fi
+
+exit 0
