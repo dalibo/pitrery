@@ -193,10 +193,6 @@ for line in `cat $tblspc_list`; do
 	    echo "ERROR: could not tar tablespace $name" 1>&2
 	    exit 1
 	fi
-
-	# Add the name and location of the tablespace to an helper file for
-	# the restoration script
-	echo $line >> $backup_dir/tblspc_list
     else
 	tar -cpf - --ignore-failed-read * 2>/dev/null | gzip | ssh $target "cat > $backup_dir/tblspc/${name}.tar.gz"
 	rc=(${PIPESTATUS[*]})
@@ -207,10 +203,6 @@ for line in `cat $tblspc_list`; do
 	    echo "ERROR: could not tar tablespace $name" 1>&2
 	    exit 1
 	fi
-
-	# Add the name and location of the tablespace to an helper file for
-	# the restoration script
-	ssh $target "echo \"$line\" >> $backup_dir/tblspc_list"
     fi
 
     cd $was
@@ -219,18 +211,37 @@ done
 # Stop backup
 stop_backup
 
-# Copy the backup history file
 if [ $local_backup = "yes" ]; then
+    # Copy the backup history file
     cp $pgdata/pg_xlog/${start_backup_xlog}.*.backup $backup_dir/backup_label
     if [ $? != 0 ]; then
 	echo "ERROR: could not copy backup history file to $backup_dir" 1>&2
 	exit 1
     fi
+
+    # Add the name and location of the tablespace to an helper file for
+    # the restoration script
+    cp $tblspc_list $backup_dir/tblspc_list
+    if [ $? != 0 ]; then
+	echo "ERROR: could not copy the tablespace list to $backup_dir" 1>&2
+	exit 1
+    fi
 else
+    # Copy the backup history file
     scp $pgdata/pg_xlog/${start_backup_xlog}.*.backup ${target}:$backup_dir/backup_label > /dev/null
     if [ $? != 0 ]; then
 	echo "ERROR: could not copy backup history file to ${target}:$backup_dir" 1>&2
 	exit 1
     fi
+
+    # Add the name and location of the tablespace to an helper file for
+    # the restoration script
+    scp $tblspc_list $target:$backup_dir/tblspc_list >/dev/null
+    if [ $? != 0 ]; then
+	echo "ERROR: could not copy the tablespace list to $target:$backup_dir" 1>&2
+	exit 1
+    fi
 fi
 
+# Cleanup
+rm $tblspc_list
