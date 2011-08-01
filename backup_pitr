@@ -47,7 +47,7 @@ do
 	-l) label_prefix=$2; shift 2;;
 	-D) pgdata=$2; shift 2;;
 
-	-P) psql_command=$2; shift;;
+	-P) psql_command=$2; shift 2;;
 	-h) dbhost=$2; shift 2;;
 	-p) dbport=$2; shift 2;;
 	-U) dbuser=$2; shift 2;;
@@ -227,6 +227,7 @@ if [ $local_backup = "yes" ]; then
 	exit 1
     fi
 else
+    echo $target | grep -q ':' && target="[${target}]"
     # Copy the backup history file
     scp $pgdata/pg_xlog/${start_backup_xlog}.*.backup ${target}:$backup_dir/backup_label > /dev/null
     if [ $? != 0 ]; then
@@ -236,9 +237,9 @@ else
 
     # Add the name and location of the tablespace to an helper file for
     # the restoration script
-    scp $tblspc_list $target:$backup_dir/tblspc_list >/dev/null
+    scp $tblspc_list ${target}:$backup_dir/tblspc_list >/dev/null
     if [ $? != 0 ]; then
-	echo "ERROR: could not copy the tablespace list to $target:$backup_dir" 1>&2
+	echo "ERROR: could not copy the tablespace list to ${target}:$backup_dir" 1>&2
 	exit 1
     fi
 fi
