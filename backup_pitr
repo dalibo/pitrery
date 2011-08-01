@@ -27,7 +27,7 @@ usage() {
 
 # Hard coded configuration
 local_backup="no"
-backup_root=/home/pgsql/pitr
+backup_root=/var/lib/pgsql/backups
 label_prefix="replitr"
 pgdata=/var/lib/pgsql/data
 
