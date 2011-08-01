@@ -3,17 +3,19 @@ TODO
   . améliorer les messages d'erreurs
   . ajouter la licence aux scripts
   . documentation
-  . renommer
-  . faire un wrapper
+  . renommer ??
+  . faire un wrapper avec les action en argument
+  . gérer aussi les nom d'hôte, pas seulement les IP
+  . mode verbeux
 
 - restore_pitr:
   . option pour forcer l'écrasement de fichiers dans les répertoires de destination
-  . option pour lister le contenu des backups et preparer les répertoires ??
-  . mode verbeux
   . mieux gérer quand c'est lancé par root
 
+- list_pitr:
+  . option pour lister le contenu des backups et les répertoires à preparer ?
+
 - backup_pitr:
-  . mode verbeux
 
 - purge_pitr:
   . la purge s'ocuppe de gérer le répertoire des wal
