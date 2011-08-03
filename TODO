@@ -1,12 +1,10 @@
 TODO
+
 - général:
-  . améliorer les messages d'erreurs
   . ajouter la licence aux scripts
   . documentation
   . renommer ??
-  . faire un wrapper avec les action en argument
   . gérer aussi les nom d'hôte, pas seulement les IP
-  . mode verbeux
 
 - restore_pitr:
   . option pour forcer l'écrasement de fichiers dans les répertoires de destination
@@ -18,5 +16,4 @@ TODO
 - backup_pitr:
 
 - purge_pitr:
-  . la purge s'ocuppe de gérer le répertoire des wal
 
