@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# Default configuration
+local_backup="no"
+backup_root=/var/lib/pgsql/backups
+label_prefix="replitr"
+
+usage() {
+    echo "usage: `basename $0` [options] [hostname]"
+    echo "options:"
+    echo "    -L              List from local storage"
+    echo "    -b dir          Backup storage directory"
+    echo "    -l label        Label used when backup was performed"
+    echo
+    echo "    -?              Print help"
+    echo
+    exit $1
+}
+
+error() {
+    echo "ERROR: $*" 1>&2
+    exit 1
+}
+
+# Process CLI Options
+while getopts "Lb:l:?" opt; do
+    case "$opt" in
+	L) local_backup="yes";;
+	b) backup_root=$OPTARG;;
+	l) label_prefix=$OPTARG;;
+	"?") usage 1;;
+	*) error "error while processing options";;
+    esac
+done
+
+host=${@:$OPTIND:1}
+
+# Storage host is mandatory unless stored locally
+if [ -z "$host" ] && [ $local_backup != "yes" ]; then
+    echo "FATAL: missing target host" 1>&2
+    usage 1
+fi
+
+# Search the store
+if [ $local_backup = "yes" ]; then
+    list=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null`
+    if [ $? != 0 ]; then
+	error "could not list the content of $backup_root/$label_prefix/"
+    fi
+
+    # Print a header
+    echo "List of local backups:"
+else
+    list=`ssh $host "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
+    if [ $? != 0 ]; then
+	error "could not list the content of $backup_root/$label_prefix/ on $host"
+    fi
+
+    # Print a header
+    echo "List of backups on $host:"
+fi
+
+# Print the directory and start time of each backup
+for dir in $list; do
+    # Print the details of the backup dir
+    echo -en "$dir \t"
+
+    st=0
+    # Get the exact start date from the backup label
+    if [ $local_backup = "yes" ]; then
+	if [ -f $dir/backup_label ]; then
+	    grep "START TIME:" $dir/backup_label
+	    if [ $? != 0 ]; then
+		echo -e "\nERROR: could find the start time" 1>&2
+		st=1
+	    fi
+	else
+	    echo -e "\nERROR: could find the backup_label file" 1>&2
+	    st=1
+	fi
+    else
+	ssh $host "test -f $dir/backup_label" 2>/dev/null
+	if [ $? = 0 ]; then
+	    ssh $host "cat $dir/backup_label" | grep "START TIME:"
+	    rc=(${PIPESTATUS[*]})
+	    ssh_rc=${rc[0]}
+	    grep_rc=${rc[1]}
+	    if [ $ssh_rc != 0 ] || [ $grep_rc != 0 ]; then
+		echo -e "\nERROR: could find the start time in the backup_label file" 1>&2
+		st=1
+	    fi
+	else
+	    echo -e "\nERROR: could find the backup_label file" 1>&2
+	    st=1
+	fi
+    fi
+
+    if [ $st != 0 ]; then
+	echo "!!! This backup may be imcomplete or corrupted !!!"
+    fi
+
+#    echo
+done
+
