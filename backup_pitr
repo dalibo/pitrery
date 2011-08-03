@@ -25,6 +25,15 @@ usage() {
     exit $1
 }
 
+error() {
+    echo "ERROR: $*" 1>&2
+    exit 1
+}
+
+info() {
+    echo "INFO: $*"
+}
+
 # Hard coded configuration
 local_backup="no"
 backup_root=/var/lib/pgsql/backups
@@ -61,7 +70,7 @@ done
 target=$1
 # Destination host is mandatory unless the backup is local
 if [ -z "$target" ] && [ $local_backup != "yes" ]; then
-    echo "ERROR: missing target host" 1>&2
+    echo -e "FATAL: missing target host\n" 1>&2
     usage 1
 fi
 
@@ -82,10 +91,10 @@ stop_backup() {
     trap '' INT TERM EXIT
 
     # Tell PostgreSQL the backup is done
+    info "stopping the backup process"
     $psql_command -Atc "SELECT pg_stop_backup();" $psql_condb >/dev/null
     if [ $? != 0 ]; then
-	echo "ERROR: could not stop backup process" 1>&2
-        exit 1
+	error "could not stop backup process"
     fi
 
     # Reset the signal handler, this function should only be called once
@@ -94,50 +103,49 @@ stop_backup() {
 
 # Prepare target directoties
 backup_dir=$backup_root/${label_prefix}/${current_time}
+info "backup directory is $backup_dir"
+info "preparing directories"
+
 if [ $local_backup = "yes" ]; then
     mkdir -p $backup_dir
     if [ $? != 0 ]; then
-	echo "ERROR: could not create $backup_dir" 1>&2
-	exit 1
+	error "could not create $backup_dir"
     fi
 	
     mkdir -p $backup_dir/tblspc
     if [ $? != 0 ]; then
-	echo "ERROR: could not create $backup_dir/tblspc" 1>&2
-	exit 1
+	error "could not create $backup_dir/tblspc"
     fi
 
 else
     ssh $target "mkdir -p $backup_dir"
     if [ $? != 0 ]; then
-	echo "ERROR: could not create $backup_dir" 1>&2
-	exit 1
+	error "could not create $backup_dir"
     fi
 
     ssh $target "mkdir -p $backup_dir/tblspc"
     if [ $? != 0 ]; then
-	echo "ERROR: could not create $backup_dir/tblspc" 1>&2
-	exit 1
+	error "could not create $backup_dir/tblspc"
     fi
 
 fi
 
 # Start the backup
+info "starting the backup process"
 start_backup_xlog=`$psql_command -Atc "SELECT pg_xlogfile_name(pg_start_backup('${label_prefix}_${current_time}'));" $psql_condb`
 if [ $? != 0 ]; then
-    echo "ERROR: could not start backup process" 1>&2
-    exit 1
+    error "could not start backup process"
 fi
 
 # Add a signal handler to avoid leaving the cluster in backup mode when exiting on error
 trap stop_backup INT TERM KILL EXIT
 
 # Tar $PGDATA
+info "archiving PGDATA: $pgdata"
 was=`pwd`
 cd $pgdata
 if [ $? != 0 ]; then
-    echo "ERROR: could not change current directory to $pgdata" 1>&2
-    exit 1
+    error "could not change current directory to $pgdata"
 fi
 
 if [ $local_backup = "yes" ]; then
@@ -146,8 +154,7 @@ if [ $local_backup = "yes" ]; then
     tar_rc=${rc[0]}
     gzip_rc=${rc[1]}
     if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
-	echo "ERROR: could not tar PGDATA" 1>&2
-	exit 1
+	error "could not tar PGDATA"
     fi
 else
     tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip | ssh $target "cat > $backup_dir/pgdata.tar.gz"
@@ -156,29 +163,36 @@ else
     gzip_rc=${rc[1]}
     ssh_rc=${rc[2]}
     if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
-	echo "ERROR: could not tar PGDATA" 1>&2
-	exit 1
+	error "could not tar PGDATA"
     fi
 fi
 cd $was
 
 # Tar the tablespaces.  The list comes from PostgreSQL to be sure to tar only
 # defined tablespaces.
+info "listing tablespaces"
 tblspc_list=`mktemp -t backup_pitr.XXXXXX`
 $psql_command -Atc "SELECT spcname,spclocation,oid FROM pg_tablespace WHERE spcname NOT IN ('pg_default', 'pg_global') AND spclocation <> '';" $psql_condb | tr ' ' '_' > $tblspc_list
+rc=(${PIPESTATUS[*]})
+psql_rc=${rc[0]}
+tr_rc=${rc[1]}
+if [ $psql_rc != 0 ] || [ $tr_rc != 0 ]; then
+    error "could not get the list of tablespaces from PostgreSQL"
+fi
 
 for line in `cat $tblspc_list`; do
 
     name=`echo $line | cut -d '|' -f 1`
     location=`echo $line | cut -d '|' -f 2`
 
+    info "archiving tablespace \"$name\" ($location)"
+
     # Change directory to the parent directory or the tablespace to be
     # able to tar only the base directory
     was=`pwd`
     cd $location
     if [ $? != 0 ]; then
-	echo "ERROR: could not change current directory to $location" 1>&2
-	exit 1
+	error "could not change current directory to $location"
     fi
 
     # Tar the directory, directly to the remote location if needed.  The name
@@ -190,8 +204,7 @@ for line in `cat $tblspc_list`; do
 	tar_rc=${rc[0]}
 	gzip_rc=${rc[1]}
 	if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
-	    echo "ERROR: could not tar tablespace $name" 1>&2
-	    exit 1
+	    error "could not tar tablespace $name"
 	fi
     else
 	tar -cpf - --ignore-failed-read * 2>/dev/null | gzip | ssh $target "cat > $backup_dir/tblspc/${name}.tar.gz"
@@ -200,8 +213,7 @@ for line in `cat $tblspc_list`; do
 	gzip_rc=${rc[1]}
 	ssh_rc=${rc[2]}
 	if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
-	    echo "ERROR: could not tar tablespace $name" 1>&2
-	    exit 1
+	    error "could not tar tablespace $name"
 	fi
     fi
 
@@ -213,36 +225,38 @@ stop_backup
 
 if [ $local_backup = "yes" ]; then
     # Copy the backup history file
+    info "copying the backup history file"
     cp $pgdata/pg_xlog/${start_backup_xlog}.*.backup $backup_dir/backup_label
     if [ $? != 0 ]; then
-	echo "ERROR: could not copy backup history file to $backup_dir" 1>&2
-	exit 1
+	error "could not copy backup history file to $backup_dir"
     fi
 
     # Add the name and location of the tablespace to an helper file for
     # the restoration script
+    info "copying the tablespaces list"
     cp $tblspc_list $backup_dir/tblspc_list
     if [ $? != 0 ]; then
-	echo "ERROR: could not copy the tablespace list to $backup_dir" 1>&2
-	exit 1
+	error "could not copy the tablespace list to $backup_dir"
     fi
 else
     echo $target | grep -q ':' && target="[${target}]"
     # Copy the backup history file
+    info "copying the backup history file"
     scp $pgdata/pg_xlog/${start_backup_xlog}.*.backup ${target}:$backup_dir/backup_label > /dev/null
     if [ $? != 0 ]; then
-	echo "ERROR: could not copy backup history file to ${target}:$backup_dir" 1>&2
-	exit 1
+	error "could not copy backup history file to ${target}:$backup_dir"
     fi
 
     # Add the name and location of the tablespace to an helper file for
     # the restoration script
+    info "copying the tablespaces list"
     scp $tblspc_list ${target}:$backup_dir/tblspc_list >/dev/null
     if [ $? != 0 ]; then
-	echo "ERROR: could not copy the tablespace list to ${target}:$backup_dir" 1>&2
-	exit 1
+	error "could not copy the tablespace list to ${target}:$backup_dir"
     fi
 fi
 
 # Cleanup
 rm $tblspc_list
+
+info "done"
