@@ -29,6 +29,7 @@ usage() {
     echo "options:"
     echo "   -n host       host storing WALs"
     echo "   -d dir        directory containaing WALs on host"
+    echo "   -C conf       configuration file"
     echo
     echo "   -s            send messages to syslog"
     echo "   -f facility   syslog facility"
@@ -45,12 +46,13 @@ error() {
 }
 
 # Default configuration
+CONFIG=/etc/sysconfig/pgsql/archive_xlog.conf
 NODE=127.0.0.1
 SRCDIR=/var/lib/pgsql/archived_xlog
 SYSLOG="no"
 
 # CLI processing
-args=`getopt "n:d:sf:t:h" "$@"`
+args=`getopt "n:d:C:sf:t:h" "$@"`
 if [ $? -ne 0 ]; then
     usage 2
 fi
@@ -59,9 +61,10 @@ for i in $*; do
     case "$i" in
 	-n) NODE=$2; shift 2;;
 	-d) SRCDIR=$2; shift 2;;
-	-s) SYSLOG="yes"; shift;;
-	-f) SYSLOG_FACILITY=$2; shift 2;;
-	-t) SYSLOG_IDENT=$2; shift 2;;
+	-C) CONGIG=$2; shift 2;;
+	-s) CLI_SYSLOG="yes"; shift;;
+	-f) CLI_SYSLOG_FACILITY=$2; shift 2;;
+	-t) CLI_SYSLOG_IDENT=$2; shift 2;;
 
 	-h) usage 1;;
 	--) shift; break;;
@@ -73,6 +76,16 @@ done
 [ $# != 2 ] && error "missing xlog filename and target path. Please use %f and %p in restore_command"
 xlog=$1
 target_path=$2
+
+# Load configuration file
+if [ -f "$CONFIG" ]; then
+    . $CONFIG
+fi
+
+# Override configuration with cli options
+[ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
+[ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
+[ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
 
 # Redirect output to syslog if configured
 if [ "$SYSLOG" = "yes" ]; then

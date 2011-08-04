@@ -23,5 +23,4 @@ TODO
             minimum de backups
 
 - restore_xlog:
-  . (v1.0) utiliser le fichier de configuration de archive_xlog (pour syslog)
 
