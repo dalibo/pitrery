@@ -104,7 +104,7 @@ for line in `cat $NODE_LIST | grep -vE "^(#|	| |$)" | sed -re 's/[[:space:]]+#.*
     # Check if the target node is the local machine
     # and use cp if local archiving is allowed
     local_copy="no"
-    /sbin/ifconfig | grep -qE "(adr:${node}[[:space:]]|inet6: ${node}/)" && local_copy="yes"
+    LC_ALL=C /sbin/ifconfig | grep -qE "(addr:${node}[[:space:]]|inet6 addr: ${node}/)" && local_copy="yes"
 
     # check if we have a IPv6, and put brackets for scp
     echo $node | grep -q ':' && node="[${node}]"

@@ -60,7 +60,7 @@ if [ "$SYSLOG" = "yes" ]; then
 fi
 
 # Get the file: use cp when the file is on localhost, scp otherwise
-/sbin/ifconfig | grep -qE "(adr:${NODE}[[:space:]]|inet6: ${NODE}/)"
+LC_ALL=C /sbin/ifconfig | grep -qE "(addr:${NODE}[[:space:]]|inet6 addr: ${NODE}/)"
 if [ $? = 0 ]; then
     # Local storage
     if [ -f $SRCDIR/${xlog}.gz ]; then

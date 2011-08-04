@@ -72,7 +72,7 @@ if [ -z "$max_count" -a -z "$max_days" ]; then
 fi
 
 # Check if bakcup host is local and prepare for IPv6 if needed
-/sbin/ifconfig | grep -qE "(adr:${target}[[:space:]]|inet6: ${target}/)"
+LC_ALL=C /sbin/ifconfig | grep -qE "(addr:${target}[[:space:]]|inet6 addr: ${target}/)"
 if [ $? = 0 ]; then
     local_backup="yes"
 fi
