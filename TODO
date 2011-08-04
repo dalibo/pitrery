@@ -6,6 +6,7 @@ TODO
   . (v1.1+) gérer aussi les nom d'hôte, pas seulement les IP
   . (v1.1+) réorganiser dans des sous-répertoires
   . (v1.0) Makefile pour installer
+  . (v1.1+) rendre portable pour pkgsrc
 
 - restore_pitr:
   . (v1.1+) option pour forcer l'écrasement de fichiers dans les répertoires de destination
@@ -23,3 +24,4 @@ TODO
 
 - restore_xlog:
   . (v1.0) utiliser le fichier de configuration de archive_xlog (pour syslog)
+
