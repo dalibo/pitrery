@@ -126,7 +126,9 @@ for line in `cat $NODE_LIST | grep -vE "^(#|	| |$)" | sed -re 's/[[:space:]]+#.*
 			fi
 		    fi
 		else
-		    continue # do not update error count or node count
+		    # do not update error count or node count
+		    # when local archiving is not allowed
+		    continue 
 		fi
 	    else
                 # copy with ssh
@@ -138,19 +140,28 @@ for line in `cat $NODE_LIST | grep -vE "^(#|	| |$)" | sed -re 's/[[:space:]]+#.*
 	    fi
 	    ;;
 	pitr)
-	    if [ "$local_copy" = "yes" -a -n "$destdir" ]; then
-		# 
-
-		# Copy the file then gzip it
-		cp $xlog $destdir 1>&2
-		if [ $? != 0 ]; then
-		    msg_error "Unable to copy $xlog to $destdir"
-		    error_count=$(($error_count + 1))
-		else
-		    gzip -f $destdir/`basename $xlog`
+	    if [ "$local_copy" = "yes" ]; then
+		if [ "$ALLOW_LOCAL" = "yes" -a -n "$destdir" ]; then
+		    [ -d $destdir ] || mkdir -p $destdir 1>&2
 		    if [ $? != 0 ]; then
-			msg_error "Unable to compress $destdir/`basename $xlog`"
-			# do count as error, the file is there after all
+			msg_error "Unable to create $destdir"
+			error_count=$(($error_count + 1))
+		    else
+			# Copy the file then gzip it
+			cp $xlog $destdir 1>&2
+			if [ $? != 0 ]; then
+			    msg_error "Unable to copy $xlog to $destdir"
+			    error_count=$(($error_count + 1))
+			else
+			    gzip -f $destdir/`basename $xlog`
+			    if [ $? != 0 ]; then
+				msg_error "Unable to compress $destdir/`basename $xlog`"
+
+				# count as an error. The file has been properly copied but the
+				# restore_xlog script does not (yet) known about uncompress files
+				error_count=$(($error_count + 1))
+			    fi
+			fi
 		    fi
 		fi
 	    else
