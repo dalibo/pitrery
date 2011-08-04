@@ -1,4 +1,4 @@
-#!/bin/bash
+#!@BASH@
 #
 # Copyright 2011 Nicolas Thauvin. All rights reserved.
 #
@@ -44,8 +44,8 @@ usage() {
 }
 
 # Configuration defaults
-CONFIG=/etc/sysconfig/pgsql/archive_xlog.conf
-NODE_LIST=/etc/sysconfig/pgsql/archive_nodes.conf
+CONFIG=@SYSCONFDIR@/archive_xlog.conf
+NODE_LIST=@SYSCONFDIR@/archive_nodes.conf
 DEST=/var/lib/pgsql/archived_xlog
 ALLOW_LOCAL="no"
 SYSLOG="no"

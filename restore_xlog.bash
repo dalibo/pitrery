@@ -1,4 +1,4 @@
-#!/bin/bash
+#!@BASH@
 #
 # Copyright 2011 Nicolas Thauvin. All rights reserved.
 #
@@ -46,7 +46,7 @@ error() {
 }
 
 # Default configuration
-CONFIG=/etc/sysconfig/pgsql/archive_xlog.conf
+CONFIG=@SYSCONFDIR@/archive_xlog.conf
 NODE=127.0.0.1
 SRCDIR=/var/lib/pgsql/archived_xlog
 SYSLOG="no"

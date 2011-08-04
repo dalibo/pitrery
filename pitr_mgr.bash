@@ -1,4 +1,4 @@
-#!/bin/bash
+#!@BASH@
 #
 # Copyright 2011 Nicolas Thauvin. All rights reserved.
 #
@@ -24,9 +24,9 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-config_dir=/etc/sysconfig/pgsql/pitr
+config_dir=@SYSCONFIG@/pitr
 config=pitr.conf
-scripts_dir=.
+scripts_dir=@LIBDIR@/pitr
 
 usage() {
     echo "usage: `basename $0` [options] action [args]"

@@ -1,7 +1,7 @@
 # archive_xlog.conf
 
 # Path to the list of target nodes
-NODE_LIST=/etc/sysconfig/pgsql/archive_nodes.conf
+NODE_LIST=@SYSCONFDIR@/archive_nodes.conf
 
 # Default destination path, this can be overriden on
 # per node basis in NODE_LIST (see the file)

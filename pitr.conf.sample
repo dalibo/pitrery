@@ -1,7 +1,7 @@
 # globals
 PGDATA="/var/lib/pgsql/data"
 PGPSQL="psql"
-PGUSER="`id -un`"
+PGUSER="postgres"
 PGPORT=5432
 PGHOST="/tmp"
 PGDATABASE="postgres"
@@ -26,5 +26,5 @@ PURGE_OLDER_THAN=
 
 # Internal
 # Change scripts_dir to point to the directory storing
-# the *_pitr scripts
-scripts_dir=.
+# the *_pitr scripts if needed
+#scripts_dir=@LIBDIR@

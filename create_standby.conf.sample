@@ -6,30 +6,30 @@
 
 ## Remote configuration, e.g. on the master server
 # remote_pgdata: path to PGDATA on the master
-remote_pgdata=/data/pgsql-8.2/data
+remote_pgdata=/var/lib/pgsql/data
 
 # remote_psql: path to the psql binary on the master
 # It is needed to issue pg_start_backup() and can provide
 # connection options such as username or port. If a password is
 # needed, make use of a .pgpass file to avoid prompting.
-remote_psql="/usr/local/pgsql-8.2.21/bin/psql -p 5433"
+remote_psql="/usr/bin/psql"
 
 ## Local configuration, e.g. this machine, the future slave
 # remote_pgdata: path to PGDATA on the slave
 # The path must be writable by the user who runs the script.
-local_pgdata=/data/pgsql-8.2/data
+local_pgdata=/var/lib/pgsql/data
 
 
 ## recovery.conf related configuration
 # archive_store: path where WAL segments are archived on the slave
-archive_store=/data1/pgsql-8.2/archived_xlog
+archive_store=/var/lib/pgsql/archived_xlog
 
 # pg_standby: path to the pg_standby binary with possible options
-pg_standby="/usr/local/pgsql-8.2.21/bin/pg_standby -d -k 64"
+pg_standby="/usr/bin/pg_standby -d -k 64"
 
 # pg_standby_trigger: path to trigger file used to stop the replication
 pg_standby_trigger="$local_pgdata/stop_standby"
 
 # pg_standby_append: parameters to append to the restore_command
 # it can be used to log pg_standby activity to a file or to syslog
-pg_standby_append="2>&1 | logger -t pg_standby -p local1.info"
+pg_standby_append="2>&1 | logger -t pg_standby -p local0.info"

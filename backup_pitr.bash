@@ -1,4 +1,4 @@
-#!/bin/bash
+#!@BASH@
 #
 # Copyright 2011 Nicolas Thauvin. All rights reserved.
 #
