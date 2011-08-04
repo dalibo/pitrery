@@ -17,3 +17,5 @@ TODO
 
 - purge_pitr:
 
+- restore_xlog:
+  . utiliser le fichier de configuration de archive_xlog (pour syslog)
