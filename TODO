@@ -1,7 +1,7 @@
 TODO
 
 - général:
-  . (v1.0) documentation
+  . translate the TODO list into English
   . (v1.1+) gérer aussi les nom d'hôte, pas seulement les IP
   . (v1.1+) réorganiser dans des sous-répertoires
   . (v1.1+) rendre portable pour pkgsrc
