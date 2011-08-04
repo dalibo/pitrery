@@ -1,5 +1,6 @@
 #!/bin/bash
 
+config_dir=/etc/sysconfig/pgsql/pitr
 config=pitr.conf
 scripts_dir=.
 
@@ -47,10 +48,11 @@ action=${@:$OPTIND:1}
 OPTIND=$(( $OPTIND + 1 ))
 
 # Load the configuration file
+echo $config | grep -q '\/' || config="$config_dir/$config"
 if [ -f $config ]; then
     . $config
 else
-    error "cannot access $config"
+    error "cannot access configuration file: $config"
 fi
 
 case $action in
