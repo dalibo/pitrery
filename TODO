@@ -1,21 +1,26 @@
 TODO
 
 - général:
-  . ajouter la licence aux scripts
-  . documentation
+  . (v1.0) ajouter la licence aux scripts
+  . (v1.0) documentation
   . renommer ??
-  . gérer aussi les nom d'hôte, pas seulement les IP
+  . (v1.1+) gérer aussi les nom d'hôte, pas seulement les IP
+  . (v1.1+) réorganiser dans des sous-répertoires
+  . (v1.0) Makefile pour installer
 
 - restore_pitr:
-  . option pour forcer l'écrasement de fichiers dans les répertoires de destination
-  . mieux gérer quand c'est lancé par root
+  . (v1.1+) option pour forcer l'écrasement de fichiers dans les répertoires de destination
+  . (v1.1+) mieux gérer quand c'est lancé par root
+  . (v1.1+) option pour lister le contenu des backups et les répertoires à preparer ?
 
 - list_pitr:
-  . option pour lister le contenu des backups et les répertoires à preparer ?
 
 - backup_pitr:
+  . (v1.1+) possibilité de faire un tar des "extras" (bin pg, init script) à partir d'une liste
 
 - purge_pitr:
+  . (v1.1+) retention par jour prioritaire sur le nombre de backup avec possibilité de garder un nombre
+            minimum de backups
 
 - restore_xlog:
-  . utiliser le fichier de configuration de archive_xlog (pour syslog)
+  . (v1.0) utiliser le fichier de configuration de archive_xlog (pour syslog)
