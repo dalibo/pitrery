@@ -3,7 +3,6 @@
 include config.mk
 
 SRCS = archive_xlog.bash \
-	create_standby.bash \
 	pitr_mgr.bash \
 	restore_xlog.bash
 HELPERS = backup_pitr.bash \
@@ -12,7 +11,6 @@ HELPERS = backup_pitr.bash \
 	restore_pitr.bash
 SRCCONFS = archive_nodes.conf.sample \
 	archive_xlog.conf.sample \
-	create_standby.conf.sample \
 	pitr.conf.sample
 
 BINS = $(basename $(SRCS))
