@@ -1,4 +1,17 @@
-# globals
+# pitr.conf -- central configuration file for pitrery
+#
+# This file is intended to be copied for each backup set to be
+# performed with pitr_mgr.
+#
+# Since pitr_migr is a wrapper for the different scripts that do each
+# action, all options are defined here so that the command line stays
+# short.  All options defined here can be overridden on the command
+# line by specifying the options after the name of the action.
+
+# Specify all needed information to be able to run SQL command on the
+# PostgreSQL cluster to backup.  Those options can be commented out to
+# let the scripts use the ones defined in the environment (be careful
+# with cron when doing this)
 PGDATA="/var/lib/pgsql/data"
 PGPSQL="psql"
 PGUSER="postgres"
@@ -7,24 +20,46 @@ PGHOST="/tmp"
 PGDATABASE="postgres"
 PGOWNER=$PGUSER
 
-# backup
+# common options:
+# BACKUP_IS_LOCAL permits to store the backups on the local machine.
+# When it is set to "yes", a target host is no longer required
 BACKUP_IS_LOCAL="no"
-BACKUP_HOST=
 
+# Directory where to store the files.  Each backup has its owner
+# subdirectory named after the date and time it was launched.
 BACKUP_DIR="/var/lib/pgsql/backups"
+
+# Define a name for the backup set.  Every backup will be stored in
+# $BACKUP_DIR/$BACKUP_LABEL, which should make thing easier to find
+# when storing backups for several servers in the same place.
 BACKUP_LABEL="replitr"
 
-# restore
+# When performing non local backups, a target host with a batch SSH
+# access is needed (e.g. create passwordless SSH key pairs).  Be aware
+# that commands will be run by the scripts through SSH, so this should
+# be allowed. Only specify an IP address here.
+BACKUP_HOST=
+
+# After restoring from a backup, PostgreSQL will need a command to run
+# to get archived WAL segments that needed to be replayed on the
+# cluster files.  This can be any valid command or script for the
+# restore_command parameter of PostgreSQL (in recovry.conf).  The
+# restore_xlog script is intended to be used here.
 RESTORE_COMMAND=
 
-# Archived WAL files
+# The directory where to look for archived WAL files on BACKUP_HOST.
 ARCHIVE_DIR="/var/lib/pgsql/archived_xlog"
 
-# purge
+# The old backups can be removed by setting one of those two
+# parameters, one can keep at most PURGE_KEEP_COUNT backups or keep
+# backups that are younger than PURGE_OLDER_THAN in days.
 PURGE_KEEP_COUNT=
 PURGE_OLDER_THAN=
 
+####################
+
 # Internal
 # Change scripts_dir to point to the directory storing
-# the *_pitr scripts if needed
+# the *_pitr scripts if needed, this should be well handled by the
+# Makfile.
 #scripts_dir=@LIBDIR@
