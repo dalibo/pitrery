@@ -62,6 +62,6 @@ uninstall:
 	@rm -f $(addprefix ${DESTDIR}${BINDIR}/,$(BINS))
 	@echo removing helpers from ${DESTDIR}${LIBDIR}/${NAME}
 	@rm -f $(addprefix ${DESTDIR}${LIBDIR}/${NAME}/,$(LIBS))
-	@-rmdir ${DESTDIR}${LIBDIR}
+	@-rmdir ${DESTDIR}${LIBDIR}/${NAME}
 
 .PHONY: all options clean install uninstall
