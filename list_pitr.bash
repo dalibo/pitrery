@@ -27,7 +27,7 @@
 # Default configuration
 local_backup="no"
 backup_root=/var/lib/pgsql/backups
-label_prefix="replitr"
+label_prefix="pitr"
 
 usage() {
     echo "usage: `basename $0` [options] [hostname]"

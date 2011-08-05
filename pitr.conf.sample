@@ -32,7 +32,7 @@ BACKUP_DIR="/var/lib/pgsql/backups"
 # Define a name for the backup set.  Every backup will be stored in
 # $BACKUP_DIR/$BACKUP_LABEL, which should make thing easier to find
 # when storing backups for several servers in the same place.
-BACKUP_LABEL="replitr"
+BACKUP_LABEL="pitr"
 
 # When performing non local backups, a target host with a batch SSH
 # access is needed (e.g. create passwordless SSH key pairs).  Be aware

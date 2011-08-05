@@ -60,7 +60,7 @@ info() {
 # Hard coded configuration
 local_backup="no"
 backup_root=/var/lib/pgsql/backups
-label_prefix="replitr"
+label_prefix="pitr"
 pgdata=/var/lib/pgsql/data
 
 # CLI options

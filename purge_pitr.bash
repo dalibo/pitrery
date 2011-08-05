@@ -45,7 +45,7 @@ usage() {
 # Hard coded configuration 
 local_backup="no"
 backup_root=/var/lib/pgsql/backups
-label_prefix="replitr"
+label_prefix="pitr"
 local_xlog="no"
 xlog_dir=/var/lib/pgsql/archived_xlog
 
@@ -194,7 +194,7 @@ else
     fi
     
     if [ -n "$remote_backup_label" ]; then
-	tmp_dir=`mktemp -d -t pg_replitr.XXXXXXXXXX`
+	tmp_dir=`mktemp -d -t pg_pitr.XXXXXXXXXX`
 	if [ $? != 0 ]; then
 	    echo "ERROR: could not create temporary directory" 1>&2
 	    exit 1

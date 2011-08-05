@@ -27,7 +27,7 @@
 # Default configuration
 local_backup="no"
 backup_root=/var/lib/pgsql/backups
-label_prefix="replitr"
+label_prefix="pitr"
 pgdata=/var/lib/pgsql/data
 owner=`id -un`
 restore_prog=restore_xlog
@@ -231,7 +231,7 @@ if [ $local_backup = "yes" ]; then
 else
     ssh $source "test -f $backup_dir/tblspc_list" 2>/dev/null
     if [ $? = 0 ]; then
-	tmp_dir=`mktemp -d -t pg_replitr.XXXXXXXXXX`
+	tmp_dir=`mktemp -d -t pg_pitr.XXXXXXXXXX`
 	if [ $? != 0 ]; then
 	    error "could not create temporary directory"
 	fi
