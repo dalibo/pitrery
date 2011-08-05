@@ -23,19 +23,19 @@ options:
 	@echo ${NAME} install options:
 	@echo "PREFIX     = ${PREFIX}"
 	@echo "BINDIR     = ${BINDIR}"
-	@echo "LIBDIR     = ${LIBDIR}"
+	@echo "LIBDIR     = ${LIBDIR}/${NAME}"
 	@echo "SYSCONFDIR = ${SYSCONFDIR}"
 	@echo
 
 $(BINS) $(LIBS): $(SRCS)
 	@echo translating paths in bash scripts
 	@sed -e "s%@BASH@%${BASH}%" \
-		-e "s%@SYSCONFDIR@%${SYSCONFDIR}/${NAME}%" \
+		-e "s%@SYSCONFDIR@%${SYSCONFDIR}%" \
 		-e "s%@LIBDIR@%${LIBDIR}/${NAME}%" $(addsuffix .bash,$@) > $@
 
 $(CONFS): $(SRCCONFS)
 	@echo translating paths in configuration files
-	@sed -e "s%@SYSCONFDIR@%${SYSCONFDIR}/${NAME}%" \
+	@sed -e "s%@SYSCONFDIR@%${SYSCONFDIR}%" \
 		-e "s%@LIBDIR@%${LIBDIR}/${NAME}%" $(addsuffix .sample,$@) > $@
 
 clean:
@@ -49,10 +49,10 @@ install: all
 	@mkdir -p ${DESTDIR}${BINDIR}
 	@cp -f $(BINS) ${DESTDIR}${BINDIR}
 	@chmod 755 $(addprefix ${DESTDIR}${BINDIR}/,$(BINS))
-	@echo installing helpers to ${DESTDIR}${LIBDIR}
-	@mkdir -p ${DESTDIR}${LIBDIR}
-	@cp -f $(LIBS) ${DESTDIR}${LIBDIR}
-	@chmod 755 $(addprefix ${DESTDIR}${LIBDIR}/,$(LIBS))
+	@echo installing helpers to ${DESTDIR}${LIBDIR}/${NAME}
+	@mkdir -p ${DESTDIR}${LIBDIR}/${NAME}
+	@cp -f $(LIBS) ${DESTDIR}${LIBDIR}/${NAME}
+	@chmod 755 $(addprefix ${DESTDIR}${LIBDIR}/${NAME}/,$(LIBS))
 	@echo installing configuration to ${DESTDIR}${SYSCONFDIR}
 	@mkdir -p ${DESTDIR}${SYSCONFDIR}
 	@cp -i $(CONFS) ${DESTDIR}${SYSCONFDIR} < /dev/null >/dev/null 2>&1
@@ -60,8 +60,8 @@ install: all
 uninstall:
 	@echo removing executable files from ${DESTDIR}${BINDIR}
 	@rm -f $(addprefix ${DESTDIR}${BINDIR}/,$(BINS))
-	@echo removing helpers from ${DESTDIR}${LIBDIR}
-	@rm -f $(addprefix ${DESTDIR}${LIBDIR}/,$(LIBS))
+	@echo removing helpers from ${DESTDIR}${LIBDIR}/${NAME}
+	@rm -f $(addprefix ${DESTDIR}${LIBDIR}/${NAME}/,$(LIBS))
 	@-rmdir ${DESTDIR}${LIBDIR}
 
 .PHONY: all options clean install uninstall

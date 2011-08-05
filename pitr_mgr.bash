@@ -24,7 +24,7 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-config_dir=@SYSCONFIG@
+config_dir=@SYSCONFDIR@
 config=pitr.conf
 scripts_dir=@LIBDIR@
 

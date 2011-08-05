@@ -9,5 +9,5 @@ BASH = /bin/bash
 # paths
 PREFIX = /usr/local
 BINDIR = ${PREFIX}/bin
-LIBDIR = ${PREFIX}/lib/${NAME}
+LIBDIR = ${PREFIX}/lib
 SYSCONFDIR = ${PREFIX}/etc/${NAME}
