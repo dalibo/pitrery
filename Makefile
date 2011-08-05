@@ -28,13 +28,13 @@ options:
 	@echo
 
 $(BINS) $(LIBS): $(SRCS)
-	@echo translating paths in bash scripts
+	@echo translating paths in bash scripts: $@
 	@sed -e "s%@BASH@%${BASH}%" \
 		-e "s%@SYSCONFDIR@%${SYSCONFDIR}%" \
 		-e "s%@LIBDIR@%${LIBDIR}/${NAME}%" $(addsuffix .bash,$@) > $@
 
 $(CONFS): $(SRCCONFS)
-	@echo translating paths in configuration files
+	@echo translating paths in configuration files: $@
 	@sed -e "s%@SYSCONFDIR@%${SYSCONFDIR}%" \
 		-e "s%@LIBDIR@%${LIBDIR}/${NAME}%" $(addsuffix .sample,$@) > $@
 
