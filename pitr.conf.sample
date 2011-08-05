@@ -44,7 +44,7 @@ BACKUP_HOST=
 # to get archived WAL segments that needed to be replayed on the
 # cluster files.  This can be any valid command or script for the
 # restore_command parameter of PostgreSQL (in recovry.conf).  The
-# restore_xlog script is intended to be used here.
+# restore_xlog script is intended to be used here: leave empty to use it
 RESTORE_COMMAND=
 
 # The directory where to look for archived WAL files on BACKUP_HOST.

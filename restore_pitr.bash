@@ -30,7 +30,7 @@ backup_root=/var/lib/pgsql/backups
 label_prefix="pitr"
 pgdata=/var/lib/pgsql/data
 owner=`id -un`
-restore_prog=restore_xlog
+restore_prog=@BINDIR@/restore_xlog
 archive_dir=/var/lib/pgsql/archived_xlog
 
 usage() {
