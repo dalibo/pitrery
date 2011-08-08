@@ -165,7 +165,8 @@ for line in `cat $NODE_LIST | grep -vE "^(#|	| |$)" | sed -re 's/[[:space:]]+#.*
 	    ;;
 	pitr)
 	    if [ "$local_copy" = "yes" ]; then
-		if [ "$ALLOW_LOCAL" = "yes" -a -n "$destdir" ]; then
+		# archiving for backup purposes bypasses ALLOW_LOCAL
+		if [ -n "$destdir" ]; then
 		    [ -d $destdir ] || mkdir -p $destdir 1>&2
 		    if [ $? != 0 ]; then
 			msg_error "Unable to create $destdir"
