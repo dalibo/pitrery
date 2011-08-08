@@ -31,7 +31,7 @@ scripts_dir=@LIBDIR@
 usage() {
     echo "usage: `basename $0` [options] action [args]"
     echo "options:"
-    echo "    -C file      Path to the configuration file"
+    echo "    -c file      Path to the configuration file"
     echo "    -n           Show the command instead of executing it"
     echo "    -h           Print help"
     echo
@@ -53,9 +53,9 @@ info() {
     echo "INFO: $*"
 }
 
-while getopts "C:nh" opt; do
+while getopts "c:nh" opt; do
     case "$opt" in
-	C) config=$OPTARG;;
+	c) config=$OPTARG;;
 	n) dry_run="echo";;
 	h) usage 1;;
 	*) error "error while processing options";;
@@ -71,8 +71,14 @@ fi
 action=${@:$OPTIND:1}
 OPTIND=$(( $OPTIND + 1 ))
 
+# check if the config option is a path or in the current directory
+# otherwise prepend the configuration deirectory and .conf
+echo $config | grep -q '\/' 
+if [ $? != 0 ] && [ ! -f $config ]; then
+    config="$config_dir/`basename $config .conf`.conf"
+fi
+
 # Load the configuration file
-echo $config | grep -q '\/' || config="$config_dir/$config"
 if [ -f $config ]; then
     . $config
 else
