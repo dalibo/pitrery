@@ -1,0 +1,16 @@
+The rpm/ directory contains a spec file and a patch to create RPM
+files.  The patch configures the Makfile (config.mk) to put things in
+/usr/bin, /usr/lib and /etc/sysconfig/pgsql.
+
+To build a rpm:
+- copy the spec file to /usr/src/redhat/SPECS
+- copy the patch to /usr/src/redhat/SOURCES
+- go to https://github.com/dalibo/pitrery and download a tar from a
+  tag and put the tarball in /usr/src/redhat/SOURCES
+- edit the spec file to change:
+  . Version: use the tag you chose
+  . Source0: use the filename you got from github
+  . the -n arg of %setup: get the subdirectory of the tarball and put
+    it there. This is necessary because github includes the commit id
+    of the tag in the name of the subdirectory
+- run rpmbuild on the spec file as usual

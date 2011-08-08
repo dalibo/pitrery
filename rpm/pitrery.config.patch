@@ -1,0 +1,12 @@
+--- config.mk.orig	2011-08-08 14:37:40.936961997 +0200
++++ config.mk	2011-08-08 14:39:03.713586742 +0200
+@@ -7,7 +7,7 @@
+ BASH = /bin/bash
+ 
+ # paths
+-PREFIX = /usr/local
++PREFIX = /usr
+ BINDIR = ${PREFIX}/bin
+ LIBDIR = ${PREFIX}/lib
+-SYSCONFDIR = ${PREFIX}/etc/${NAME}
++SYSCONFDIR = /etc/sysconfig/pgsql
