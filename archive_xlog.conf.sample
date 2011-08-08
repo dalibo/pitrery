@@ -16,5 +16,5 @@ ALLOW_LOCAL="no"
 # to stderr, to allow the logging collector or redirection
 # to catch them
 SYSLOG="no"
-SYSLOG_FACILITY="local1"
+SYSLOG_FACILITY="local0"
 SYSLOG_IDENT="postgres"
