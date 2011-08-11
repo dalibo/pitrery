@@ -1,11 +1,11 @@
 Name:           pitrery
-Version:        1.0rc2
+Version:        1.0
 Release:        1%{?dist}
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
 Group:          Applications/Databases
 URL:            https://github.com/dalibo/pitrery
-Source0:        pitrery-v1.0rc2.tar.gz
+Source0:        pitrery-1.0.tar.gz
 Patch1:         pitrery.config.patch
 BuildArch:      noarch
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -21,7 +21,7 @@ reachable with SSH
 - Management of backup retention
 
 %prep
-%setup -q -n dalibo-pitrery-00d7b11
+%setup -q
 %patch1 -p0
 
 %build
@@ -43,6 +43,9 @@ make install DESTDIR=%{buildroot}
 /usr/lib/pitrery/restore_pitr
 
 %changelog
+* Thu Aug 11 2011 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.0-1
+- Update to 1.0
+
 * Mon Aug  8 2011 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.0rc2-1
 - New package
 
