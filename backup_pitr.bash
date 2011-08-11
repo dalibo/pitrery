@@ -195,10 +195,15 @@ cd $was
 # defined tablespaces.
 info "listing tablespaces"
 tblspc_list=`mktemp -t backup_pitr.XXXXXX`
+if [ $? != 0 ]; then
+    error "could not create temporary file"
+fi
+
 $psql_command -Atc "SELECT spcname,spclocation,oid FROM pg_tablespace WHERE spcname NOT IN ('pg_default', 'pg_global') AND spclocation <> '';" $psql_condb | tr ' ' '_' > $tblspc_list
 rc=(${PIPESTATUS[*]})
 psql_rc=${rc[0]}
 tr_rc=${rc[1]}
+
 if [ $psql_rc != 0 ] || [ $tr_rc != 0 ]; then
     error "could not get the list of tablespaces from PostgreSQL"
 fi
