@@ -106,7 +106,6 @@ fi
 
 # Initialize counters
 error_count=0
-node_count=0
 
 # Send the WAL file to each node from the list
 for line in `cat $NODE_LIST | grep -vE "^(#|	| |$)" | sed -re 's/[[:space:]]+#.*$//' | sed -re 's/[[:space:]]+/,/g'`; do
@@ -201,20 +200,14 @@ for line in `cat $NODE_LIST | grep -vE "^(#|	| |$)" | sed -re 's/[[:space:]]+#.*
 	    fi
 	    ;;
     esac
-
-    # Update node counter
-    node_count=$(($node_count + 1))
 done
 
-# Compute return code
-# If the xlog file could be sent to one node at least,
-# then the archive command is considered succesful. If
-# every node is failing then return an error.
-# Allowing archive command to fail on some nodes allow
-# maintenance tasks on the specific nodes without impacting
-# too much the archiving. Beware that logs must be followed
-# to detect these non critical failures.
-if [ $error_count -ge $node_count ]; then
+# Compute return code If the xlog file could be sent to one node at
+# least, then the archive command is considered as failed.  This
+# allows to keep WAL files on the master until the slave is back, and
+# avoid "holes" in the WAL files chains when a slave temporarily
+# unavailable.
+if [ $error_count -ge 1 ]; then
     exit 1
 else
     exit 0
