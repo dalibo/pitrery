@@ -18,6 +18,7 @@ TODO
   . (v1.1+) Add configuration to support retrieving WALs from a different host
 
 - restore_pitr:
+  . (v1.1+) Select the base backup based on the date of pg_stop_backup() instead of the start.
   . (v1.1+) Add an option to force overriding contents of non empty directories
   . (v1.1+) Rework and check behavior when run by root
   . (v1.1+) Improve handling of custom restore_command, only use restore_xlog when the custom
