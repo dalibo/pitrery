@@ -1,5 +1,6 @@
 pitrery: Point-In-Time Recovery (PITR) tools for PostgreSQL
 
+
 FEATURES
 --------
 
@@ -7,23 +8,37 @@ pitrery is set of tools to ease to management of PITR backups and
 restores:
 
 - Management of WAL segments archiving with compression to hosts
-reachable with SSH
+  reachable with SSH or on the local machine
+
 - Automation of the base backup procedure
+
 - Restore to a particular date
+
 - Management of backup retention
+
 
 QUICK SETUP
 -----------
 
 1. Get the source
+
 2. Edit the config.mk
+
 3. Run make and make install
+
 4. Configure WAL archiving:
+
    - Edit archive_xlog.conf
+
    - Add the target hosts (IP addresses only) for the archives
+     to the archive_nodes.conf file
+
 5. Copy pitr.conf to a new file to configure a particular backup
+
 6. Edit this file to fit your system
+
 7. Run pitr_mgr to perform your backups
+
 
 DEVELOPMENT
 -----------
