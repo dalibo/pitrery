@@ -44,6 +44,7 @@ usage() {
     echo "    -b dir          Backup storage directory"
     echo "    -l label        Label used when backup was performed"
     echo "    -D dir          Path to target \$PGDATA"
+    echo "    -h host         Host storing WAL files"
     echo "    -X dir          Path to the archived xlog directory"
     echo "    -d date         Restore until this date"
     echo "    -O user         If run by root, owner of the files"
@@ -137,12 +138,13 @@ check_and_fix_directory() {
 
 
 # Process CLI Options
-while getopts "Lb:l:D:X:d:O:r:?" opt; do
+while getopts "Lb:l:D:h:X:d:O:r:?" opt; do
     case "$opt" in
 	L) local_backup="yes";;
 	b) backup_root=$OPTARG;;
 	l) label_prefix=$OPTARG;;
 	D) pgdata=$OPTARG;;
+	h) archive_host=$OPTARG;;
 	X) archive_dir=$OPTARG;;
 	d) target_date=$OPTARG;;
 	O) owner=$OPTARG;;
@@ -335,7 +337,7 @@ if [ $prog = "restore_xlog" ]; then
     if [ $local_backup = "yes" ]; then
 	restore_prog="$restore_prog -n 127.0.0.1 -d $archive_dir %f %p"
     else
-	restore_prog="$restore_prog -n $source -d $archive_dir %f %p"
+	restore_prog="$restore_prog -n ${archive_host:-$source} -d $archive_dir %f %p"
     fi
 fi
 echo "restore_command = '$restore_prog'" > $pgdata/recovery.conf

@@ -15,7 +15,6 @@ TODO
   . (v1.1+) create package in pkgsrc-wip
 
 - pitr_mgr:
-  . (v1.1+) Add configuration to support retrieving WALs from a different host
 
 - restore_pitr:
   . (v1.1+) Select the base backup based on the date of pg_stop_backup() instead of the start.

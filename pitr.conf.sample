@@ -47,6 +47,9 @@ BACKUP_HOST=
 # restore_xlog script is intended to be used here: leave empty to use it
 RESTORE_COMMAND=
 
+# The host storing the archiced WAL files. If left empty, use BACKUP_HOST
+ARCHIVE_HOST=
+
 # The directory where to look for archived WAL files on BACKUP_HOST.
 ARCHIVE_DIR="/var/lib/pgsql/archived_xlog"
 
