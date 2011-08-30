@@ -60,6 +60,10 @@ error() {
     exit 1
 }
 
+warn() {
+    echo "WARNING: $*" 1>&2
+}
+
 info() {
     echo "INFO: $*"
 }
@@ -153,7 +157,6 @@ while getopts "Lb:l:D:h:X:d:O:r:?" opt; do
 	*) error "Unknown error while processing options";;
     esac
 done
-#set -- "${@:$OPTIND}"
 
 source=${@:$OPTIND:1}
 
@@ -163,43 +166,69 @@ if [ -z "$source" ] && [ $local_backup != "yes" ]; then
     usage 1
 fi
 
-# XXX check input date
+# Check input date. The format is 'YYYY-MM-DD HH:MM:SS [(+|-)XXXX]'
+# with XXXX the timezone offset on 4 digits Having the timezone on 4
+# digits let us use date to convert it to a timestamp for comparison
+echo $target_date | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}( *[+-][0-9]{4})?$'
+if [ $? != 0 ]; then
+    error "bad target date format. Use 'YYYY-MM-DD HH:MM:SS [(+|-)TZTZ]' with an optional 4 digit timezone offset"
+fi
 
-# find the backup according to given date: $backup_dir
+target_timestamp=`TZ=UTC date -d "$target_date" -u +%s`
+if [ $? != 0 ]; then
+    error "could not get timestamp from target date. Check your date command"
+fi
+
+# Find the backup according to given date.  The target date converted
+# to a timestamp is compared to the timestamp of the stop time of the
+# backup. Only after the stop time a backup is sure to be consistent.
 info "searching backup directory"
 if [ -n "$target_date" ]; then
     info "target date is: $target_date"
 
-    # date format is numerically ordered
-    tdate=`echo $target_date | sed -e 's/[^0-9]//g'`
-
     # search the store
     if [ $local_backup = "yes" ]; then
-	list=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null`
+	list=`ls $backup_root/$label_prefix/*/backup_timestamp 2>/dev/null`
 	if [ $? != 0 ]; then
 	    error "could not list the content of $backup_root/$label_prefix/"
 	fi
     else
-	list=`ssh $source "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
+	list=`ssh $source "ls -d $backup_root/$label_prefix/*/backup_timestamp" 2>/dev/null`
 	if [ $? != 0 ]; then
 	    error "could not list the content of $backup_root/$label_prefix/ on $source"
 	fi
     fi
 
     # find the latest backup
-    for d in $list; do
-	d=`basename $d`
-	bdate=`echo $d | sed -e 's/[\.-]//g'`
-	if [ $bdate -gt $tdate ]; then
-	    break
+    for t in $list; do
+	d=`dirname $t`
+	
+	# get the timestamp of the end of the backup
+	if [ $local_backup = "yes" ]; then
+	    backup_timestamp=`cat $t`
+	    if [ $? != 0 ]; then
+		warn "could not get the ending timestamp of $t"
+		continue
+	    fi
 	else
-	    backup_date=$d
+	    backup_timestamp=`ssh $source cat $t 2>/dev/null`
+	    if [ $? != 0 ]; then
+		warn "could not get the ending timestamp of $t"
+		continue
+	    fi
+	fi
+
+	if [ $backup_timestamp -ge $target_timestamp ]; then
+	    break;
+	else
+	    backup_date=`basename $d`
 	fi
     done
 
     if [ -z "$backup_date" ]; then
 	error "Could not find a backup at given date $target_date"
     fi
+
 else
     # get the latest
     if [ $local_backup = "yes" ]; then
@@ -223,6 +252,7 @@ fi
 backup_dir=$backup_root/$label_prefix/$backup_date
 
 info "backup directory is $backup_dir"
+exit 1
 
 # Check target directories
 # get the tablespace list and check the directories
@@ -332,7 +362,7 @@ fi
 
 # Create a recovery.conf file in $PGDATA
 info "preparing recovery.conf file"
-prog=`basename $restore_prog`
+prog=`basename "$restore_prog"`
 if [ $prog = "restore_xlog" ]; then
     if [ $local_backup = "yes" ]; then
 	restore_prog="$restore_prog -n 127.0.0.1 -d $archive_dir %f %p"

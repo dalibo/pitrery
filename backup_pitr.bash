@@ -53,6 +53,10 @@ error() {
     exit 1
 }
 
+warn() {
+    echo "WARNING: $*" 1>&2
+}
+
 info() {
     echo "INFO: $*"
 }
@@ -125,8 +129,7 @@ stop_backup() {
 }
 
 # Prepare target directoties
-backup_dir=$backup_root/${label_prefix}/${current_time}
-info "backup directory is $backup_dir"
+backup_dir=$backup_root/${label_prefix}/current
 info "preparing directories"
 
 if [ $local_backup = "yes" ]; then
@@ -251,12 +254,39 @@ done
 # Stop backup
 stop_backup
 
+# Get the stop date of the backup and convert it to UTC, this make
+# it easier when searching for a proper backup when restoring
+stop_time=`grep "STOP TIME:" $pgdata/pg_xlog/${start_backup_xlog}.*.backup | sed -e 's/STOP TIME: //'`
+if [ -n "$stop_time" ]; then
+    timestamp=`$psql_command -Atc "SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '${stop_time}');" $psql_condb`
+    if [ $? != 0 ]; then
+	warn "could not get the stop time timestamp from PostgreSQL"
+    fi
+fi
+
+# Compute the name of the backup directory from the stop time
+backup_name=`echo $stop_time | awk '{ print $1"_"$2 }' | sed -e 's/[:-]/./g'`
+
+# Finish the backup by copying needed files and rename the backup
+# directory to a useful name
 if [ $local_backup = "yes" ]; then
+    # Rename the backup directory
+    mv $backup_dir $backup_root/${label_prefix}/$backup_name
+    if [ $? != 0 ]; then
+	error "could not rename the backup directory"
+    fi
+    backup_dir=$backup_root/${label_prefix}/$backup_name
+    
     # Copy the backup history file
     info "copying the backup history file"
     cp $pgdata/pg_xlog/${start_backup_xlog}.*.backup $backup_dir/backup_label
     if [ $? != 0 ]; then
 	error "could not copy backup history file to $backup_dir"
+    fi
+
+    # Save the end of backup timestamp to a file
+    if [ -n "$timestamp" ]; then
+	echo $timestamp > $backup_dir/backup_timestamp || warn "could not save timestamp"
     fi
 
     # Add the name and location of the tablespace to an helper file for
@@ -267,7 +297,21 @@ if [ $local_backup = "yes" ]; then
 	error "could not copy the tablespace list to $backup_dir"
     fi
 else
+    # scp needs IPv6 between brackets
     echo $target | grep -q ':' && target="[${target}]"
+
+    # Rename the backup directory
+    ssh ${target} "mv $backup_dir $backup_root/${label_prefix}/$backup_name" 2>/dev/null
+    if [ $? != 0 ]; then
+	error "could not rename the backup directory"
+    fi
+    backup_dir=$backup_root/${label_prefix}/$backup_name
+    
+    # Save the end of backup timestamp to a file
+    if [ -n "$timestamp" ]; then
+	ssh ${target} "echo $timestamp > $backup_dir/backup_timestamp" || warn "could not save timestamp"
+    fi
+
     # Copy the backup history file
     info "copying the backup history file"
     scp $pgdata/pg_xlog/${start_backup_xlog}.*.backup ${target}:$backup_dir/backup_label > /dev/null
