@@ -1,7 +1,6 @@
 TODO
 
 - general:
-  . (v1.1)  Add support for hostnames, now only IP addresses are possible
   . (v1.1)  Support give ssh/scp command options
   . (v1.1)  Allow to specify a username for SSH connections
   . (v1.2+) Reorganise with subdirectories
@@ -15,8 +14,6 @@ TODO
 - pitr_mgr:
 
 - restore_pitr:
-  + (v1.1)  Select the base backup based on the date of pg_stop_backup() instead
-            of the start.
   . (v1.2+) Add an option to force overriding contents of non empty directories
   . (v1.1)  Rework and check behavior when run by root
 

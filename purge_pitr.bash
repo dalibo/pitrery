@@ -24,6 +24,13 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+# Hard coded configuration 
+local_backup="no"
+backup_root=/var/lib/pgsql/backups
+label_prefix="pitr"
+local_xlog="no"
+xlog_dir=/var/lib/pgsql/archived_xlog
+
 usage() {
     echo "`basename $0` cleans old PITR backups"
     echo "usage: `basename $0` [options] [hostname]"
@@ -42,12 +49,30 @@ usage() {
     exit $1
 }
 
-# Hard coded configuration 
-local_backup="no"
-backup_root=/var/lib/pgsql/backups
-label_prefix="pitr"
-local_xlog="no"
-xlog_dir=/var/lib/pgsql/archived_xlog
+is_local() {
+
+    # Check if the input is an IP address otherwise resolve to an IP address
+    echo -e "$1\n" | grep -qE '^(([0-9]{1,3}\.){3}[0-9]{1,3}|([0-9a-fA-F]{0,4}:+){1,7}[0-9a-fA-F]{0,4})$'
+    if [ $? != 0 ]; then
+        # use ping to resolve the ip
+	ip=`ping -c 1 -w 1 -q $1 2>/dev/null | sed -nE 's/.*\((([0-9]{1,3}\.?){4}).*/\1/p'`
+	if [ -z "$ip" ]; then
+	    # try ipv6
+	    ip=`ping6 -c 1 -w 1 -q -n $1 | sed -nE 's/.*\((([0-9a-fA-F]{0,4}:?){1,8}).*/\1/p'`
+	fi
+    else
+	ip=$1
+    fi
+
+    # Check if the IP address is local
+    LC_ALL=C /sbin/ifconfig | grep -qE "(addr:${ip}[[:space:]]|inet6 addr: ${ip}/)"
+    if [ $? = 0 ]; then
+	return 0
+    else
+	return 1
+    fi
+
+}
 
 info() {
     echo "INFO: $*"
@@ -95,23 +120,16 @@ if [ -z "$max_count" -a -z "$max_days" ]; then
     usage 1
 fi
 
-# Check if bakcup host is local and prepare for IPv6 if needed
-LC_ALL=C /sbin/ifconfig | grep -qE "(addr:${target}[[:space:]]|inet6 addr: ${target}/)"
-if [ $? = 0 ]; then
-    local_backup="yes"
-fi
-
 # When the host storing the WAL files is not given, use the host of the backups
-if [ -z "$xlog_host" ]; then
-    if [ $local_backup = "yes" ]; then
-	local_xlog="yes"
-    else
-	xlog_host=$target
-    fi
-fi
+[ -z "$xlog_host" ] && xlog_host=$target
+
+# Check if the hosts are local
+is_local $target && local_backup="yes"
+is_local $xlog_host && local_xlog="yes"
 
 # Prepare the IPv6 address for use with SSH
 echo $target | grep -q ':' && target="[${target}]"
+echo $xlog_host | grep -q ':' && xlog_host="[${xlog_host}]"
 
 # Get the list of backups
 if [ $local_backup = "yes" ]; then
