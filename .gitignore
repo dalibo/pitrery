@@ -1,1 +1,11 @@
 *~
+archive_nodes.conf
+archive_xlog
+archive_xlog.conf
+backup_pitr
+list_pitr
+pitr.conf
+pitr_mgr
+purge_pitr
+restore_pitr
+restore_xlog
