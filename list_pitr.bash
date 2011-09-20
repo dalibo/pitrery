@@ -33,6 +33,7 @@ usage() {
     echo "usage: `basename $0` [options] [hostname]"
     echo "options:"
     echo "    -L              List from local storage"
+    echo "    -u username     Username for SSH login"
     echo "    -b dir          Backup storage directory"
     echo "    -l label        Label used when backup was performed"
     echo
@@ -47,9 +48,10 @@ error() {
 }
 
 # Process CLI Options
-while getopts "Lb:l:?" opt; do
+while getopts "Lu:b:l:?" opt; do
     case "$opt" in
 	L) local_backup="yes";;
+	u) ssh_user=$OPTARG;;
 	b) backup_root=$OPTARG;;
 	l) label_prefix=$OPTARG;;
 	"?") usage 1;;
@@ -75,7 +77,7 @@ if [ $local_backup = "yes" ]; then
     # Print a header
     echo "List of local backups:"
 else
-    list=`ssh $host "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
+    list=`ssh ${ssh_user:+$ssh_user@}$host "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
     if [ $? != 0 ]; then
 	error "could not list the content of $backup_root/$label_prefix/ on $host"
     fi
@@ -103,9 +105,9 @@ for dir in $list; do
 	    st=1
 	fi
     else
-	ssh $host "test -f $dir/backup_label" 2>/dev/null
+	ssh ${ssh_user:+$ssh_user@}$host "test -f $dir/backup_label" 2>/dev/null
 	if [ $? = 0 ]; then
-	    ssh $host "cat $dir/backup_label" | grep "START TIME:"
+	    ssh ${ssh_user:+$ssh_user@}$host "cat $dir/backup_label" 2>/dev/null | grep "START TIME:"
 	    rc=(${PIPESTATUS[*]})
 	    ssh_rc=${rc[0]}
 	    grep_rc=${rc[1]}

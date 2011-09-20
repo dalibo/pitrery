@@ -34,6 +34,7 @@ usage() {
     echo "    -L              Perform a local backup"
     echo "    -b dir          Backup directory"
     echo "    -l label        Backup label, it will be suffixed with the date and time"
+    echo "    -u username     Username for SSH login"
     echo "    -D dir          Path to \$PGDATA"
     echo
     echo "Connection options:"
@@ -68,7 +69,7 @@ label_prefix="pitr"
 pgdata=/var/lib/pgsql/data
 
 # CLI options
-args=`getopt "Lb:l:D:P:h:p:U:d:?" $*`
+args=`getopt "Lb:l:u:D:P:h:p:U:d:?" $*`
 if [ $? -ne 0 ]
 then
     usage 2
@@ -81,6 +82,7 @@ do
         -L) local_backup="yes"; shift;;
 	-b) backup_root=$2; shift 2;;
 	-l) label_prefix=$2; shift 2;;
+	-u) ssh_user=$2; shift 2;;
 	-D) pgdata=$2; shift 2;;
 
 	-P) psql_command=$2; shift 2;;
@@ -144,12 +146,12 @@ if [ $local_backup = "yes" ]; then
     fi
 
 else
-    ssh $target "mkdir -p $backup_dir"
+    ssh ${ssh_user:+$ssh_user@}$target "mkdir -p $backup_dir" 2>/dev/null
     if [ $? != 0 ]; then
 	error "could not create $backup_dir"
     fi
 
-    ssh $target "mkdir -p $backup_dir/tblspc"
+    ssh ${ssh_user:+$ssh_user@}$target "mkdir -p $backup_dir/tblspc" 2>/dev/null
     if [ $? != 0 ]; then
 	error "could not create $backup_dir/tblspc"
     fi
@@ -183,7 +185,7 @@ if [ $local_backup = "yes" ]; then
 	error "could not tar PGDATA"
     fi
 else
-    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip | ssh $target "cat > $backup_dir/pgdata.tar.gz"
+    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/pgdata.tar.gz" 2>/dev/null
     rc=(${PIPESTATUS[*]})
     tar_rc=${rc[0]}
     gzip_rc=${rc[1]}
@@ -238,7 +240,7 @@ for line in `cat $tblspc_list`; do
 	    error "could not tar tablespace $name"
 	fi
     else
-	tar -cpf - --ignore-failed-read * 2>/dev/null | gzip | ssh $target "cat > $backup_dir/tblspc/${name}.tar.gz"
+	tar -cpf - --ignore-failed-read * 2>/dev/null | gzip | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/tblspc/${name}.tar.gz" 2>/dev/null
 	rc=(${PIPESTATUS[*]})
 	tar_rc=${rc[0]}
 	gzip_rc=${rc[1]}
@@ -301,7 +303,7 @@ else
     echo $target | grep -q ':' && target="[${target}]"
 
     # Rename the backup directory
-    ssh ${target} "mv $backup_dir $backup_root/${label_prefix}/$backup_name" 2>/dev/null
+    ssh ${ssh_user:+$ssh_user@}${target} "mv $backup_dir $backup_root/${label_prefix}/$backup_name" 2>/dev/null
     if [ $? != 0 ]; then
 	error "could not rename the backup directory"
     fi
@@ -309,12 +311,12 @@ else
     
     # Save the end of backup timestamp to a file
     if [ -n "$timestamp" ]; then
-	ssh ${target} "echo $timestamp > $backup_dir/backup_timestamp" || warn "could not save timestamp"
+	ssh ${ssh_user:+$ssh_user@}${target} "echo $timestamp > $backup_dir/backup_timestamp" 2>/dev/null || warn "could not save timestamp"
     fi
 
     # Copy the backup history file
     info "copying the backup history file"
-    scp $pgdata/pg_xlog/${start_backup_xlog}.*.backup ${target}:$backup_dir/backup_label > /dev/null
+    scp $pgdata/pg_xlog/${start_backup_xlog}.*.backup ${ssh_user:+$ssh_user@}${target}:$backup_dir/backup_label > /dev/null 
     if [ $? != 0 ]; then
 	error "could not copy backup history file to ${target}:$backup_dir"
     fi
@@ -322,7 +324,7 @@ else
     # Add the name and location of the tablespace to an helper file for
     # the restoration script
     info "copying the tablespaces list"
-    scp $tblspc_list ${target}:$backup_dir/tblspc_list >/dev/null
+    scp $tblspc_list ${ssh_user:+$ssh_user@}${target}:$backup_dir/tblspc_list >/dev/null
     if [ $? != 0 ]; then
 	error "could not copy the tablespace list to ${target}:$backup_dir"
     fi

@@ -40,6 +40,10 @@ BACKUP_LABEL="pitr"
 # be allowed. Only specify an IP address here.
 BACKUP_HOST=
 
+# User to use when accessing BACKUP_HOST through SSH.  If blank, the
+# login will be performed with the default SSH configuration.
+BACKUP_USER=
+
 # After restoring from a backup, PostgreSQL will need a command to run
 # to get archived WAL segments that needed to be replayed on the
 # cluster files.  This can be any valid command or script for the
@@ -49,6 +53,9 @@ RESTORE_COMMAND=
 
 # The host storing the archiced WAL files. If left empty, use BACKUP_HOST
 ARCHIVE_HOST=
+
+# The user for login to ARCHIVE_HOST through SSH. If blank, use BACKUP_USER
+ARCHIVE_USER=
 
 # The directory where to look for archived WAL files on BACKUP_HOST.
 ARCHIVE_DIR="/var/lib/pgsql/archived_xlog"

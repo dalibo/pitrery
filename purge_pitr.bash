@@ -38,7 +38,9 @@ usage() {
     echo "    -L           Purge a local store"
     echo "    -l label     Label to process"
     echo "    -b dir       Backup directory"
+    echo "    -u username  Username for SSH login to the backup host"
     echo "    -n host      Host storing archived WALs"
+    echo "    -U username  Username for SSH login to WAL storage host"
     echo "    -X dir       Archived WALs directory"
     echo
     echo "    -m count     Keep this number of backups"
@@ -84,7 +86,7 @@ error() {
 }
 
 # CLI options
-args=`getopt "Ll:b:n:X:m:d:?" $*`
+args=`getopt "Ll:b:u:n:U:X:m:d:?" $*`
 if [ $? -ne 0 ]
 then
     usage 2
@@ -97,7 +99,9 @@ do
         -L) local_backup="yes"; shift;;
 	-l) label_prefix=$2; shift 2;;
 	-b) backup_root=$2; shift 2;;
+	-u) ssh_user=$2; shift 2;;
 	-n) xlog_host=$2; shift 2;;
+	-U) xlog_ssh_user=$2; shift 2;;
 	-X) xlog_dir=$2; shift 2;;
 	-m) max_count=$2; shift 2;;
 	-d) max_days=$2; shift 2;;
@@ -122,6 +126,7 @@ fi
 
 # When the host storing the WAL files is not given, use the host of the backups
 [ -z "$xlog_host" ] && xlog_host=$target
+[ -z "$xlog_ssh_user" ] && xlog_ssh_user=$ssh_user
 
 # Check if the hosts are local
 is_local $target && local_backup="yes"
@@ -140,7 +145,7 @@ if [ $local_backup = "yes" ]; then
     fi
 
 else
-    list=`ssh $target "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
+    list=`ssh ${ssh_user:+$ssh_user@}$target "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
     if [ $? != 0 ]; then
 	echo "ERROR: could not list the content of $backup_root/$label_prefix/ on $target" 1>&2
 	exit 1
@@ -162,7 +167,7 @@ if [ -n "$max_count" ]; then
 		fi
 	    else
 		info "purging $dir"
-		ssh $target "rm -rf $dir"
+		ssh ${ssh_user:+$ssh_user@}$target "rm -rf $dir" 2>/dev/null
 		if [ $? != 0 ]; then
 		    echo "WARNING: Unable to remove $target:$dir" 1>&2
 		fi
@@ -184,7 +189,7 @@ else
 		    fi
 		else
 		    info "purging $dir"
-		    ssh $target "rm -rf $dir"
+		    ssh ${ssh_user:+$ssh_user@}$target "rm -rf $dir" 2>/dev/null
 		    if [ $? != 0 ]; then
 			echo "WARNING: Unable to remove $target:$dir" 1>&2
 		    fi
@@ -205,7 +210,7 @@ if [ $local_backup = "yes" ]; then
 	exit 1
     fi
 else
-    remote_backup_label=`ssh $target "ls -d $backup_root/$label_prefix/[0-9]*/backup_label" 2>/dev/null | head -1`
+    remote_backup_label=`ssh ${ssh_user:+$ssh_user@}$target "ls -d $backup_root/$label_prefix/[0-9]*/backup_label" 2>/dev/null | head -1`
     if [ $? != 0 ]; then
 	echo "ERROR: could not list the content of $backup_root/$label_prefix/ on $source" 1>&2
 	exit 1
@@ -218,7 +223,7 @@ else
 	    exit 1
 	fi
     
-	scp $target:$remote_backup_label $tmp_dir >/dev/null
+	scp ${ssh_user:+$ssh_user@}$target:$remote_backup_label $tmp_dir >/dev/null 2>&1
 	if [ $? != 0 ]; then
 	    echo "ERROR: could not copy backup label from $target" 1>&2
 	    exit 1
@@ -259,7 +264,7 @@ if [ $local_xlog = "yes" ]; then
 	fi
     done
 else
-    wal_list=`ssh $xlog_host "ls $xlog_dir" 2>/dev/null`
+    wal_list=`ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "ls $xlog_dir" 2>/dev/null`
     if [ $? != 0 ]; then
 	echo "ERROR: could not list the content of $xlog_dir on $xlog_host" 1>&2
 	exit 1
@@ -271,7 +276,7 @@ else
 	if [ $? != 0 ]; then
 	    wal_num=$(( 16#$w ))
 	    if [ $wal_num -lt $max_wal_num ]; then
-		ssh $xlog_host "rm $xlog_dir/$w*.gz"
+		ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "rm $xlog_dir/$w*.gz" 2>/dev/null
 		if [ $? != 0 ]; then
 		    echo "WARNING: Unable to remove $w on $xlog_host" 1>&2
 		fi

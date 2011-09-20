@@ -33,12 +33,13 @@ msg_error() {
 usage() {
     echo "usage: `basename $0` [options] XLOGFILE"
     echo "options:"
-    echo "    -L          allow local archiving"
-    echo "    -C conf     configuration file"
-    echo "    -n file     node list"
-    echo "    -d dir      target directory"
+    echo "    -L             allow local archiving"
+    echo "    -C conf        configuration file"
+    echo "    -n file        node list"
+    echo "    -u username    username for SSH login"
+    echo "    -d dir         target directory"
     echo
-    echo "    -h          print help"
+    echo "    -h             print help"
     echo
     exit $1
 }
@@ -76,7 +77,7 @@ ALLOW_LOCAL="no"
 SYSLOG="no"
 
 # Command line options
-args=`getopt "LC:l:n:d:h" $*`
+args=`getopt "LC:l:n:u:d:h" $*`
 if [ $? -ne 0 ]
 then
     usage 2
@@ -89,6 +90,7 @@ do
         -L) CLI_ALLOW_LOCAL="yes"; shift;;
 	-C) CONFIG=$2; shift 2;;
 	-n) CLI_NODE_LIST=$2; shift 2;;
+	-u) CLI_SSH_USER=$2; shift 2;;
 	-d) CLI_DEST=$2; shift 2;;
 
         -h) usage 1;;
@@ -112,6 +114,7 @@ fi
 # Override configuration with cli options
 [ -n "$CLI_ALLOW_LOCAL" ] && ALLOW_LOCAL=$CLI_ALLOW_LOCAL
 [ -n "$CLI_NODE_LIST" ] && NODE_LIST=$CLI_NODE_LIST
+[ -n "$CLI_SSH_USER" ] && SSH_USER=$CLI_SSH_USER
 [ -n "$CLI_DEST" ] && DEST=$CLI_DEST
 
 # Redirect output to syslog if configured
@@ -135,9 +138,23 @@ error_count=0
 # Send the WAL file to each node from the list
 for line in `cat $NODE_LIST | grep -vE "^(#|	| |$)" | sed -re 's/[[:space:]]+#.*$//' | sed -re 's/[[:space:]]+/,/g'`; do
     # Split the line on : which can be followed by an optional target path
-    node=`echo $line | awk -F, '{ print $1 }' | sed -re 's/(\[|\])//g'`
+    fullnode=`echo $line | awk -F, '{ print $1 }' | sed -re 's/(\[|\])//g'`
     destdir=`echo $line | awk -F, '{ print $2 }'`
     mode=`echo $line | awk -F, '{ print $3 }'`
+
+    # split the node in user and host
+    echo $fullnode | grep -q '@'
+    if [ $? = 0 ]; then
+	username=`echo $fullnode | awk -F'@' '{ print $1 }'`
+	node=`echo $fullnode | awk -F'@' '{ print $2 }'`
+    else
+	node=$fullnode
+    fi
+
+    # fallback on default when username is not given. The precedence
+    # order for the username is then: archive_nodes.conf > command
+    # line > archive_xlog.conf > current user
+    [ -z "$username" ] && username=$SSH_USER
 
     if [ -z "$destdir" ] || [ "$destdir" = "-" ]; then
 	# the destination path was not given, fallback to default
@@ -174,13 +191,13 @@ for line in `cat $NODE_LIST | grep -vE "^(#|	| |$)" | sed -re 's/[[:space:]]+#.*
 			fi
 		    fi
 		else
-		    # do not update error count or node count
-		    # when local archiving is not allowed
+		    # do not update error count when local archiving
+		    # is not allowed.
 		    continue 
 		fi
 	    else
                 # copy with ssh
-		scp $xlog ${node}:${destdir} >/dev/null
+		scp $xlog ${username:+$username@}${node}:${destdir} >/dev/null
 		if [ $? != 0 ]; then
 		    msg_error "Unable to copy $xlog to ${node}:${destdir}"
 		    error_count=$(($error_count + 1))
@@ -214,7 +231,7 @@ for line in `cat $NODE_LIST | grep -vE "^(#|	| |$)" | sed -re 's/[[:space:]]+#.*
 		    fi
 		fi
 	    else
-		gzip -c $xlog | ssh ${node} "cat > ${destdir:-'~'}/`basename $xlog`.gz"
+		gzip -c $xlog | ssh ${username:+$username@}${node} "cat > ${destdir:-'~'}/`basename $xlog`.gz" 2>/dev/null
 		rc=(${PIPESTATUS[*]})
 		gzip_rc=${rc[0]}
 		ssh_rc=${rc[1]}

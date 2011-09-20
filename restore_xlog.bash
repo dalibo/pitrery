@@ -28,6 +28,7 @@ usage() {
     echo "usage: `basename $0` [options] xlogfile destination"
     echo "options:"
     echo "   -n host       host storing WALs"
+    echo "   -u username   username for SSH login"
     echo "   -d dir        directory containaing WALs on host"
     echo "   -C conf       configuration file"
     echo
@@ -77,7 +78,7 @@ SRCDIR=/var/lib/pgsql/archived_xlog
 SYSLOG="no"
 
 # CLI processing
-args=`getopt "n:d:C:sf:t:h" "$@"`
+args=`getopt "n:u:d:C:sf:t:h" "$@"`
 if [ $? -ne 0 ]; then
     usage 2
 fi
@@ -85,6 +86,7 @@ set -- $args
 for i in $*; do
     case "$i" in
 	-n) NODE=$2; shift 2;;
+	-u) CLI_SSH_USER=$2; shift 2;;
 	-d) SRCDIR=$2; shift 2;;
 	-C) CONGIG=$2; shift 2;;
 	-s) CLI_SYSLOG="yes"; shift;;
@@ -108,6 +110,7 @@ if [ -f "$CONFIG" ]; then
 fi
 
 # Override configuration with cli options
+[ -n "$CLI_SSH_USER" ] && SSH_USER=$CLI_SSH_USER
 [ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
 [ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
 [ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
@@ -137,7 +140,7 @@ else
     # check if we have a IPv6, and put brackets for scp
     echo $NODE | grep -q ':' && NODE="[${NODE}]"
 
-    scp ${NODE}:$SRCDIR/${xlog}.gz ${target_path}.gz >/dev/null
+    scp ${SSH_USER:+$SSH_USER@}${NODE}:$SRCDIR/${xlog}.gz ${target_path}.gz >/dev/null
     if [ $? != 0 ]; then
 	error "could not copy ${NODE}:$SRCDIR/$xlog.gz to $target_path"
     fi

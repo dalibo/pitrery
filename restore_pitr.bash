@@ -41,10 +41,12 @@ usage() {
     echo
     echo "Restore options:"
     echo "    -L              Restore from local storage"
+    echo "    -u username     Username for SSH login to the backup host"
     echo "    -b dir          Backup storage directory"
     echo "    -l label        Label used when backup was performed"
     echo "    -D dir          Path to target \$PGDATA"
     echo "    -h host         Host storing WAL files"
+    echo "    -U username     Username for SSH login to WAL storage host"
     echo "    -X dir          Path to the archived xlog directory"
     echo "    -d date         Restore until this date"
     echo "    -O user         If run by root, owner of the files"
@@ -142,13 +144,15 @@ check_and_fix_directory() {
 
 
 # Process CLI Options
-while getopts "Lb:l:D:h:X:d:O:r:?" opt; do
+while getopts "Lu:b:l:D:h:U:X:d:O:r:?" opt; do
     case "$opt" in
 	L) local_backup="yes";;
+	u) ssh_user=$OPTARG;;
 	b) backup_root=$OPTARG;;
 	l) label_prefix=$OPTARG;;
 	D) pgdata=$OPTARG;;
 	h) archive_host=$OPTARG;;
+	U) archive_ssh_user=$OPTARG;;
 	X) archive_dir=$OPTARG;;
 	d) target_date=$OPTARG;;
 	O) owner=$OPTARG;;
@@ -166,12 +170,14 @@ if [ -z "$source" ] && [ $local_backup != "yes" ]; then
     usage 1
 fi
 
-# Check input date. The format is 'YYYY-MM-DD HH:MM:SS [(+|-)XXXX]'
-# with XXXX the timezone offset on 4 digits Having the timezone on 4
-# digits let us use date to convert it to a timestamp for comparison
-echo $target_date | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}( *[+-][0-9]{4})?$'
-if [ $? != 0 ]; then
-    error "bad target date format. Use 'YYYY-MM-DD HH:MM:SS [(+|-)TZTZ]' with an optional 4 digit timezone offset"
+if [ -n "$target_date" ]; then
+    # Check input date. The format is 'YYYY-MM-DD HH:MM:SS [(+|-)XXXX]'
+    # with XXXX the timezone offset on 4 digits Having the timezone on 4
+    # digits let us use date to convert it to a timestamp for comparison
+    echo $target_date | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}( *[+-][0-9]{4})?$'
+    if [ $? != 0 ]; then
+	error "bad target date format. Use 'YYYY-MM-DD HH:MM:SS [(+|-)TZTZ]' with an optional 4 digit timezone offset"
+    fi
 fi
 
 target_timestamp=`TZ=UTC date -d "$target_date" -u +%s`
@@ -193,7 +199,7 @@ if [ -n "$target_date" ]; then
 	    error "could not list the content of $backup_root/$label_prefix/"
 	fi
     else
-	list=`ssh $source "ls -d $backup_root/$label_prefix/*/backup_timestamp" 2>/dev/null`
+	list=`ssh ${ssh_user:+$ssh_user@}$source "ls -d $backup_root/$label_prefix/*/backup_timestamp" 2>/dev/null`
 	if [ $? != 0 ]; then
 	    error "could not list the content of $backup_root/$label_prefix/ on $source"
 	fi
@@ -211,7 +217,7 @@ if [ -n "$target_date" ]; then
 		continue
 	    fi
 	else
-	    backup_timestamp=`ssh $source cat $t 2>/dev/null`
+	    backup_timestamp=`ssh ${ssh_user:+$ssh_user@}$source cat $t 2>/dev/null`
 	    if [ $? != 0 ]; then
 		warn "could not get the ending timestamp of $t"
 		continue
@@ -237,7 +243,7 @@ else
 	    error "could not list the content of $backup_root/$label_prefix/"
 	fi
     else
-	backup_date=`ssh $source "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null | tail -1`
+	backup_date=`ssh ${ssh_user:+$ssh_user@}$source "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null | tail -1`
 	if [ $? != 0 ]; then
 	    error "could not list the content of $backup_root/$label_prefix/ on $source"
 	fi
@@ -252,7 +258,6 @@ fi
 backup_dir=$backup_root/$label_prefix/$backup_date
 
 info "backup directory is $backup_dir"
-exit 1
 
 # Check target directories
 # get the tablespace list and check the directories
@@ -261,13 +266,13 @@ if [ $local_backup = "yes" ]; then
 	tblspc_list=$backup_dir/tblspc_list
     fi
 else
-    ssh $source "test -f $backup_dir/tblspc_list" 2>/dev/null
+    ssh ${ssh_user:+$ssh_user@}$source "test -f $backup_dir/tblspc_list" 2>/dev/null
     if [ $? = 0 ]; then
 	tmp_dir=`mktemp -d -t pg_pitr.XXXXXXXXXX`
 	if [ $? != 0 ]; then
 	    error "could not create temporary directory"
 	fi
-	scp $source:$backup_dir/tblspc_list $tmp_dir >/dev/null 2>&1
+	scp ${ssh_user:+$ssh_user@}$source:$backup_dir/tblspc_list $tmp_dir >/dev/null 2>&1
 	if [ $? != 0 ]; then
 	    error "could not copy the list of tablespaces from backup store"
 	fi
@@ -303,7 +308,7 @@ if [ $local_backup = "yes" ]; then
 	exit 1
     fi
 else
-    ssh $source "cat $backup_dir/pgdata.tar.gz" 2>/dev/null | tar xzf - 2>/dev/null
+    ssh ${ssh_user:+$ssh_user@}$source "cat $backup_dir/pgdata.tar.gz" 2>/dev/null | tar xzf - 2>/dev/null
     rc=(${PIPESTATUS[*]})
     ssh_rc=${rc[0]}
     tar_rc=${rc[1]}
@@ -331,7 +336,7 @@ cd $was
 	    exit 1
 	fi
     else
-	ssh $source "cat $backup_dir/tblspc/${name}.tar.gz" 2>/dev/null | tar xzf - 2>/dev/null
+	ssh ${ssh_user:+$ssh_user@}$source "cat $backup_dir/tblspc/${name}.tar.gz" 2>/dev/null | tar xzf - 2>/dev/null
 	rc=(${PIPESTATUS[*]})
 	ssh_rc=${rc[0]}
 	tar_rc=${rc[1]}
@@ -367,7 +372,8 @@ if [ $prog = "restore_xlog" ]; then
     if [ $local_backup = "yes" ]; then
 	restore_prog="$restore_prog -n 127.0.0.1 -d $archive_dir %f %p"
     else
-	restore_prog="$restore_prog -n ${archive_host:-$source} -d $archive_dir %f %p"
+	[ -z "$archive_ssh_user" ] && archive_ssh_user=$ssh_user
+	restore_prog="$restore_prog -n ${archive_host:-$source} ${archive_ssh_user:+-u $archive_ssh_user} -d $archive_dir %f %p"
     fi
 fi
 echo "restore_command = '$restore_prog'" > $pgdata/recovery.conf

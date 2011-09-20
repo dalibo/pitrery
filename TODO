@@ -1,8 +1,6 @@
 TODO
 
 - general:
-  . (v1.1)  Support give ssh/scp command options
-  . (v1.1)  Allow to specify a username for SSH connections
   . (v1.2+) Reorganise with subdirectories
   . (v1.2+) Support for Major BSD Systems (ifconfig, stat?, grep -q?, mktemp?...)
   . (v1.2+) Support different compression types (add bzip2 and xz)
@@ -18,6 +16,7 @@ TODO
   . (v1.1)  Rework and check behavior when run by root
 
 - list_pitr:
+  . (v1.1)  Fix the output to show the stop time instead of start time
   . (v1.1)  Add an option to list the content of the backup and give more info
             like the directory to create for tablespaces, sizes,...
 

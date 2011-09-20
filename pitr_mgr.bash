@@ -94,9 +94,10 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lb:l:?" arg 2>/dev/null; do
+	while getopts "Lu:b:l:?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
+		u) BACKUP_USER=$OPTARG;;
 		b) BACKUP_DIR=$OPTARG;;
 		l) BACKUP_LABEL=$OPTARG;;
 		'?') $cmd -?; exit $?;;
@@ -105,6 +106,7 @@ case $action in
 
 	# Add relevant options coming from the configuration
 	[ "$BACKUP_IS_LOCAL" = "yes" ] && opts="-L"
+	[ -n "$BACKUP_USER" ] && opts="$opts -u $BACKUP_USER"
 	[ -n "$BACKUP_DIR" ] && opts="$opts -b $BACKUP_DIR"
 	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
 
@@ -133,11 +135,12 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lb:l:D:P:h:p:U:d:?" arg 2>/dev/null; do
+	while getopts "Lb:l:u:D:P:h:p:U:d:?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		b) BACKUP_DIR=$OPTARG;;
 		l) BACKUP_LABEL=$OPTARG;;
+		u) BACKUP_USER=$OPTARG;;
 		D) PGDATA=$OPTARG;;
 		P) PGPSQL=$OPTARG;;
 		h) PGHOST=$OPTARG;;
@@ -152,6 +155,7 @@ case $action in
 	[ "$BACKUP_IS_LOCAL" = "yes" ] && opts="-L"
 	[ -n "$BACKUP_DIR" ] && opts="$opts -b $BACKUP_DIR"
 	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
+	[ -n "$BACKUP_USER" ] && opts="$opts -u $BACKUP_USER"
 	[ -n "$PGDATA" ] && opts="$opts -D $PGDATA"
 	[ -n "$PGPSQL" ] && opts="$opts -P $PGPSQL"
 	[ -n "$PGHOST" ] && opts="$opts -h $PGHOST"
@@ -184,13 +188,15 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lb:l:D:h:X:d:O:r:?" arg 2>/dev/null; do
+	while getopts "Lu:b:l:D:h:U:X:d:O:r:?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
+		u) BACKUP_USER=$OPTARG;;
 		b) BACKUP_DIR=$OPTARG;;
 		l) BACKUP_LABEL=$OPTARG;;
 		D) PGDATA=$OPTARG;;
 		h) ARCHIVE_HOST=$OPTARG;;
+		U) ARCHIVE_USER=$OPTARG;;
 		X) ARCHIVE_DIR=$OPTARG;;
 		d) TARGET_DATE=$OPTARG;;
 		O) PGOWNER=$OPTARG;;
@@ -201,10 +207,12 @@ case $action in
 
 	# Add relevant options coming from the configuration
 	[ "$BACKUP_IS_LOCAL" = "yes" ] && opts="$opts -L"
+	[ -n "$BACKUP_USER" ] && opts="$opts -u $BACKUP_USER"
 	[ -n "$BACKUP_DIR" ] && opts="$opts -b $BACKUP_DIR"
 	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
 	[ -n "$PGDATA" ] && opts="$opts -D $PGDATA"
 	[ -n "$ARCHIVE_HOST" ] && opts="$opts -h $ARCHIVE_HOST"
+	[ -n "$ARCHIVE_USER" ] && opts="$opts -U $ARCHIVE_USER"
 	[ -n "$ARCHIVE_DIR" ] && opts="$opts -X $ARCHIVE_DIR"
 	[ -n "$PGOWNER" ] && opts="$opts -O $PGOWNER"
 	[ -n "$RESTORE_COMMAND" ] && opts="$opts -r $RESTORE_COMMAND"
@@ -239,12 +247,14 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Ll:b:n:X:m:d:?" arg 2>/dev/null; do
+	while getopts "Ll:b:u:n:U:X:m:d:?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		l) BACKUP_LABEL=$OPTARG;;
 		b) BACKUP_DIR=$OPTARG;;
+		u) BACKUP_USER=$OPTARG;;
 		n) opts="-n $OPTARG";;
+		U) ARCHIVE_USER=$OPTARG;;
 		X) ARCHIVE_DIR=$OPTARG;;
 		m) PURGE_KEEP_COUNT=$OPTARG;;
 		d) PURGE_OLDER_THAN=$OPTARG;;
@@ -256,6 +266,8 @@ case $action in
 	[ "$BACKUP_IS_LOCAL" = "yes" ] && opts="$opts -L"
 	[ -n "$BACKUP_DIR" ] && opts="$opts -b $BACKUP_DIR"
 	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
+	[ -n "$BACKUP_USER" ] && opts="$opts -u $BACKUP_USER"
+	[ -n "$ARCHIVE_USER" ] && opts="$opts -U $ARCHIVE_USER"
 	[ -n "$ARCHIVE_DIR" ] && opts="$opts -X $ARCHIVE_DIR"
 	[ -n "$PURGE_KEEP_COUNT" ] && opts="$opts -m $PURGE_KEEP_COUNT"
 	[ -n "$PURGE_OLDER_THAN" ] && opts="$opts -d $PURGE_OLDER_THAN"

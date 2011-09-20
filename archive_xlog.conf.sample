@@ -3,6 +3,11 @@
 # Path to the list of target nodes
 NODE_LIST=@SYSCONFDIR@/archive_nodes.conf
 
+# Username fot SSH login. Defaults to the user running the script,
+# e.g. PostgreSQL system user.  The username can be specified on per
+# node basis by using the user@node syntax in archive_nodes.conf
+SSH_USER=
+
 # Default destination path, this can be overriden on
 # per node basis in NODE_LIST (see the file)
 DEST=/var/lib/pgsql/archived_xlog

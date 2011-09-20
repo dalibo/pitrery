@@ -1,11 +1,11 @@
 # archive_nodes.conf
 #
-# Declare the IP adresses of target nodes where WAL files
+# Declare the hostnames/IP adresses of target nodes where WAL files
 # shall be copied when PostgreSQL executes archive_xlog through
 # the archive_command parameter.
 #
 # The format is:
-# ip_address {/path/to/destination_dir|-} {pitr|-}
+# [user@]host {/path/to/destination_dir|-} {pitr|-}
 #
 # An empty field must be filled with - (dash) if it is not the last one
 #
