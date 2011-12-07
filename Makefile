@@ -9,8 +9,7 @@ HELPERS = backup_pitr.bash \
 	list_pitr.bash \
 	purge_pitr.bash \
 	restore_pitr.bash
-SRCCONFS = archive_nodes.conf.sample \
-	archive_xlog.conf.sample \
+SRCCONFS = archive_xlog.conf.sample \
 	pitr.conf.sample
 
 BINS = $(basename $(SRCS))

@@ -32,3 +32,4 @@ TODO
 
 - restore_xlog:
   . (v1.1)  Allow to restore uncompressed WAL archives
+
