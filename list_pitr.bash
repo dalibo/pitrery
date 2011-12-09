@@ -93,7 +93,7 @@ for dir in $list; do
     # Get the exact start date from the backup label
     if [ $local_backup = "yes" ]; then
 	if [ -f $dir/backup_label ]; then
-	    grep "START TIME:" $dir/backup_label
+	    grep "STOP TIME:" $dir/backup_label | sed -e 's/STOP //'
 	    if [ $? != 0 ]; then
 		echo -e "\nERROR: could find the start time" 1>&2
 		st=1
