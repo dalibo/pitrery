@@ -220,7 +220,7 @@ info "purging WAL files older than `basename $wal_file .gz`"
 # List the WAL files and remove the old ones based on their name
 # which are ordered in time by their naming scheme
 if [ $local_xlog = "yes" ]; then
-    wal_list=`ls $xlog_dir 2>/dev/null`
+    wal_list=`ls $xlog_dir 2>/dev/null | grep  '^[0-9AF]'`
     if [ $? != 0 ]; then
 	echo "ERROR: could not list the content of $xlog_dir" 1>&2
 	exit 1
@@ -228,8 +228,8 @@ if [ $local_xlog = "yes" ]; then
     for wal in $wal_list; do
 	w=`basename $wal .gz`
 	# Exclude history and backup label files from the listing
-	echo $w | grep -q '^[0-9AF]'
-	if [ $? = 0 ]; then
+	echo $w | grep -q '\.'
+	if [ $? != 0 ]; then
 	    wal_num=$(( 16#$w ))
 	    if [ $wal_num -lt $max_wal_num ]; then
 		# Remove the WAL file and possible the backup history file
@@ -241,7 +241,7 @@ if [ $local_xlog = "yes" ]; then
 	fi
     done
 else
-    wal_list=`ssh $xlog_host "ls $xlog_dir" 2>/dev/null`
+    wal_list=`ssh $xlog_host "ls $xlog_dir | grep  '^[0-9AF]'" 2>/dev/null`
     if [ $? != 0 ]; then
 	echo "ERROR: could not list the content of $xlog_dir on $xlog_host" 1>&2
 	exit 1
@@ -249,7 +249,7 @@ else
     for wal in $wal_list; do
 	w=`basename $wal .gz`
 	# Exclude history and backup label files
-	echo $w | grep -q '^[0-9AF]'
+	echo $w | grep -q '\.'
 	if [ $? != 0 ]; then
 	    wal_num=$(( 16#$w ))
 	    if [ $wal_num -lt $max_wal_num ]; then
