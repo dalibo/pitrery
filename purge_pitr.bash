@@ -249,7 +249,7 @@ else
     for wal in $wal_list; do
 	w=`basename $wal .gz`
 	# Exclude history and backup label files
-	echo $w | grep -q '\.'
+	echo $w | grep -q '^[0-9AF]'
 	if [ $? != 0 ]; then
 	    wal_num=$(( 16#$w ))
 	    if [ $wal_num -lt $max_wal_num ]; then
