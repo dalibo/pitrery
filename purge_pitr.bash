@@ -51,31 +51,6 @@ usage() {
     exit $1
 }
 
-is_local() {
-
-    # Check if the input is an IP address otherwise resolve to an IP address
-    echo -e "$1\n" | grep -qE '^(([0-9]{1,3}\.){3}[0-9]{1,3}|([0-9a-fA-F]{0,4}:+){1,7}[0-9a-fA-F]{0,4})$'
-    if [ $? != 0 ]; then
-        # use ping to resolve the ip
-	ip=`ping -c 1 -w 1 -q $1 2>/dev/null | sed -nE 's/.*\((([0-9]{1,3}\.?){4}).*/\1/p'`
-	if [ -z "$ip" ]; then
-	    # try ipv6
-	    ip=`ping6 -c 1 -w 1 -q -n $1 | sed -nE 's/.*\((([0-9a-fA-F]{0,4}:?){1,8}).*/\1/p'`
-	fi
-    else
-	ip=$1
-    fi
-
-    # Check if the IP address is local
-    LC_ALL=C /sbin/ifconfig | grep -qE "(addr:${ip}[[:space:]]|inet6 addr: ${ip}/)"
-    if [ $? = 0 ]; then
-	return 0
-    else
-	return 1
-    fi
-
-}
-
 info() {
     echo "INFO: $*"
 }
@@ -124,17 +99,17 @@ if [ -z "$max_count" -a -z "$max_days" ]; then
     usage 1
 fi
 
+
 # When the host storing the WAL files is not given, use the host of the backups
-[ -z "$xlog_host" ] && xlog_host=$target
+if [ -z "$xlog_host" ]; then
+    local_xlog="yes"
+    xlog_host=$target
+fi
 [ -z "$xlog_ssh_user" ] && xlog_ssh_user=$ssh_user
 
-# Check if the hosts are local
-is_local $target && local_backup="yes"
-is_local $xlog_host && local_xlog="yes"
-
 # Prepare the IPv6 address for use with SSH
-echo $target | grep -q ':' && target="[${target}]"
-echo $xlog_host | grep -q ':' && xlog_host="[${xlog_host}]"
+[ -z "$target" ] || echo $target | grep -q ':' && target="[${target}]"
+[ -z "$xlog_host" ] || echo $xlog_host | grep -q ':' && xlog_host="[${xlog_host}]"
 
 # Get the list of backups
 if [ $local_backup = "yes" ]; then
@@ -243,7 +218,7 @@ info "purging WAL files older than `basename $wal_file .gz`"
 # List the WAL files and remove the old ones based on their name
 # which are ordered in time by their naming scheme
 if [ $local_xlog = "yes" ]; then
-    wal_list=`ls $xlog_dir 2>/dev/null`
+    wal_list=`ls $xlog_dir 2>/dev/null | grep '^[0-9AF]'`
     if [ $? != 0 ]; then
 	echo "ERROR: could not list the content of $xlog_dir" 1>&2
 	exit 1
@@ -251,8 +226,8 @@ if [ $local_xlog = "yes" ]; then
     for wal in $wal_list; do
 	w=`basename $wal .gz`
 	# Exclude history and backup label files from the listing
-	echo $w | grep -q '^[0-9AF]'
-	if [ $? = 0 ]; then
+	echo $w | grep -q '\.'
+	if [ $? != 0 ]; then
 	    wal_num=$(( 16#$w ))
 	    if [ $wal_num -lt $max_wal_num ]; then
 		# Remove the WAL file and possible the backup history file
@@ -264,7 +239,7 @@ if [ $local_xlog = "yes" ]; then
 	fi
     done
 else
-    wal_list=`ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "ls $xlog_dir" 2>/dev/null`
+    wal_list=`ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "ls $xlog_dir | grep '^[0-9AF]'" 2>/dev/null`
     if [ $? != 0 ]; then
 	echo "ERROR: could not list the content of $xlog_dir on $xlog_host" 1>&2
 	exit 1
