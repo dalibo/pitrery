@@ -251,8 +251,8 @@ if [ $local_xlog = "yes" ]; then
     for wal in $wal_list; do
 	w=`basename $wal .gz`
 	# Exclude history and backup label files from the listing
-	echo $w | grep -q '\.'
-	if [ $? != 0 ]; then
+	echo $w | grep -q '^[0-9AF]'
+	if [ $? = 0 ]; then
 	    wal_num=$(( 16#$w ))
 	    if [ $wal_num -lt $max_wal_num ]; then
 		# Remove the WAL file and possible the backup history file
