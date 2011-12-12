@@ -53,6 +53,10 @@ info() {
     echo "INFO: $*"
 }
 
+warn() {
+    echo "WARNING: $*" 1>&2
+}
+
 error() {
     echo "ERROR: $*" 1>&2
     exit 1
@@ -95,6 +99,12 @@ if [ -z "$max_count" -a -z "$max_days" ]; then
     usage 1
 fi
 
+# Create our tmp directory
+tmp_dir=`mktemp -d -t pg_pitr.XXXXXXXXXX`
+if [ $? != 0 ]; then
+    error "could not create temporary directory"
+fi
+
 # Check if bakcup host is local and prepare for IPv6 if needed
 LC_ALL=C /sbin/ifconfig | grep -qE "(addr:${target}[[:space:]]|inet6 addr: ${target}/)"
 if [ $? = 0 ]; then
@@ -113,21 +123,39 @@ fi
 # Prepare the IPv6 address for use with SSH
 echo $target | grep -q ':' && target="[${target}]"
 
-# Get the list of backups
+# Get the list of backups. We need to know the stop time of each
+# backup to select the good ones, at this time the base backup is
+# considered usable.
 if [ $local_backup = "yes" ]; then
     list=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null`
     if [ $? != 0 ]; then
-	echo "ERROR: could not list the content of $backup_root/$label_prefix/" 1>&2
-	exit 1
+	error "could not list the content of $backup_root/$label_prefix/"
     fi
 
+    for d in $list; do
+	stoptime=`cat $d/backup_label | grep '^STOP TIME: ' | sed -e 's/STOP TIME: //'`
+	if [ -z "$stoptime" ]; then
+	    warn "could not get stop time from $d/backup_label"
+	    continue
+	fi
+
+	echo "$d|$stoptime" >> $tmp_dir/backup_list
+    done
 else
     list=`ssh $target "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
     if [ $? != 0 ]; then
-	echo "ERROR: could not list the content of $backup_root/$label_prefix/ on $target" 1>&2
-	exit 1
+	error "could not list the content of $backup_root/$label_prefix/ on $target"
     fi
 
+    for d in $list; do
+	stoptime=`ssh $source "cat $d/backup_label" 2>/dev/null | grep '^STOP TIME: ' | sed -e 's/STOP TIME: //'`
+	if [ -z "$stoptime" ]; then
+	    warn "could not get stop time from $d/backup_label"
+	    continue
+	fi
+
+	echo "$d|$stoptime" >> $tmp_dir/backup_list
+    done
 fi
 
 # Purge: specified backup count overrides the max number of days
@@ -140,35 +168,41 @@ if [ -n "$max_count" ]; then
 		info "purging $dir"
 		rm -rf $dir
 		if [ $? != 0 ]; then
-		    echo "WARNING: Unable to remove $dir" 1>&2
+		    warn "unable to remove $dir"
 		fi
 	    else
 		info "purging $dir"
 		ssh $target "rm -rf $dir"
 		if [ $? != 0 ]; then
-		    echo "WARNING: Unable to remove $target:$dir" 1>&2
+		    warn "unable to remove $target:$dir"
 		fi
 	    fi
 	done
+    else
+	warn "nothing to purge"
     fi
 else
     if [ -n "$max_days" ]; then
 	# Find the limiting date from now and the specified number of days
-	ldate=`date --date="-$max_days day" +%Y%m%d%H%M%S`
-	for dir in $list; do
-	    bdate=`basename $dir | sed -e 's/[^0-9]//g'`
-	    if [ $ldate -gt $bdate ]; then
+	ldate=`date --date="-$max_days day" +%s`
+
+	cat $tmp_dir/backup_list | while read line; do
+	    dir=`echo $line | cut -d'|' -f 1`
+	    date=`echo $line | cut -d'|' -f 2`
+	    bdate=`date -d "$date" '+%s' 2>/dev/null`
+	    
+	    if [ $bdate -lt $ldate ]; then
 		if [ $local_backup = "yes" ]; then
 		    info "purging $dir"
 		    rm -rf $dir
 		    if [ $? != 0 ]; then
-			echo "WARNING: Unable to remove $dir" 1>&2
+			warn "Unable to remove $dir"
 		    fi
 		else
 		    info "purging $dir"
 		    ssh $target "rm -rf $dir"
 		    if [ $? != 0 ]; then
-			echo "WARNING: Unable to remove $target:$dir" 1>&2
+			warn "Unable to remove $target:$dir" 1>&2
 		    fi
 		fi
 	    fi
@@ -182,32 +216,29 @@ fi
 # First get the backup_label, it contains the name of the oldest WAL file to keep
 if [ $local_backup = "yes" ]; then
     backup_label=`ls $backup_root/$label_prefix/[0-9]*/backup_label 2>/dev/null | head -1`
-    if [ $? != 0 ]; then
-	echo "ERROR: could not list the content of $backup_root/$label_prefix/" 1>&2
-	exit 1
+    if [ -z "$backup_label" ]; then
+	warn "could not find any backup in $backup_root/$label_prefix/"
+	info "if you chose to remove all backups, WAL files must be removed manually"
+	rm -rf $tmp_dir
+	exit 0
     fi
 else
     remote_backup_label=`ssh $target "ls -d $backup_root/$label_prefix/[0-9]*/backup_label" 2>/dev/null | head -1`
     if [ $? != 0 ]; then
-	echo "ERROR: could not list the content of $backup_root/$label_prefix/ on $source" 1>&2
-	exit 1
+	warn "could not list the content of $backup_root/$label_prefix/ on $source"
     fi
     
     if [ -n "$remote_backup_label" ]; then
-	tmp_dir=`mktemp -d -t pg_pitr.XXXXXXXXXX`
+   	scp $target:$remote_backup_label $tmp_dir >/dev/null
 	if [ $? != 0 ]; then
-	    echo "ERROR: could not create temporary directory" 1>&2
-	    exit 1
-	fi
-    
-	scp $target:$remote_backup_label $tmp_dir >/dev/null
-	if [ $? != 0 ]; then
-	    echo "ERROR: could not copy backup label from $target" 1>&2
-	    exit 1
+	    error "could not copy backup label from $target"
 	fi
 	backup_label=$tmp_dir/backup_label
     else
-	echo "ERROR: could not find the backup label of the oldest backup, WAL won't be purged" 1>&2
+	warn "could not find the backup label of the oldest backup, WAL files won't be purged"
+	info "if you chose to remove all backups, WAL files must be removed manually"
+	rm -rf $tmp_dir
+	exit 0
     fi
 fi
 
@@ -222,8 +253,7 @@ info "purging WAL files older than `basename $wal_file .gz`"
 if [ $local_xlog = "yes" ]; then
     wal_list=`ls $xlog_dir 2>/dev/null | grep  '^[0-9AF]'`
     if [ $? != 0 ]; then
-	echo "ERROR: could not list the content of $xlog_dir" 1>&2
-	exit 1
+	error "could not list the content of $xlog_dir"
     fi
     for wal in $wal_list; do
 	w=`basename $wal .gz`
@@ -235,7 +265,7 @@ if [ $local_xlog = "yes" ]; then
 		# Remove the WAL file and possible the backup history file
 		rm $xlog_dir/$w*.gz
 		if [ $? != 0 ]; then
-		    echo "WARNING: Unable to remove $w" 1>&2
+		    warn "unable to remove $w" 1>&2
 		fi
 	    fi
 	fi
@@ -243,8 +273,7 @@ if [ $local_xlog = "yes" ]; then
 else
     wal_list=`ssh $xlog_host "ls $xlog_dir | grep  '^[0-9AF]'" 2>/dev/null`
     if [ $? != 0 ]; then
-	echo "ERROR: could not list the content of $xlog_dir on $xlog_host" 1>&2
-	exit 1
+	error "could not list the content of $xlog_dir on $xlog_host"
     fi
     for wal in $wal_list; do
 	w=`basename $wal .gz`
@@ -255,7 +284,7 @@ else
 	    if [ $wal_num -lt $max_wal_num ]; then
 		ssh $xlog_host "rm $xlog_dir/$w*.gz"
 		if [ $? != 0 ]; then
-		    echo "WARNING: Unable to remove $w on $xlog_host" 1>&2
+		    warn "Unable to remove $w on $xlog_host"
 		fi
 	    fi
 	fi

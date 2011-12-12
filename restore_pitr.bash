@@ -59,6 +59,10 @@ error() {
     exit 1
 }
 
+warn() {
+    echo "WARNING: $*" 1>&2
+}
+
 info() {
     echo "INFO: $*"
 }
@@ -161,42 +165,79 @@ if [ -z "$source" ] && [ $local_backup != "yes" ]; then
     usage 1
 fi
 
-# XXX check input date
+# Create our tmp directory
+tmp_dir=`mktemp -d -t pg_pitr.XXXXXXXXXX`
+if [ $? != 0 ]; then
+    error "could not create temporary directory"
+fi
 
 # find the backup according to given date: $backup_dir
 info "searching backup directory"
 if [ -n "$target_date" ]; then
     info "target date is: $target_date"
 
-    # date format is numerically ordered
-    tdate=`echo $target_date | sed -e 's/[^0-9]//g'`
-
-    # search the store
+    # Search the store and get the backup labels of each backup
+    # directory. The search needs to know the stop time of each backup
+    # to select the good one, at this time the base backup is
+    # considered usable.
     if [ $local_backup = "yes" ]; then
 	list=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null`
 	if [ $? != 0 ]; then
 	    error "could not list the content of $backup_root/$label_prefix/"
 	fi
+
+	for d in $list; do
+	    stoptime=`cat $d/backup_label | grep '^STOP TIME: ' | sed -e 's/STOP TIME: //'`
+	    if [ -z "$stoptime" ]; then
+		warn "could not get stop time from $d/backup_label"
+		continue
+	    fi
+
+	    echo "$d|$stoptime" >> $tmp_dir/backup_list
+	done
     else
 	list=`ssh $source "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
 	if [ $? != 0 ]; then
 	    error "could not list the content of $backup_root/$label_prefix/ on $source"
 	fi
+
+	for d in $list; do
+	    stoptime=`ssh $source "cat $d/backup_label" 2>/dev/null | grep '^STOP TIME: ' | sed -e 's/STOP TIME: //'`
+	    if [ -z "$stoptime" ]; then
+		warn "could not get stop time from $d/backup_label"
+		continue
+	    fi
+
+	    echo "$d|$stoptime" >> $tmp_dir/backup_list
+	done
     fi
 
-    # find the latest backup
-    for d in $list; do
-	d=`basename $d`
-	bdate=`echo $d | sed -e 's/[\.-]//g'`
-	if [ $bdate -gt $tdate ]; then
-	    break
-	else
-	    backup_date=$d
-	fi
-    done
+    # Find the latest backup. The list is ordered chronologically, but
+    # this is not DST-proof as we don't handle cases when time goes
+    # backward (at DST or timezone changes for exemple)
+    tdate=`date -d "$target_date" '+%s' 2>/dev/null`
+    if [ $? != 0 ]; then
+	rm -rf $tmpdir
+	error "invalid target date: $target_date"
+    fi
+
+    backup_date=$(cat $tmp_dir/backup_list | {
+	while read line; do
+	    dir=`echo $line | cut -d'|' -f 1`
+	    date=`echo $line | cut -d'|' -f 2`
+	    bdate=`date -d "$date" '+%s' 2>/dev/null`
+	    
+	    if [ $bdate -gt $tdate ]; then
+		break
+	    else
+		found_date=`basename $dir`
+	    fi
+	done
+	echo $found_date
+    })
 
     if [ -z "$backup_date" ]; then
-	error "Could not find a backup at given date $target_date"
+	error "Could not find a backup at given date"
     fi
 else
     # get the latest
@@ -231,10 +272,6 @@ if [ $local_backup = "yes" ]; then
 else
     ssh $source "test -f $backup_dir/tblspc_list" 2>/dev/null
     if [ $? = 0 ]; then
-	tmp_dir=`mktemp -d -t pg_pitr.XXXXXXXXXX`
-	if [ $? != 0 ]; then
-	    error "could not create temporary directory"
-	fi
 	scp $source:$backup_dir/tblspc_list $tmp_dir >/dev/null 2>&1
 	if [ $? != 0 ]; then
 	    error "could not copy the list of tablespaces from backup store"
