@@ -1,6 +1,4 @@
-pitrery (1.1-1) unstable; urgency=low
-
-  * New upstream release
+pitrery 1.1
 
   * Fix backup selection date. Now backups are selected based on the
     end of the base backup, a base backup is not usable until the time
@@ -11,10 +9,8 @@ pitrery (1.1-1) unstable; urgency=low
 
   * Add a cleaning of the backup directory in case the backup fails.
 
- -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Thu, 15 Dec 2011 11:50:07 +0100
+  * Add Debian packaging
 
-pitrery (1.0-1) unstable; urgency=low
+pitrery 1.0
 
-  * Initial release
-
- -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Wed, 14 Dec 2011 10:27:58 +0100
+  * First release

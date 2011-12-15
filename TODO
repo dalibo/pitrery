@@ -10,7 +10,6 @@ TODO
   . (v1.1+) Handle pathes and filenames with spaces?
 
 - packaging:
-  . (v1.1+) Add packaging scripts for Debian
   . (v1.1+) create package in pkgsrc-wip
 
 - pitr_mgr:
