@@ -31,6 +31,7 @@ make
 make install DESTDIR=%{buildroot}
 
 %files
+%defattr(-,root,root,-)
 %config(noreplace) /etc/sysconfig/pgsql/archive_nodes.conf
 %config(noreplace) /etc/sysconfig/pgsql/archive_xlog.conf
 %config(noreplace) /etc/sysconfig/pgsql/pitr.conf
