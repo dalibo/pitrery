@@ -603,7 +603,7 @@ the backup host. For example:
 
     $ pitr_mgr -c prod list 
     List of backups on 10.100.0.16:
-    /home/postgres/backups/prod/2011.08.17-11.16.30 	START TIME: 2011-08-17 11:18:10 CEST
+    /home/postgres/backups/prod/2011.08.17-11.16.30 	TIME: 2011-08-17 11:18:10 CEST
 
 
 It lists the directory of each found backup with the date and time
@@ -650,5 +650,5 @@ Listing the backups then shows only one backup:
 
     $ pitr_mgr -c prod list
     List of backups on 10.100.0.16:
-    /home/postgres/backups/prod/2011.08.17-14.58.32 	START TIME: 2011-08-17 14:58:33 CEST
+    /home/postgres/backups/prod/2011.08.17-14.58.32 	TIME: 2011-08-17 14:58:33 CEST
 
