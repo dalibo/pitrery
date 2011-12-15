@@ -148,7 +148,7 @@ else
     fi
 
     for d in $list; do
-	stoptime=`ssh $source "cat $d/backup_label" 2>/dev/null | grep '^STOP TIME: ' | sed -e 's/STOP TIME: //'`
+	stoptime=`ssh $target "cat $d/backup_label" 2>/dev/null | grep '^STOP TIME: ' | sed -e 's/STOP TIME: //'`
 	if [ -z "$stoptime" ]; then
 	    warn "could not get stop time from $d/backup_label"
 	    continue
@@ -179,7 +179,7 @@ if [ -n "$max_count" ]; then
 	    fi
 	done
     else
-	warn "nothing to purge"
+	info "no backup to purge"
     fi
 else
     if [ -n "$max_days" ]; then
