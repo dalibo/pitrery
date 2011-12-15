@@ -95,7 +95,7 @@ for dir in $list; do
 	if [ -f $dir/backup_label ]; then
 	    grep "STOP TIME:" $dir/backup_label | sed -e 's/STOP //'
 	    if [ $? != 0 ]; then
-		echo -e "\nERROR: could find the start time" 1>&2
+		echo -e "\nERROR: could find the \"stop time\" in the backup_label file" 1>&2
 		st=1
 	    fi
 	else
@@ -105,12 +105,12 @@ for dir in $list; do
     else
 	ssh $host "test -f $dir/backup_label" 2>/dev/null
 	if [ $? = 0 ]; then
-	    ssh $host "cat $dir/backup_label" | grep "START TIME:"
+	    ssh $host "cat $dir/backup_label" | grep "STOP TIME:" | sed -e 's/STOP //'
 	    rc=(${PIPESTATUS[*]})
 	    ssh_rc=${rc[0]}
 	    grep_rc=${rc[1]}
 	    if [ $ssh_rc != 0 ] || [ $grep_rc != 0 ]; then
-		echo -e "\nERROR: could find the start time in the backup_label file" 1>&2
+		echo -e "\nERROR: could find the \"stop time\" in the backup_label file" 1>&2
 		st=1
 	    fi
 	else
