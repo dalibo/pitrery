@@ -48,13 +48,28 @@ usage() {
     exit $1
 }
 
-error() {
-    echo "ERROR: $*" 1>&2
-    exit 1
-}
-
 info() {
     echo "INFO: $*"
+}
+
+cleanup() {
+    info "cleaning..."
+    if [ $local_backup = "yes" ]; then
+	if [ -d "$backup_dir" ]; then
+	    rm -rf $backup_dir
+	fi
+    else
+	ssh $target "test -d \"$backup_dir\"" 2>/dev/null
+	if [ $? = 0 ]; then
+	    ssh $target "rm -rf $backup_dir" 2>/dev/null
+	fi
+    fi
+}
+
+error() {
+    echo "ERROR: $*" 1>&2
+    cleanup
+    exit 1
 }
 
 # Hard coded configuration
