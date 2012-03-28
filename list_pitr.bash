@@ -63,7 +63,7 @@ host=${@:$OPTIND:1}
 
 # Storage host is mandatory unless stored locally
 if [ -z "$host" ] && [ $local_backup != "yes" ]; then
-    echo "FATAL: missing target host" 1>&2
+    echo "ERROR: missing target host" 1>&2
     usage 1
 fi
 
@@ -86,18 +86,18 @@ else
     echo "List of backups on $host:"
 fi
 
-# Print the directory and start time of each backup
+# Print the directory and stop time of each backup
 for dir in $list; do
     # Print the details of the backup dir
     echo -en "$dir \t"
 
     st=0
-    # Get the exact start date from the backup label
+    # Get the exact stop date from the backup label
     if [ $local_backup = "yes" ]; then
 	if [ -f $dir/backup_label ]; then
 	    grep "STOP TIME:" $dir/backup_label | sed -e 's/STOP //'
 	    if [ $? != 0 ]; then
-		echo -e "\nERROR: could find the start time" 1>&2
+		echo -e "\nERROR: could find the \"stop time\" in the backup_label file" 1>&2
 		st=1
 	    fi
 	else
@@ -112,7 +112,7 @@ for dir in $list; do
 	    ssh_rc=${rc[0]}
 	    grep_rc=${rc[1]}
 	    if [ $ssh_rc != 0 ] || [ $grep_rc != 0 ]; then
-		echo -e "\nERROR: could find the start time in the backup_label file" 1>&2
+		echo -e "\nERROR: could find the \"stop time\" in the backup_label file" 1>&2
 		st=1
 	    fi
 	else
@@ -125,6 +125,5 @@ for dir in $list; do
 	echo "!!! This backup may be imcomplete or corrupted !!!"
     fi
 
-#    echo
 done
 
