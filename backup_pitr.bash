@@ -49,8 +49,23 @@ usage() {
     exit $1
 }
 
+cleanup() {
+    info "cleaning..."
+    if [ $local_backup = "yes" ]; then
+	if [ -d "$backup_dir" ]; then
+	    rm -rf $backup_dir
+	fi
+    else
+	ssh $target "test -d \"$backup_dir\"" 2>/dev/null
+	if [ $? = 0 ]; then
+	    ssh $target "rm -rf $backup_dir" 2>/dev/null
+	fi
+    fi
+}
+
 error() {
     echo "ERROR: $*" 1>&2
+    cleanup
     exit 1
 }
 
@@ -272,7 +287,7 @@ backup_name=`echo $stop_time | awk '{ print $1"_"$2 }' | sed -e 's/[:-]/./g'`
 # Finish the backup by copying needed files and rename the backup
 # directory to a useful name
 if [ $local_backup = "yes" ]; then
-    # Rename the backup directory
+    # Rename the backup directory using the stop time
     mv $backup_dir $backup_root/${label_prefix}/$backup_name
     if [ $? != 0 ]; then
 	error "could not rename the backup directory"
@@ -302,7 +317,7 @@ else
     # scp needs IPv6 between brackets
     echo $target | grep -q ':' && target="[${target}]"
 
-    # Rename the backup directory
+    # Rename the backup directory using the stop time
     ssh ${ssh_user:+$ssh_user@}${target} "mv $backup_dir $backup_root/${label_prefix}/$backup_name" 2>/dev/null
     if [ $? != 0 ]; then
 	error "could not rename the backup directory"
