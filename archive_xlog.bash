@@ -25,7 +25,7 @@
 #
 
 # Message functions
-msg_error() {
+error() {
     echo "ERROR: $1" 1>&2
 }
 
@@ -40,6 +40,9 @@ usage() {
     echo "    -d dir         target directory"
     echo "    -x prog        compression program"
     echo "    -X             do not compress"
+    echo "    -S             send messages to syslog"
+    echo "    -f facility    syslog facility"
+    echo "    -t ident       syslog ident"
     echo
     echo "    -?             print help"
     echo
@@ -55,7 +58,7 @@ COMPRESS="yes"
 COMPRESS_BIN=gzip
 
 # Command line options
-args=`getopt "LC:u:d:h:x:X?" $*`
+args=`getopt "LC:u:d:h:x:XSf:t:?" "$@"`
 if [ $? -ne 0 ]
 then
     usage 2
@@ -72,6 +75,9 @@ do
 	-d) CLI_DEST=$2; shift 2;;
 	-x) CLI_COMPRESS_BIN=$2; shift 2;;
 	-X) CLI_COMPRESS="no"; shift;;
+	-S) CLI_SYSLOG="yes"; shift;;
+	-f) CLI_SYSLOG_FACILITY=$2; shift 2;;
+	-t) CLI_SYSLOG_IDENT=$2; shift 2;;
         -\?) usage 1;;
         --) shift; break;;
     esac
@@ -79,7 +85,7 @@ done
 
 # The first argument must be a WAL file
 if [ $# != 1 ]; then
-    msg_error "missing xlog filename to archive. Please consider modifying archive_command, eg add %p"
+    error "missing xlog filename to archive. Please consider modifying archive_command, eg add %p"
     exit 1
 fi
 
@@ -97,6 +103,9 @@ fi
 [ -n "$CLI_DEST" ] && DEST=$CLI_DEST
 [ -n "$CLI_COMPRESS_BIN" ] && COMPRESS_BIN=$CLI_COMPRESS_BIN
 [ -n "$CLI_COMPRESS" ] && COMPRESS=$CLI_COMPRESS
+[ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
+[ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
+[ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
 
 # Redirect output to syslog if configured
 if [ "$SYSLOG" = "yes" ]; then
@@ -110,7 +119,7 @@ fi
 # Sanity check. We need at least to know if we want to perform a local
 # copy or have a hostname for an SSH copy
 if [ $LOCAL != "yes" -a -z "$SSH_HOST" ]; then
-    msg_error "Not enough information to archive the segment"
+    error "Not enough information to archive the segment"
     exit 1
 fi
 
@@ -119,7 +128,7 @@ if [ $LOCAL = "yes" ]; then
     cp $xlog $DEST 1>&2
     rc=$?
     if [ $rc != 0 ]; then
-	msg_error "Unable to copy $xlog to $destdir"
+	error "Unable to copy $xlog to $destdir"
 	exit $rc
     fi
 
@@ -128,7 +137,7 @@ if [ $LOCAL = "yes" ]; then
 	$COMPRESS_BIN $dest_path
 	rc=$?
 	if [ $rc != 0 ]; then
-	    msg_error "Unable to compress $dest_path"
+	    error "Unable to compress $dest_path"
 	    exit $rc
 	fi
     fi
@@ -143,13 +152,13 @@ else
 	compress_rc=${rc[0]}
 	ssh_rc=${rc[1]}
 	if [ $compress_rc != 0 ] || [ $ssh_rc != 0 ]; then
-	    msg_error "Unable to send compressed $xlog to ${SSH_HOST}:${DEST}"
+	    error "Unable to send compressed $xlog to ${SSH_HOST}:${DEST}"
 	    exit 1
 	fi
     else
 	scp $xlog ${SSH_USER:+$SSH_USER@}${SSH_HOST}:$DEST
 	if [ $? != 0 ]; then
-	    msg_error "Unable to send $xlog to ${SSH_HOST}:${DEST}"
+	    error "Unable to send $xlog to ${SSH_HOST}:${DEST}"
 	    exit 1
 	fi
     fi
