@@ -214,7 +214,24 @@ if [ $? != 0 ]; then
     error "could not create temporary file"
 fi
 
-$psql_command -Atc "SELECT spcname,spclocation,oid FROM pg_tablespace WHERE spcname NOT IN ('pg_default', 'pg_global') AND spclocation <> '';" $psql_condb | tr ' ' '_' > $tblspc_list
+# Starting from 9.2, the location of tablespaces is no longer stored
+# in pg_tablespace. This allows to change locations of tablespaces by
+# modifying the symbolic links in pg_tblspc. As a result, the query to
+# get list of tablespaces is different.
+
+# Get the version of the server
+pg_version=`$psql_command -Atc "SELECT setting FROM pg_settings WHERE name = 'server_version_num';" $psql_condb`
+if [ $? != 0 ]; then
+    error "could not get the version of the server"
+fi
+
+# Ask PostgreSQL the list of tablespaces
+if [ $pg_version -ge 90200 ]; then
+    $psql_command -Atc "SELECT spcname,pg_tablespacelocation(oid),oid FROM pg_tablespace WHERE spcname NOT IN ('pg_default', 'pg_global') AND spclocation <> '';" $psql_condb | tr ' ' '_' > $tblspc_list
+else
+    $psql_command -Atc "SELECT spcname,spclocation,oid FROM pg_tablespace WHERE spcname NOT IN ('pg_default', 'pg_global') AND spclocation <> '';" $psql_condb | tr ' ' '_' > $tblspc_list
+fi
+
 rc=(${PIPESTATUS[*]})
 psql_rc=${rc[0]}
 tr_rc=${rc[1]}
