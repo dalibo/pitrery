@@ -1,3 +1,13 @@
+pitrery (1.2-1) unstable; urgency=low
+
+  * New upstream release
+
+  * Support for PostgreSQL 9.2
+
+  * Make archiving more strict on failure with more than one target
+
+ -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Fri, 05 Apr 2013 14:25:20 +0200
+
 pitrery (1.1-1) unstable; urgency=low
 
   * New upstream release

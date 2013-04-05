@@ -121,15 +121,15 @@ GNU make is also needed to install from the source tarball.
 Installation from the sources
 -----------------------------
 
-The latest version of pitrery is 1.0, it can be downloaded from the
+The latest version of pitrery is 1.2, it can be downloaded from the
 Downloads link in GitHub.
 
 First unpack the tarball:
 
-    tar xzf pitrery-1.0.tar.gz
+    tar xzf pitrery-1.2.tar.gz
 
 
-Then, go to the pitrery-1.0 directory and edit config.mk to fit your
+Then, go to the pitrery-1.2 directory and edit config.mk to fit your
 system. Once done run make to replace the interpreter and paths in the
 scripts:
 
