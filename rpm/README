@@ -5,7 +5,7 @@ files.  The patch configures the Makfile (config.mk) to put things in
 To build a rpm:
 - copy the spec file to /usr/src/redhat/SPECS
 - copy the patch to /usr/src/redhat/SOURCES
-- go to https://github.com/dalibo/pitrery and download a tarball.
+- go to https://dl.dalibo.com/public/pitrery/ and download a tarball.
   put it in /usr/src/redhat/SOURCES
 - edit the spec file to change anything needed to match the version
   you got.
