@@ -1,16 +1,22 @@
 # archive_xlog.conf
 
-# Path to the list of target nodes
-NODE_LIST=@SYSCONFDIR@/archive_nodes.conf
+# Hostname or IP address for SSH copy.  This is mandatory when a local copy
+# is not wanted.
+SSH_HOST=
 
-# Default destination path, this can be overriden on
-# per node basis in NODE_LIST (see the file)
+# Username fot SSH login. Defaults to the user running the script,
+# e.g. PostgreSQL system user.  The username can be specified on per
+# node basis by using the user@node syntax in archive_nodes.conf
+SSH_USER=
+
+# Destination path.
 DEST=/var/lib/pgsql/archived_xlog
 
-# Allow local copy.  If a local IP address is configured
-# in NODE_LIST, then it is copied there only if ALLOW_LOCAL
-# is "yes". Defaults to "no".
-ALLOW_LOCAL="no"
+# Local copy.
+LOCAL="no"
+
+# Compress the WAL segment
+COMPRESS="yes"
 
 # Logging options.  When SYSLOG is no, messages are written
 # to stderr, to allow the logging collector or redirection

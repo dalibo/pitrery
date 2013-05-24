@@ -25,7 +25,7 @@
 #
 
 # Message functions
-msg_error() {
+error() {
     echo "ERROR: $1" 1>&2
 }
 
@@ -33,25 +33,34 @@ msg_error() {
 usage() {
     echo "usage: `basename $0` [options] XLOGFILE"
     echo "options:"
-    echo "    -L          allow local archiving"
-    echo "    -C conf     configuration file"
-    echo "    -n file     node list"
-    echo "    -d dir      target directory"
+    echo "    -L             do local archiving"
+    echo "    -C conf        configuration file"
+    echo "    -u username    username for SSH login"
+    echo "    -h hostname    hostname for SSH login"
+    echo "    -d dir         target directory"
+    echo "    -X             do not compress"
+    echo "    -S             send messages to syslog"
+    echo "    -f facility    syslog facility"
+    echo "    -t ident       syslog ident"
     echo
-    echo "    -h          print help"
+    echo "    -?             print help"
     echo
     exit $1
 }
 
 # Configuration defaults
 CONFIG=@SYSCONFDIR@/archive_xlog.conf
-NODE_LIST=@SYSCONFDIR@/archive_nodes.conf
 DEST=/var/lib/pgsql/archived_xlog
-ALLOW_LOCAL="no"
+LOCAL="no"
 SYSLOG="no"
+COMPRESS="yes"
+
+# Internal configuration
+COMPRESS_BIN="gzip -4"
+COMPRESS_SUFFIX="gz"
 
 # Command line options
-args=`getopt "LC:l:n:d:h" $*`
+args=`getopt "LC:u:d:h:XSf:t:?" "$@"`
 if [ $? -ne 0 ]
 then
     usage 2
@@ -61,19 +70,23 @@ set -- $args
 for i in $*
 do
     case "$i" in
-        -L) CLI_ALLOW_LOCAL="yes"; shift;;
+        -L) CLI_LOCAL="yes"; shift;;
 	-C) CONFIG=$2; shift 2;;
-	-n) CLI_NODE_LIST=$2; shift 2;;
+	-u) CLI_SSH_USER=$2; shift 2;;
+	-h) CLI_SSH_HOST=$2; shift 2;;
 	-d) CLI_DEST=$2; shift 2;;
-
-        -h) usage 1;;
+	-X) CLI_COMPRESS="no"; shift;;
+	-S) CLI_SYSLOG="yes"; shift;;
+	-f) CLI_SYSLOG_FACILITY=$2; shift 2;;
+	-t) CLI_SYSLOG_IDENT=$2; shift 2;;
+        -\?) usage 1;;
         --) shift; break;;
     esac
 done
 
 # The first argument must be a WAL file
 if [ $# != 1 ]; then
-    msg_error "missing xlog filename to archive. Please consider modifying archive_command, eg add %p"
+    error "missing xlog filename to archive. Please consider modifying archive_command, eg add %p"
     exit 1
 fi
 
@@ -84,10 +97,15 @@ if [ -f "$CONFIG" ]; then
     . $CONFIG
 fi
 
-# Override configuration with cli options
-[ -n "$CLI_ALLOW_LOCAL" ] && ALLOW_LOCAL=$CLI_ALLOW_LOCAL
-[ -n "$CLI_NODE_LIST" ] && NODE_LIST=$CLI_NODE_LIST
+# Overwrite configuration with cli options
+[ -n "$CLI_LOCAL" ] && LOCAL=$CLI_LOCAL
+[ -n "$CLI_SSH_USER" ] && SSH_USER=$CLI_SSH_USER
+[ -n "$CLI_SSH_HOST" ] && SSH_HOST=$CLI_SSH_HOST
 [ -n "$CLI_DEST" ] && DEST=$CLI_DEST
+[ -n "$CLI_COMPRESS" ] && COMPRESS=$CLI_COMPRESS
+[ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
+[ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
+[ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
 
 # Redirect output to syslog if configured
 if [ "$SYSLOG" = "yes" ]; then
@@ -98,117 +116,52 @@ if [ "$SYSLOG" = "yes" ]; then
     exec 2> >(logger -t ${SYSLOG_IDENT} -p ${SYSLOG_FACILITY}.err)
 fi
 
-# Do a basic check on the contents of the configuration file
-if [ ! -f "$NODE_LIST" ]; then
-    msg_error "target node list does not exists. aborting"
+# Sanity check. We need at least to know if we want to perform a local
+# copy or have a hostname for an SSH copy
+if [ $LOCAL != "yes" -a -z "$SSH_HOST" ]; then
+    error "Not enough information to archive the segment"
     exit 1
 fi
 
-# Initialize counters
-error_count=0
-
-# Send the WAL file to each node from the list
-for line in `cat $NODE_LIST | grep -vE "^(#|	| |$)" | sed -re 's/[[:space:]]+#.*$//' | sed -re 's/[[:space:]]+/,/g'`; do
-    # Split the line on : which can be followed by an optional target path
-    node=`echo $line | awk -F, '{ print $1 }' | sed -re 's/(\[|\])//g'`
-    destdir=`echo $line | awk -F, '{ print $2 }'`
-    mode=`echo $line | awk -F, '{ print $3 }'`
-
-    if [ -z "$destdir" ] || [ "$destdir" = "-" ]; then
-	# the destination path was not given, fallback to default
-	destdir=$DEST
+# Copy the wal locally
+if [ $LOCAL = "yes" ]; then
+    cp $xlog $DEST 1>&2
+    rc=$?
+    if [ $rc != 0 ]; then
+	error "Unable to copy $xlog to $destdir"
+	exit $rc
     fi
 
-    if [ -z "$mode" ] || [ "$mode" = "-" ]; then
-	# the mode was not given, fallback to default
-	mode="standby"
+    if [ $COMPRESS = "yes" ]; then
+	dest_path=$DEST/`basename $xlog`
+	$COMPRESS_BIN $dest_path
+	rc=$?
+	if [ $rc != 0 ]; then
+	    error "Unable to compress $dest_path"
+	    exit $rc
+	fi
     fi
 
-    # Check if the target node is the local machine
-    # and use cp if local archiving is allowed
-    local_copy="no"
-    LC_ALL=C /sbin/ifconfig | grep -qE "(addr:${node}[[:space:]]|inet6 addr: ${node}/)" && local_copy="yes"
-
-    # check if we have a IPv6, and put brackets for scp
-    echo $node | grep -q ':' && node="[${node}]"
-
-
-    case $mode in
-	standby)
-	    if [ "$local_copy" = "yes" ]; then
-		if [ "$ALLOW_LOCAL" = "yes" -a -n "$destdir" ]; then
-		    [ -d $destdir ] || mkdir -p $destdir 1>&2
-		    if [ $? != 0 ]; then
-			msg_error "Unable to create $destdir"
-			error_count=$(($error_count + 1))
-		    else
-			cp $xlog $destdir 1>&2
-			if [ $? != 0 ]; then
-			    msg_error "Unable to copy $xlog to $destdir"
-			    error_count=$(($error_count + 1))
-			fi
-		    fi
-		else
-		    # do not update error count or node count
-		    # when local archiving is not allowed
-		    continue 
-		fi
-	    else
-                # copy with ssh
-		scp $xlog ${node}:${destdir} >/dev/null
-		if [ $? != 0 ]; then
-		    msg_error "Unable to copy $xlog to ${node}:${destdir}"
-		    error_count=$(($error_count + 1))
-		fi
-	    fi
-	    ;;
-	pitr)
-	    if [ "$local_copy" = "yes" ]; then
-		# archiving for backup purposes bypasses ALLOW_LOCAL
-		if [ -n "$destdir" ]; then
-		    [ -d $destdir ] || mkdir -p $destdir 1>&2
-		    if [ $? != 0 ]; then
-			msg_error "Unable to create $destdir"
-			error_count=$(($error_count + 1))
-		    else
-			# Copy the file then gzip it
-			cp $xlog $destdir 1>&2
-			if [ $? != 0 ]; then
-			    msg_error "Unable to copy $xlog to $destdir"
-			    error_count=$(($error_count + 1))
-			else
-			    gzip -f $destdir/`basename $xlog`
-			    if [ $? != 0 ]; then
-				msg_error "Unable to compress $destdir/`basename $xlog`"
-
-				# count as an error. The file has been properly copied but the
-				# restore_xlog script does not (yet) known about uncompress files
-				error_count=$(($error_count + 1))
-			    fi
-			fi
-		    fi
-		fi
-	    else
-		gzip -c $xlog | ssh ${node} "cat > ${destdir:-'~'}/`basename $xlog`.gz"
-		rc=(${PIPESTATUS[*]})
-		gzip_rc=${rc[0]}
-		ssh_rc=${rc[1]}
-		if [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
-		    msg_error "Unable to send compressed $xlog to ${node}:${destdir}"
-		    error_count=$(($error_count + 1))
-		fi
-	    fi
-	    ;;
-    esac
-done
-
-# Compute return code If the xlog file could be sent to one node at
-# least, then the archive command is considered as failed.  This
-# allows to keep WAL files on the master until the slave is back, and
-# avoid "holes" in the WAL files chains when a slave temporarily
-# unavailable.
-if [ $error_count -ge 1 ]; then
-    exit 1
 else
-    exit 0
+    # Compress and copy with scp
+    echo $SSH_HOST | grep -q ':' && SSH_HOST="[${SSH_HOST}]" # Dummy test for IPv6
+
+    if [ $COMPRESS = "yes" ]; then
+	$COMPRESS_BIN -c $xlog | ssh ${SSH_USER:+$SSH_USER@}${SSH_HOST} "cat > ${DEST:-'~'}/`basename $xlog`.$COMPRESS_SUFFIX" 2>/dev/null
+	rc=(${PIPESTATUS[*]})
+	compress_rc=${rc[0]}
+	ssh_rc=${rc[1]}
+	if [ $compress_rc != 0 ] || [ $ssh_rc != 0 ]; then
+	    error "Unable to send compressed $xlog to ${SSH_HOST}:${DEST}"
+	    exit 1
+	fi
+    else
+	scp $xlog ${SSH_USER:+$SSH_USER@}${SSH_HOST}:$DEST
+	if [ $? != 0 ]; then
+	    error "Unable to send $xlog to ${SSH_HOST}:${DEST}"
+	    exit 1
+	fi
+    fi
 fi
+
+exit 0

@@ -60,19 +60,19 @@ design of pitrery. This means that you can decide not to use the
 archiving script to put WAL files in a safe place, which can be
 interesting if you already have WAL based replication set up and you
 do not want to replace you archiving script with the one provided by
-pitrery.  However, the archiving script of pitrery can be used to
-archive WAL files in different places, which make it possible to
-integrate it in a replicated environment.
+pitrery.
 
 The archive_xlog script takes care of WAL archiving.  It uses a
-configuration file to find where to archive WAL files.  Multiple
-places, e.g. servers that be accessed using SSH in batch mode, or the
-local machine can be configured, so that some WAL files can be used
-for PITR and others for replication.  A second configuration file can
-be used to reduce the size of the command line defined in the
+configuration file to find where to archive WAL files.  As of version
+1.3, archive_xlog no longer try to archive to many places.  Instead,
+the user has to integrate it in a already existing archiving script or
+simply modify the archive_command parameter of postgresql.conf to make
+it archive to times.  archive_xlog can copy and compress WAL files
+locally or to another server reachable using SSH.  A configuration
+file can be used to reduce the size of the command line defined in the
 configuration file of PostgreSQL.
 
-The management of base backup is divided in four parts, each one using
+The management of base backups is divided in four parts, each one using
 a standalone script to perform an action: backup, restore, purge and
 list.  These action can then be called by pitr_mgr, a wrapper around
 those scripts that uses a configuration file to define the backup
@@ -121,16 +121,18 @@ GNU make is also needed to install from the source tarball.
 Installation from the sources
 -----------------------------
 
-The latest version of pitrery is 1.2
+The latest version of can be downloaded from:
+
+https://dl.dalibo.com/public/pitrery/
 
 First unpack the tarball:
 
-    tar xzf pitrery-1.2.tar.gz
+    tar xzf pitrery-x.y.tar.gz
 
 
-Then, go to the pitrery-1.2 directory and edit config.mk to fit your
-system. Once done run make to replace the interpreter and paths in the
-scripts:
+Then, go to the pitrery-x.y directory and edit config.mk to fit your
+system. Once done run make (or gmake) to replace the interpreter and
+paths in the scripts:
 
     make
 
@@ -157,68 +159,34 @@ archive it.  It is an arbitrary command used as the value of the
 archive_command parameter in postgresql.conf. PostgreSQL only checks
 the return code of the command to know whether it worked or not.
 
-To archive WAL files with pitrery, the archive_xlog script is used.
-It takes a configuration file to specify where to copy the WAL segment
-when PostgreSQL runs it through its archive_command configuration
-parameter. This file is archive_nodes.conf, by default it is located
-in /usr/local/etc/pitrery/archive_nodes.conf.
-
-The archive_nodes.conf has the following format :
-
-    TARGET_IP    TARGET_DIRECTORY   MODE
-
-
-* TARGET_IP is the IP address of the host where to send files. To
-  archive WAL files on the locally, use a local IP address of the
-  server, e.g. 127.0.0.1
-
-* TARGET_DIRECTORY is the path to the directory where to store WAL
-  files on the target host. It must be writable.
-
-* MODE controls the purpose of the archived file. It can be set to
-  pitr or standby:
-
-  * pitr compresses the file with gzip and allows to archive locally
-    even if ALLOW_LOCAL is set to "no" in archive_xlog.conf (see
-    below). Use this mode if the file is intended to be part of a
-    backup.
-
-  * standby does not compress the file and honors the ALLOW_LOCAL
-    parameter. This mode allow to use the file for replication.
-
-  * If mode is a dash (-), then MODE defaults to standby.
-
-For example:
-
-    # Send compressed files to 192.168.0.50:/backups/postgresql/prod/xlog
-    192.168.0.50    /backups/postgresql/prod/xlog    pitr
-    
-    # Send files to standby host on 192.168.0.42:/pg_xlog/archives
-    192.168.0.42    /pg_xlog/archives    -
-
+pitrery provides the archive_xlog script to copy and possibly compress
+WAL segments either on the local machine or on a remote server
+reachable using an SSH connection. It is not mandatory to use it, any
+script can be used: the only requirement is to provide a mean for the
+restore script to get archived segments.
 
 archive_xlog can use a configuration file named archive_xlog.conf,
-which setups defaults. By default, its location is
+which sets defaults up. By default, its location is
 /usr/local/etc/pitrery/archive_xlog.conf, which can be overridden ion
 the command line with -C option. The following parameters can be
 configured:
 
-* NODE_LIST is the path to archive_nodes.conf. This parameter can be
-  overridden on the command line with the -n option.
+* DEST is the default target directory where to put files.
 
-* DEST is the default target directory on remote hosts. When
-  TARGET_DIRECTORY in archive_nodes.conf is a dash (-), this directory
-  is used on the remote host. This parameter can be overridden on the
-  command line with the -d option. When TARGET_DIRECTORY is set for a
-  host in archive_nodes.conf, the -n does not override it.
+* LOCAL controls whether local copy is performed. When this parameter
+  is set to "yes", archive_xlog uses cp to copy the file on a local
+  path. This path maybe a local filesystem or a remote path mounted
+  locally.  This parameter can be overridden on the command line with
+  the -L option.
 
-* ALLOW_LOCAL controls whether local copy is possible when MODE is set
-  to standby in archive_nodes.conf.  The purpose of this parameter is
-  make possible to use the same archive_nodes.conf on every hosts in a
-  replication environment.  When set to "no", archive_xlog will not
-  copy the file locally because it does not necessary when doing
-  replication.  When MODE is pitr, ALLOW_LOCAL does not apply.  This
-  parameter can be overridden on the command line with the -L option.
+* SSH_HOST is the target hostname or IP address used when copying over
+  an SSH connection.
+
+* SSH_USER can be used to specify a username for the SSH
+  connection. When not set, the username is the system user used by
+  PostgreSQL.
+
+* COMPRESS controls if the segment is compressed using gzip.
 
 * SYSLOG can be set to "yes" to log messages to syslog, otherwise
   stderr is used for message.  SYSLOG_FACILITY and SYSLOG_IDENT can

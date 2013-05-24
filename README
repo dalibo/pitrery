@@ -30,9 +30,6 @@ QUICK SETUP
 
    - Edit archive_xlog.conf
 
-   - Add the target hosts (IP addresses only) for the archives
-     to the archive_nodes.conf file
-
 5. Copy pitr.conf to a new file to configure a particular backup
 
 6. Edit this file to fit your system
