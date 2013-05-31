@@ -44,6 +44,7 @@ BACKUP_HOST=
 # login will be performed with the default SSH configuration.
 BACKUP_USER=
 
+
 # After restoring from a backup, PostgreSQL will need a command to run
 # to get archived WAL segments that needed to be replayed on the
 # cluster files.  This can be any valid command or script for the
@@ -51,14 +52,20 @@ BACKUP_USER=
 # restore_xlog script is intended to be used here: leave empty to use it
 RESTORE_COMMAND=
 
-# The host storing the archiced WAL files. If left empty, use BACKUP_HOST
+# When RESTORE_COMMAND is empty, the following parameters can be set
+# for restore_xlog.
+
+# The host storing the archiced WAL files. If left empty, use restore
+# archives from the local machine
 ARCHIVE_HOST=
 
-# The user for login to ARCHIVE_HOST through SSH. If blank, use BACKUP_USER
+# The user for login to ARCHIVE_HOST through SSH. If blank, target
+# owner is used
 ARCHIVE_USER=
 
 # The directory where to look for archived WAL files on BACKUP_HOST.
 ARCHIVE_DIR="/var/lib/pgsql/archived_xlog"
+
 
 # The old backups can be removed by setting one of those two
 # parameters, one can keep at most PURGE_KEEP_COUNT backups or keep

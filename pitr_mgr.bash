@@ -1,6 +1,6 @@
 #!@BASH@
 #
-# Copyright 2011 Nicolas Thauvin. All rights reserved.
+# Copyright 2011-2013 Nicolas Thauvin. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -188,7 +188,7 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lu:b:l:D:h:U:X:d:O:r:?" arg 2>/dev/null; do
+	while getopts "Lu:b:l:D:h:U:X:d:O:r:c:?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		u) BACKUP_USER=$OPTARG;;
@@ -200,7 +200,8 @@ case $action in
 		X) ARCHIVE_DIR=$OPTARG;;
 		d) TARGET_DATE=$OPTARG;;
 		O) PGOWNER=$OPTARG;;
-		r) RESTORE_COMMAND=$OPTARG;;
+		r) RESTORE_COMMAND="$OPTARG";;
+		C) ARCHIVE_CONF=$OPTARG;;
 		"?") $cmd -?; exit $?;;
 	    esac
 	done
@@ -215,7 +216,7 @@ case $action in
 	[ -n "$ARCHIVE_USER" ] && opts="$opts -U $ARCHIVE_USER"
 	[ -n "$ARCHIVE_DIR" ] && opts="$opts -X $ARCHIVE_DIR"
 	[ -n "$PGOWNER" ] && opts="$opts -O $PGOWNER"
-	[ -n "$RESTORE_COMMAND" ] && opts="$opts -r $RESTORE_COMMAND"
+	[ -n "$ARCHIVE_CONF" ] && opts="$opts -C $ARCHIVE_CONF"
 
 	# Take care of the source host
 	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then
@@ -229,12 +230,21 @@ case $action in
 	    fi
 	fi
 
-	# The target date has spaces in it making this difficult for bash
-	# to get the arguments passed properly
+	# The target date has spaces, making this difficult for bash
+	# to get the arguments passed properly. Same goes for the
+	# restore command.
 	if [ -n "$TARGET_DATE" ]; then
-	    $dry_run $cmd $opts -d "$TARGET_DATE" $host
+	    if [ -n "$RESTORE_COMMAND" ]; then
+		$dry_run $cmd $opts -d "$TARGET_DATE" -r "$RESTORE_COMMAND" $host
+	    else
+		$dry_run $cmd $opts -d "$TARGET_DATE" $host
+	    fi
 	else
-	    $dry_run $cmd $opts $host
+	    if [ -n "$RESTORE_COMMAND" ]; then
+		$dry_run $cmd $opts -r "$RESTORE_COMMAND" $host
+	    else
+		$dry_run $cmd $opts $host
+	    fi
 	fi
 	exit $?
 	;;
@@ -253,7 +263,7 @@ case $action in
 		l) BACKUP_LABEL=$OPTARG;;
 		b) BACKUP_DIR=$OPTARG;;
 		u) BACKUP_USER=$OPTARG;;
-		n) opts="-n $OPTARG";;
+		n) ARCHIVE_HOST=$OPTARG;;
 		U) ARCHIVE_USER=$OPTARG;;
 		X) ARCHIVE_DIR=$OPTARG;;
 		m) PURGE_KEEP_COUNT=$OPTARG;;
@@ -267,6 +277,7 @@ case $action in
 	[ -n "$BACKUP_DIR" ] && opts="$opts -b $BACKUP_DIR"
 	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
 	[ -n "$BACKUP_USER" ] && opts="$opts -u $BACKUP_USER"
+	[ -n "$ARCHIVE_HOST" ] && opts="$opts -n $ARCHIVE_HOST"
 	[ -n "$ARCHIVE_USER" ] && opts="$opts -U $ARCHIVE_USER"
 	[ -n "$ARCHIVE_DIR" ] && opts="$opts -X $ARCHIVE_DIR"
 	[ -n "$PURGE_KEEP_COUNT" ] && opts="$opts -m $PURGE_KEEP_COUNT"

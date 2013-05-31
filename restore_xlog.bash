@@ -1,6 +1,6 @@
 #!@BASH@
 #
-# Copyright 2011 Nicolas Thauvin. All rights reserved.
+# Copyright 2011-2013 Nicolas Thauvin. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -24,76 +24,60 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-usage() {
-    echo "usage: `basename $0` [options] xlogfile destination"
-    echo "options:"
-    echo "   -n host       host storing WALs"
-    echo "   -u username   username for SSH login"
-    echo "   -d dir        directory containaing WALs on host"
-    echo "   -C conf       configuration file"
-    echo
-    echo "   -s            send messages to syslog"
-    echo "   -f facility   syslog facility"
-    echo "   -t ident      syslog ident"
-    echo
-    echo "   -h            print help"
-    echo
-    exit $1
-}
-
+# Message functions
 error() {
     echo "ERROR: $*" 1>&2
     exit 1
 }
 
-is_local() {
-
-    # Check if the input is an IP address otherwise resolve to an IP address
-    echo -e "$1\n" | grep -qE '^(([0-9]{1,3}\.){3}[0-9]{1,3}|([0-9a-fA-F]{0,4}:+){1,7}[0-9a-fA-F]{0,4})$'
-    if [ $? != 0 ]; then
-        # use ping to resolve the ip
-	ip=`ping -c 1 -w 1 -q $1 2>/dev/null | sed -nE 's/.*\((([0-9]{1,3}\.?){4}).*/\1/p'`
-	if [ -z "$ip" ]; then
-	    # try ipv6
-	    ip=`ping6 -c 1 -w 1 -q -n $1 | sed -nE 's/.*\((([0-9a-fA-F]{0,4}:?){1,8}).*/\1/p'`
-	fi
-    else
-	ip=$1
-    fi
-
-    # Check if the IP address is local
-    LC_ALL=C /sbin/ifconfig | grep -qE "(addr:${ip}[[:space:]]|inet6 addr: ${ip}/)"
-    if [ $? = 0 ]; then
-	return 0
-    else
-	return 1
-    fi
-
+# Script help
+usage() {
+    echo "usage: `basename $0` [options] xlogfile destination"
+    echo "options:"
+    echo "    -L             restore local archives"
+    echo "    -C conf        configuration file"
+    echo "    -u username    username for SSH login"
+    echo "    -h hostname    hostname for SSH login"
+    echo "    -d dir         directory containaing WALs on host"
+    echo "    -X             do not uncompress"
+    echo "    -S             send messages to syslog"
+    echo "    -f facility    syslog facility"
+    echo "    -t ident       syslog ident"
+    echo
+    echo "    -?             print help"
+    echo
+    exit $1
 }
 
 # Default configuration
 CONFIG=@SYSCONFDIR@/archive_xlog.conf
-NODE=127.0.0.1
 SRCDIR=/var/lib/pgsql/archived_xlog
 SYSLOG="no"
+LOCAL="no"
+COMPRESS="yes"
+
+# Internal configuration
+UNCOMPRESS_BIN=gunzip
+COMPRESS_SUFFIX=gz
 
 # CLI processing
-args=`getopt "n:u:d:C:sf:t:h" "$@"`
+args=`getopt "LC:u:h:d:XSf:t:?" "$@"`
 if [ $? -ne 0 ]; then
     usage 2
 fi
 set -- $args
 for i in $*; do
     case "$i" in
-	-n) NODE=$2; shift 2;;
-	-u) CLI_SSH_USER=$2; shift 2;;
-	-d) SRCDIR=$2; shift 2;;
+	-L) CLI_LOCAL="yes"; shift;;
 	-C) CONGIG=$2; shift 2;;
-	-s) CLI_SYSLOG="yes"; shift;;
+	-u) CLI_SSH_USER=$2; shift 2;;
+	-h) CLI_SSH_HOST=$2; shift 2;;
+	-d) CLI_SRCDIR=$2; shift 2;;
+	-X) CLI_COMPRESS="no"; shift;;
+	-S) CLI_SYSLOG="yes"; shift;;
 	-f) CLI_SYSLOG_FACILITY=$2; shift 2;;
 	-t) CLI_SYSLOG_IDENT=$2; shift 2;;
-
-	-h) usage 1;;
+	-\?) usage 1;;
 	--) shift; break;;
     esac
 done
@@ -110,7 +94,16 @@ if [ -f "$CONFIG" ]; then
 fi
 
 # Override configuration with cli options
-[ -n "$CLI_SSH_USER" ] && SSH_USER=$CLI_SSH_USER
+if [ -n "$CLI_SSH_HOST" ]; then
+    SSH_HOST=$CLI_SSH_HOST
+    [ -n "$CLI_SSH_USER" ] && SSH_USER=$CLI_SSH_USER
+    # When a host storing the archives is given for local to no, as it
+    # can come from the configuration file
+    LOCAL="no"
+fi
+[ -n "$CLI_LOCAL" ] && LOCAL=$CLI_LOCAL
+[ -n "$CLI_SRCDIR" ] && SRCDIR=$CLI_SRCDIR
+[ -n "$CLI_COMPRESS" ] && COMPRESS=$CLI_COMPRESS
 [ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
 [ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
 [ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
@@ -124,32 +117,46 @@ if [ "$SYSLOG" = "yes" ]; then
     exec 2> >(logger -t ${SYSLOG_IDENT} -p ${SYSLOG_FACILITY}.err)
 fi
 
+# Check if we have enough information on where to get the file
+if [ $LOCAL != "yes" -a -z "$SSH_HOST" ]; then
+    error "Could not find where to get the file from (local or ssh?)"
+fi
+
+# the filename to retrieve depends on compression
+if [ $COMPRESS = "yes" ]; then
+    xlog_file=${xlog}.$COMPRESS_SUFFIX
+    target_file=${target_path}.$COMPRESS_SUFFIX
+else
+    xlog_file=$xlog
+    target_file=$target_path
+fi
+
 # Get the file: use cp when the file is on localhost, scp otherwise
-is_local $NODE
-if [ $? = 0 ]; then
-    # Local storage
-    if [ -f $SRCDIR/${xlog}.gz ]; then
-	cp $SRCDIR/${xlog}.gz ${target_path}.gz
+if [ $LOCAL = "yes" ]; then
+    if [ -f $SRCDIR/$xlog_file ]; then
+	cp $SRCDIR/$xlog_file $target_file
 	if [ $? != 0 ]; then
-	    error "could not copy $SRCDIR/$xlog.gz to $target_path"
+	    error "could not copy $SRCDIR/$xlog_file to $target_file"
 	fi
     else
-	error "could not find $SRCDIR/$xlog.gz"
+	error "could not find $SRCDIR/$xlog_file"
     fi
 else
     # check if we have a IPv6, and put brackets for scp
-    echo $NODE | grep -q ':' && NODE="[${NODE}]"
+    echo $SSH_HOST | grep -q ':' && SSH_HOST="[${SSH_HOST}]"
 
-    scp ${SSH_USER:+$SSH_USER@}${NODE}:$SRCDIR/${xlog}.gz ${target_path}.gz >/dev/null
+    scp ${SSH_USER:+$SSH_USER@}${SSH_HOST}:$SRCDIR/$xlog_file $target_file >/dev/null
     if [ $? != 0 ]; then
-	error "could not copy ${NODE}:$SRCDIR/$xlog.gz to $target_path"
+	error "could not copy ${SSH_HOST}:$SRCDIR/$xlog_file to $target_file"
     fi
 fi
 
-# Uncompress the file
-gunzip -f ${target_path}.gz
-if [ $? != 0 ]; then
-    error "could not copy gunzip file"
+# Uncompress the file if needed
+if [ $COMPRESS = "yes" ]; then
+    $UNCOMPRESS_BIN $target_file
+    if [ $? != 0 ]; then
+	error "could not uncompress $target_file"
+    fi
 fi
 
 exit 0

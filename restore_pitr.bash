@@ -1,6 +1,6 @@
 #!@BASH@
 #
-# Copyright 2011 Nicolas Thauvin. All rights reserved.
+# Copyright 2011-2013 Nicolas Thauvin. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -30,7 +30,6 @@ backup_root=/var/lib/pgsql/backups
 label_prefix="pitr"
 pgdata=/var/lib/pgsql/data
 owner=`id -un`
-restore_prog=@BINDIR@/restore_xlog
 archive_dir=/var/lib/pgsql/archived_xlog
 
 usage() {
@@ -45,12 +44,15 @@ usage() {
     echo "    -b dir          Backup storage directory"
     echo "    -l label        Label used when backup was performed"
     echo "    -D dir          Path to target \$PGDATA"
+    echo "    -d date         Restore until this date"
+    echo "    -O user         If run by root, owner of the files"
+    echo
+    echo "Archived WAL files options:"
+    echo "    -C file         Path to archive_xlog.conf"
     echo "    -h host         Host storing WAL files"
     echo "    -U username     Username for SSH login to WAL storage host"
     echo "    -X dir          Path to the archived xlog directory"
-    echo "    -d date         Restore until this date"
-    echo "    -O user         If run by root, owner of the files"
-    echo "    -r prog         Program to use in restore_command"
+    echo "    -r cli          Command line to use in restore_command"
     echo
     echo "    -?              Print help"
     echo
@@ -113,7 +115,6 @@ check_and_fix_directory() {
     downer=`stat -c %U $dir 2>/dev/null`
     if [ $? != 0 ]; then
 	error "Unable to get owner of $dir"
-	exit 1
     fi
 
     if [ $downer != $owner ]; then
@@ -144,19 +145,22 @@ check_and_fix_directory() {
 
 
 # Process CLI Options
-while getopts "Lu:b:l:D:h:U:X:d:O:r:?" opt; do
+while getopts "Lu:b:l:D:h:U:X:d:O:r:C:?" opt; do
     case "$opt" in
 	L) local_backup="yes";;
 	u) ssh_user=$OPTARG;;
 	b) backup_root=$OPTARG;;
 	l) label_prefix=$OPTARG;;
 	D) pgdata=$OPTARG;;
+	d) target_date=$OPTARG;;
+	O) owner=$OPTARG;;
+
+	C) archive_xlog_conf=$OPTARG;;
 	h) archive_host=$OPTARG;;
 	U) archive_ssh_user=$OPTARG;;
 	X) archive_dir=$OPTARG;;
-	d) target_date=$OPTARG;;
-	O) owner=$OPTARG;;
-	r) restore_prog=$OPTARG;;
+	r) restore_cli="$OPTARG";;
+
 	"?") usage 1;;
 	*) error "Unknown error while processing options";;
     esac
@@ -183,6 +187,12 @@ fi
 target_timestamp=`TZ=UTC date -d "$target_date" -u +%s`
 if [ $? != 0 ]; then
     error "could not get timestamp from target date. Check your date command"
+fi
+
+# An unprivileged target owner is mandatory as PostgreSQL cannot run
+# as root.
+if [ `id -u $owner` = 0 ]; then
+    error "the target owner cannot not be root. Use -O when restoring as root"
 fi
 
 # Find the backup according to given date.  The target date converted
@@ -281,16 +291,18 @@ else
 fi
 
 # Check the tablespaces directory and create them if possible
-[ -n "$tblspc_list" ] && cat $tblspc_list | while read l; do
-    name=`echo $l | cut -d '|' -f 1`
-    tbldir=`echo $l | cut -d '|' -f 2`
+if [ -n "$tblspc_list" ]; then
+    for l in `cat $tblspc_list`; do
+	name=`echo $l | cut -d '|' -f 1`
+	tbldir=`echo $l | cut -d '|' -f 2`
 
-    check_and_fix_directory $tbldir
-    if [ $? != 0 ]; then
-	echo "ERROR: bad tablespace location path in list for $name. Check $tblspc_list" 1>&2
-	continue
-    fi
-done
+	check_and_fix_directory $tbldir
+	if [ $? != 0 ]; then
+	    warn "bad tablespace location path in list for $name. Check $tblspc_list"
+	    continue
+	fi
+    done
+fi
 
 # Same goes for PGDATA
 check_and_fix_directory $pgdata
@@ -367,16 +379,29 @@ fi
 
 # Create a recovery.conf file in $PGDATA
 info "preparing recovery.conf file"
-prog=`basename "$restore_prog"`
-if [ $prog = "restore_xlog" ]; then
-    if [ $local_backup = "yes" ]; then
-	restore_prog="$restore_prog -n 127.0.0.1 -d $archive_dir %f %p"
+
+# When no restore_command is given, build it using restore_xlog
+if [ -z "$restore_cli" ]; then
+    restore_command="@BINDIR@/restore_xlog"
+    echo "'$archive_xlog_conf'"
+    [ -n "$archive_xlog_conf" ] && restore_command="$restore_command -C $archive_xlog_conf"
+    if [ -n "$archive_host" ]; then
+	restore_command="$restore_command -h $archive_host"
+	[ -n "$archive_ssh_user" ] && restore_command="$restore_command -u $archive_ssh_user"
     else
-	[ -z "$archive_ssh_user" ] && archive_ssh_user=$ssh_user
-	restore_prog="$restore_prog -n ${archive_host:-$source} ${archive_ssh_user:+-u $archive_ssh_user} -d $archive_dir %f %p"
+	# Unless the host storing archives is given, restore from a local dir
+	restore_command="$restore_command -L"
     fi
+    [ -n "$archive_dir" ] && restore_command="$restore_command -d $archive_dir"
+
+    restore_command="$restore_command %f %p"
+else
+    restore_command="$restore_cli"
 fi
-echo "restore_command = '$restore_prog'" > $pgdata/recovery.conf
+
+info "restore_command set to '$restore_command'"
+echo "restore_command = '$restore_command'" > $pgdata/recovery.conf
+
 if [ -n "$target_date" ]; then
     echo "recovery_target_time = '$target_date'" >> $pgdata/recovery.conf
 fi

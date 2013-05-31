@@ -60,19 +60,19 @@ design of pitrery. This means that you can decide not to use the
 archiving script to put WAL files in a safe place, which can be
 interesting if you already have WAL based replication set up and you
 do not want to replace you archiving script with the one provided by
-pitrery.  However, the archiving script of pitrery can be used to
-archive WAL files in different places, which make it possible to
-integrate it in a replicated environment.
+pitrery.
 
 The archive_xlog script takes care of WAL archiving.  It uses a
-configuration file to find where to archive WAL files.  Multiple
-places, e.g. servers that be accessed using SSH in batch mode, or the
-local machine can be configured, so that some WAL files can be used
-for PITR and others for replication.  A second configuration file can
-be used to reduce the size of the command line defined in the
+configuration file to find where to archive WAL files.  As of version
+1.3, archive_xlog no longer try to archive to many places.  Instead,
+the user has to integrate it in a already existing archiving script or
+simply modify the archive_command parameter of postgresql.conf to make
+it archive to times.  archive_xlog can copy and compress WAL files
+locally or to another server reachable using SSH.  A configuration
+file can be used to reduce the size of the command line defined in the
 configuration file of PostgreSQL.
 
-The management of base backup is divided in four parts, each one using
+The management of base backups is divided in four parts, each one using
 a standalone script to perform an action: backup, restore, purge and
 list.  These action can then be called by pitr_mgr, a wrapper around
 those scripts that uses a configuration file to define the backup
@@ -121,8 +121,9 @@ GNU make is also needed to install from the source tarball.
 Installation from the sources
 -----------------------------
 
-The latest version of pitrery can be downloaded from the Downloads
-link in GitHub.
+The latest version of can be downloaded from:
+
+https://dl.dalibo.com/public/pitrery/
 
 First unpack the tarball:
 
@@ -130,8 +131,8 @@ First unpack the tarball:
 
 
 Then, go to the pitrery-x.y directory and edit config.mk to fit your
-system. Once done run make to replace the interpreter and paths in the
-scripts:
+system. Once done run make (or gmake) to replace the interpreter and
+paths in the scripts:
 
     make
 
@@ -185,8 +186,7 @@ configured:
   connection. When not set, the username is the system user used by
   PostgreSQL.
 
-* COMPRESS controls if the segment is compressed using the program
-  configured by COMPRESS_BIN.
+* COMPRESS controls if the segment is compressed using gzip.
 
 * SYSLOG can be set to "yes" to log messages to syslog, otherwise
   stderr is used for message.  SYSLOG_FACILITY and SYSLOG_IDENT can
@@ -212,11 +212,12 @@ dependent parameters:
     archive_command = '/usr/local/bin/archive_xlog %p'
     
     # The archive command with parameters
-    #archive_command = '/usr/local/bin/archive_xlog -n /path/to/archive_nodes.conf %p'
+    #archive_command = '/usr/local/bin/archive_xlog -C /path/to/archive_xlog.conf %p'
 
 
 Depending on the version of PostgreSQL, restart the server if
 wal_level or archive_mode were changed, otherwise reload it.
+
 
 Using pitr_mgr to manage backups
 ================================
@@ -522,7 +523,7 @@ uncompress the archived WAL file asked by PostgreSQL. restore_xlog can
 read the archive_xlog.conf file to get its logging options, its
 behavior is controlled from its command line options, for example:
 
-    restore_xlog -n HOST -d ARCHIVE_DIR %f %p
+    restore_xlog -h HOST -d ARCHIVE_DIR %f %p
 
 
 Let's say the target directories are ready for a restore run by the
@@ -567,9 +568,21 @@ Listing backups
 The list action allow to find the backups for a particular label on
 the backup host. For example:
 
-    $ pitr_mgr -c prod list 
+    $ pitr_mgr -c prod list
     List of backups on 10.100.0.16:
-    /home/postgres/backups/prod/2011.08.17-11.16.30 	START TIME: 2011-08-17 11:18:10 CEST
+    
+    Directory:
+      /usr/data/pitrery/backups/pitr13/2013.05.31_11.44.02
+    Minimum recovery target time:
+      2013-05-31 11:44:02 CEST
+    Tablespaces:
+    
+    Directory:
+      /usr/data/pitrery/backups/pitr13/2013.05.31_11.49.37
+    Minimum recovery target time:
+      2013-05-31 11:49:37 CEST
+    Tablespaces:
+      ts1 /home/pgsql/postgresql-9.1.9/ts1 (24576)
 
 
 It lists the directory of each found backup with the date and time
@@ -610,11 +623,4 @@ one:
     INFO: purging /home/postgres/backups/prod/2011.08.17-11.16.30
     INFO: purging WAL files older than 000000020000000000000060
     INFO: done
-
-
-Listing the backups then shows only one backup:
-
-    $ pitr_mgr -c prod list
-    List of backups on 10.100.0.16:
-    /home/postgres/backups/prod/2011.08.17-14.58.32 	START TIME: 2011-08-17 14:58:33 CEST
 

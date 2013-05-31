@@ -1,35 +1,27 @@
 TODO
 
 - general:
-  . (v1.2+) Reorganise with subdirectories
-  . (v1.2+) Support for Major BSD Systems (ifconfig, stat?, grep -q?, mktemp?...)
-  . (v1.2+) Support different compression types (add bzip2 and xz)
-
-- packaging:
-  . (v1.2+) Add packaging scripts for Debian
-  . (v1.2+) create package in pkgsrc-wip
-
-- pitr_mgr:
+  . (v1.3+) Reorganise with subdirectories
+  . (v1.3+) Support for Major BSD Systems (ifconfig, stat?, grep -q?, mktemp?...)
 
 - restore_pitr:
-  . (v1.2+) Add an option to force overriding contents of non empty directories
-  . (v1.1)  Rework and check behavior when run by root
+  . (v1.3+) Add an option to force overriding contents of non empty directories
+  . (v1.3)  Rework and check behavior when run by root
 
 - list_pitr:
-  . (v1.1)  Fix the output to show the stop time instead of start time
-  . (v1.1)  Add an option to list the content of the backup and give more info
+  . (v1.3+)  Add an option to list the content of the backup and give more info
             like the directory to create for tablespaces, sizes,...
 
 - backup_pitr:
-  . (v1.1)  Consider creating a tar of extra files/directories from an arbitrary
+  . (v1.3)  Consider creating a tar of extra files/directories from an arbitrary
             list, this would allow to store postgres binaries and init script
             for example.
 
 - purge_pitr:
-  . (v1.1)  Make the time based purge compatible with the count purge, allowing
+  . (v1.3)  Make the time based purge compatible with the count purge, allowing
             to purge backups based on age _and_ keeping a minimum number of
             backups.
 
-- restore_xlog:
-  . (v1.1)  Allow to restore uncompressed WAL archives
-
+- upgrade steps from 1.1 to 1.2:
+  . add a script to generate $backup_dir/backup_timestamp from the stop time of
+    the current backup where it does not exists : restore_xlog?

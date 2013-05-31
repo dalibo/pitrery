@@ -1,6 +1,6 @@
 #!@BASH@
 #
-# Copyright 2011 Nicolas Thauvin. All rights reserved.
+# Copyright 2011-2013 Nicolas Thauvin. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -44,7 +44,7 @@ usage() {
     echo "    -X dir       Archived WALs directory"
     echo
     echo "    -m count     Keep this number of backups"
-    echo "    -d days      Purge backup older than this number of days"
+    echo "    -d days      Purge backups older than this number of days"
     echo
     echo "    -?           Print help"
     echo
@@ -211,9 +211,9 @@ fi
 
 # Extract the name of the WAL file from the backup history file
 wal_file=`grep '^START WAL LOCATION' $backup_label | cut -d' ' -f 6 | sed -e 's/[^0-9A-F]//g'`
-max_wal_num=$((16#$wal_file))
+max_wal_num=$(( 16#$wal_file ))
 
-info "purging WAL files older than `basename $wal_file .gz`"
+info "purging WAL files older than `basename $wal_file`"
 
 # List the WAL files and remove the old ones based on their name
 # which are ordered in time by their naming scheme
@@ -224,16 +224,21 @@ if [ $local_xlog = "yes" ]; then
 	exit 1
     fi
     for wal in $wal_list; do
-	w=`basename $wal .gz`
+	file=`basename $wal` # filename with compression suffix
+	w=`echo $file | sed -E -e 's/\.[^\.]+$//'` # filename without compression suffix
 	# Exclude history and backup label files from the listing
-	echo $w | grep -q '\.'
+	echo $w | egrep -q '\.[^\.]+'
 	if [ $? != 0 ]; then
+	    echo $w | grep -qE '^[0-9A-F]+$' # ensure when have some hex
+	    if [ $? != 0 ]; then
+		continue
+	    fi
 	    wal_num=$(( 16#$w ))
 	    if [ $wal_num -lt $max_wal_num ]; then
-		# Remove the WAL file and possible the backup history file
-		rm $xlog_dir/$w*.gz
+		# Remove the WAL file
+		rm $xlog_dir/$file
 		if [ $? != 0 ]; then
-		    echo "WARNING: Unable to remove $w" 1>&2
+		    echo "WARNING: Unable to remove $wal" 1>&2
 		fi
 	    fi
 	fi
@@ -245,15 +250,20 @@ else
 	exit 1
     fi
     for wal in $wal_list; do
-	w=`basename $wal .gz`
+	file=`basename $wal` # filename with compression suffix
+	w=`echo $file | sed -E -e 's/\.[^\.]+$//'` # filename without compression suffix
 	# Exclude history and backup label files
-	echo $w | grep -q '\.'
+	echo $w | egrep -q '\.[^\.]+'
 	if [ $? != 0 ]; then
+	    echo $w | grep -qE '^[0-9A-F]+$' # ensure when have some hex
+	    if [ $? != 0 ]; then
+		continue
+	    fi
 	    wal_num=$(( 16#$w ))
 	    if [ $wal_num -lt $max_wal_num ]; then
-		ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "rm $xlog_dir/$w*.gz" 2>/dev/null
+		ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "rm $xlog_dir/$file" 2>/dev/null
 		if [ $? != 0 ]; then
-		    echo "WARNING: Unable to remove $w on $xlog_host" 1>&2
+		    echo "WARNING: Unable to remove $file on $xlog_host" 1>&2
 		fi
 	    fi
 	fi

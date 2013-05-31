@@ -1,6 +1,6 @@
 #!@BASH@
 #
-# Copyright 2011 Nicolas Thauvin. All rights reserved.
+# Copyright 2011-2013 Nicolas Thauvin. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -33,12 +33,11 @@ error() {
 usage() {
     echo "usage: `basename $0` [options] XLOGFILE"
     echo "options:"
-    echo "    -L             allow local archiving"
+    echo "    -L             do local archiving"
     echo "    -C conf        configuration file"
     echo "    -u username    username for SSH login"
     echo "    -h hostname    hostname for SSH login"
     echo "    -d dir         target directory"
-    echo "    -x prog        compression program"
     echo "    -X             do not compress"
     echo "    -S             send messages to syslog"
     echo "    -f facility    syslog facility"
@@ -55,10 +54,13 @@ DEST=/var/lib/pgsql/archived_xlog
 LOCAL="no"
 SYSLOG="no"
 COMPRESS="yes"
-COMPRESS_BIN=gzip
+
+# Internal configuration
+COMPRESS_BIN="gzip -f -4"
+COMPRESS_SUFFIX="gz"
 
 # Command line options
-args=`getopt "LC:u:d:h:x:XSf:t:?" "$@"`
+args=`getopt "LC:u:d:h:XSf:t:?" "$@"`
 if [ $? -ne 0 ]
 then
     usage 2
@@ -73,7 +75,6 @@ do
 	-u) CLI_SSH_USER=$2; shift 2;;
 	-h) CLI_SSH_HOST=$2; shift 2;;
 	-d) CLI_DEST=$2; shift 2;;
-	-x) CLI_COMPRESS_BIN=$2; shift 2;;
 	-X) CLI_COMPRESS="no"; shift;;
 	-S) CLI_SYSLOG="yes"; shift;;
 	-f) CLI_SYSLOG_FACILITY=$2; shift 2;;
@@ -96,12 +97,11 @@ if [ -f "$CONFIG" ]; then
     . $CONFIG
 fi
 
-# Override configuration with cli options
+# Overwrite configuration with cli options
 [ -n "$CLI_LOCAL" ] && LOCAL=$CLI_LOCAL
 [ -n "$CLI_SSH_USER" ] && SSH_USER=$CLI_SSH_USER
 [ -n "$CLI_SSH_HOST" ] && SSH_HOST=$CLI_SSH_HOST
 [ -n "$CLI_DEST" ] && DEST=$CLI_DEST
-[ -n "$CLI_COMPRESS_BIN" ] && COMPRESS_BIN=$CLI_COMPRESS_BIN
 [ -n "$CLI_COMPRESS" ] && COMPRESS=$CLI_COMPRESS
 [ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
 [ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
@@ -143,11 +143,11 @@ if [ $LOCAL = "yes" ]; then
     fi
 
 else
-    # compress and copy with scp
-    echo $SSH_HOST | grep -q ':' && SSH_HOST="[${SSH_HOST}]"
+    # Compress and copy with scp
+    echo $SSH_HOST | grep -q ':' && SSH_HOST="[${SSH_HOST}]" # Dummy test for IPv6
 
     if [ $COMPRESS = "yes" ]; then
-	$COMPRESS_BIN -c $xlog | ssh ${SSH_USER:+$SSH_USER@}${SSH_HOST} "cat > ${DEST:-'~'}/`basename $xlog`.gz" 2>/dev/null
+	$COMPRESS_BIN -c $xlog | ssh ${SSH_USER:+$SSH_USER@}${SSH_HOST} "cat > ${DEST:-'~'}/`basename $xlog`.$COMPRESS_SUFFIX" 2>/dev/null
 	rc=(${PIPESTATUS[*]})
 	compress_rc=${rc[0]}
 	ssh_rc=${rc[1]}

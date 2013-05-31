@@ -18,11 +18,6 @@ LOCAL="no"
 # Compress the WAL segment
 COMPRESS="yes"
 
-# Path to the program used for compression.  This command must allow
-# the usage of a -c switch to allow sending its output to stdout. Do
-# not put this switch here
-COMPRESS_BIN=gzip
-
 # Logging options.  When SYSLOG is no, messages are written
 # to stderr, to allow the logging collector or redirection
 # to catch them
