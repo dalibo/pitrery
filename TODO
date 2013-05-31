@@ -6,7 +6,6 @@ TODO
 
 - restore_pitr:
   . (v1.3+) Add an option to force overriding contents of non empty directories
-  . (v1.3)  Rework and check behavior when run by root
 
 - list_pitr:
   . (v1.3+)  Add an option to list the content of the backup and give more info

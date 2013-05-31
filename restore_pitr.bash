@@ -191,6 +191,7 @@ fi
 
 # An unprivileged target owner is mandatory as PostgreSQL cannot run
 # as root.
+info "target owner of the restored file is \"$owner\""
 if [ `id -u $owner` = 0 ]; then
     error "the target owner cannot not be root. Use -O when restoring as root"
 fi
@@ -332,6 +333,15 @@ else
 fi
 cd $was
 
+# change owner of PGDATA to the target owner
+if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+    info "setting owner of PGDATA ($pgdata)"
+    chown -R ${owner}: $pgdata
+    if [ $? != 0 ]; then
+	error "could not change owner of PGDATA to $owner"
+    fi
+fi
+
 # tablespaces
 [ -n "$tblspc_list" ] && for l in `cat $tblspc_list`; do
     name=`echo $l | cut -d '|' -f 1`
@@ -359,6 +369,15 @@ cd $was
 	fi
     fi
     cd $was
+
+    # change owner of the tablespace files to the target owner
+    if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+	info "setting owner of tablespace \"$name\" ($tbldir)"
+	chown -R ${owner}: $tbldir
+	if [ $? != 0 ]; then
+	    error "could not change owner of tablespace \"$name\" to $owner"
+	fi
+    fi
 done
 
 # Create pg_xlog directory if needed
@@ -369,7 +388,12 @@ if [ ! -d $pgdata/pg_xlog/archive_status ]; then
 	error "could not create $pgdata/pg_xlog"
     fi
 
-    if [ `id -u` = 0 ]; then
+    chmod 700 $pgdata/pg_xlog $pgdata/pg_xlog/archive_status 2>/dev/null
+    if [ $? != 0 ]; then
+	error "could not set permissions of $pgdata/pg_xlog"
+    fi
+
+    if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
 	chown -R ${owner}: $pgdata/pg_xlog
 	if [ $? != 0 ]; then
 	    error "could not change owner of $dir to $owner"
@@ -401,6 +425,13 @@ fi
 
 info "restore_command set to '$restore_command'"
 echo "restore_command = '$restore_command'" > $pgdata/recovery.conf
+
+if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+    chown -R ${owner}: $pgdata/recovery.conf
+    if [ $? != 0 ]; then
+	error "could not change owner of recovery.conf to $owner"
+    fi
+fi
 
 if [ -n "$target_date" ]; then
     echo "recovery_target_time = '$target_date'" >> $pgdata/recovery.conf
