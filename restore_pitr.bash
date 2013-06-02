@@ -31,6 +31,7 @@ label_prefix="pitr"
 pgdata=/var/lib/pgsql/data
 owner=`id -un`
 archive_dir=/var/lib/pgsql/archived_xlog
+dry_run="no"
 
 usage() {
     echo "`basename $0` performs a PITR restore"
@@ -46,6 +47,9 @@ usage() {
     echo "    -D dir          Path to target \$PGDATA"
     echo "    -d date         Restore until this date"
     echo "    -O user         If run by root, owner of the files"
+    echo "    -t tblspc:dir   Change the target directory of tablespace \"ts\""
+    echo "                      this switch can be used many times"
+    echo "    -n              Dry run: show restore information only"
     echo
     echo "Archived WAL files options:"
     echo "    -C file         Path to archive_xlog.conf"
@@ -61,6 +65,11 @@ usage() {
 
 error() {
     echo "ERROR: $*" 1>&2
+
+    # Clean tmp dir
+    if [ -n "$tmp_dir" ]; then
+	rm -rf $tmp_dir
+    fi
     exit 1
 }
 
@@ -94,21 +103,21 @@ check_and_fix_directory() {
 		error "could not change owner of $dir to $owner"
 	    fi
 	fi
-    fi
+    else
+        # Check if directory is empty
+	info "checking if $dir is empty"
+	ls $dir >/dev/null 2>&1
+	ls_rc=$?
+	content=`ls $dir 2>/dev/null | wc -l`
+	wc_rc=$?
+	if [ $ls_rc != 0 ] || [ $wc_rc != 0 ]; then
+	    error "could not check if $dir is empty"
+	fi
 
-    # Check if directory is empty
-    info "checking if $dir is empty"
-    ls $dir >/dev/null 2>&1
-    ls_rc=$?
-    content=`ls $dir 2>/dev/null | wc -l`
-    wc_rc=$?
-    if [ $ls_rc != 0 ] || [ $wc_rc != 0 ]; then
-	error "could not check if $dir is empty"
-    fi
-
-    if [ $content != 0 ]; then
-	# XXX add a switch to force
-	error "$dir is not empty. Contents won't be overridden"
+	if [ $content != 0 ]; then
+	    # XXX add a switch to force
+	    error "$dir is not empty. Contents won't be overridden"
+	fi
     fi
     
     # Check owner
@@ -145,7 +154,7 @@ check_and_fix_directory() {
 
 
 # Process CLI Options
-while getopts "Lu:b:l:D:h:U:X:d:O:r:C:?" opt; do
+while getopts "Lu:b:l:D:h:U:X:d:O:r:C:t:n?" opt; do
     case "$opt" in
 	L) local_backup="yes";;
 	u) ssh_user=$OPTARG;;
@@ -154,6 +163,8 @@ while getopts "Lu:b:l:D:h:U:X:d:O:r:C:?" opt; do
 	D) pgdata=$OPTARG;;
 	d) target_date=$OPTARG;;
 	O) owner=$OPTARG;;
+	t) tsmv_list="$tsmv_list $OPTARG";;
+	n) dry_run="yes";;
 
 	C) archive_xlog_conf=$OPTARG;;
 	h) archive_host=$OPTARG;;
@@ -184,24 +195,42 @@ if [ -n "$target_date" ]; then
     fi
 fi
 
-target_timestamp=`TZ=UTC date -d "$target_date" -u +%s`
+target_timestamp=`date -d "$target_date" -u +%s`
 if [ $? != 0 ]; then
     error "could not get timestamp from target date. Check your date command"
 fi
 
 # An unprivileged target owner is mandatory as PostgreSQL cannot run
 # as root.
-info "target owner of the restored file is \"$owner\""
 if [ `id -u $owner` = 0 ]; then
     error "the target owner cannot not be root. Use -O when restoring as root"
 fi
+
+# When no restore_command is given, build it using restore_xlog
+if [ -z "$restore_cli" ]; then
+    restore_command="@BINDIR@/restore_xlog"
+    [ -n "$archive_xlog_conf" ] && restore_command="$restore_command -C $archive_xlog_conf"
+    if [ -n "$archive_host" ]; then
+	restore_command="$restore_command -h $archive_host"
+	[ -n "$archive_ssh_user" ] && restore_command="$restore_command -u $archive_ssh_user"
+    else
+	# Unless the host storing archives is given, restore from a local dir
+	restore_command="$restore_command -L"
+    fi
+    [ -n "$archive_dir" ] && restore_command="$restore_command -d $archive_dir"
+
+    restore_command="$restore_command %f %p"
+else
+    restore_command="$restore_cli"
+fi
+
+
 
 # Find the backup according to given date.  The target date converted
 # to a timestamp is compared to the timestamp of the stop time of the
 # backup. Only after the stop time a backup is sure to be consistent.
 info "searching backup directory"
 if [ -n "$target_date" ]; then
-    info "target date is: $target_date"
 
     # search the store
     if [ $local_backup = "yes" ]; then
@@ -254,9 +283,13 @@ else
 	    error "could not list the content of $backup_root/$label_prefix/"
 	fi
     else
-	backup_date=`ssh ${ssh_user:+$ssh_user@}$source "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null | tail -1`
+	backup_date=`ssh ${ssh_user:+$ssh_user@}$source "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
 	if [ $? != 0 ]; then
 	    error "could not list the content of $backup_root/$label_prefix/ on $source"
+	fi
+	backup_date=`echo $backup_date | tr ' ' '\n' | tail -1`
+	if [ $? != 0 ]; then
+	    error "could not find a backup from $backup_root/$label_prefix/ on $source"
 	fi
     fi
 
@@ -268,10 +301,14 @@ fi
 
 backup_dir=$backup_root/$label_prefix/$backup_date
 
-info "backup directory is $backup_dir"
+# we need a temporary directory for some files
+tmp_dir=`mktemp -d -t pitrery.XXXXXXXXXX`
+if [ $? != 0 ]; then
+    error "could not create temporary directory"
+fi
 
-# Check target directories
 # get the tablespace list and check the directories
+info "searching for tablespaces information"
 if [ $local_backup = "yes" ]; then
     if [ -f $backup_dir/tblspc_list ]; then
 	tblspc_list=$backup_dir/tblspc_list
@@ -279,10 +316,6 @@ if [ $local_backup = "yes" ]; then
 else
     ssh ${ssh_user:+$ssh_user@}$source "test -f $backup_dir/tblspc_list" 2>/dev/null
     if [ $? = 0 ]; then
-	tmp_dir=`mktemp -d -t pg_pitr.XXXXXXXXXX`
-	if [ $? != 0 ]; then
-	    error "could not create temporary directory"
-	fi
 	scp ${ssh_user:+$ssh_user@}$source:$backup_dir/tblspc_list $tmp_dir >/dev/null 2>&1
 	if [ $? != 0 ]; then
 	    error "could not copy the list of tablespaces from backup store"
@@ -291,22 +324,85 @@ else
     fi
 fi
 
-# Check the tablespaces directory and create them if possible
+# Prepare a temporary file with the final list of tablespace directories
+tblspc_reloc=$tmp_dir/tblspc_reloc
 if [ -n "$tblspc_list" ]; then
     for l in `cat $tblspc_list`; do
+	name=`echo $l | cut -d '|' -f 1`
+	tbldir=`echo $l | cut -d '|' -f 2`
+	oid=`echo $l | cut -d '|' -f 3`
+	reloc="no"
+
+	for t in $tsmv_list; do
+	    tname=`echo $t | cut -d ':' -f 1`
+	    if [ $tname = $name ]; then
+		[ "$tbldir" != "`echo $t | cut -d ':' -f 2`" ] && reloc="yes"
+		tbldir=`echo $t | cut -d ':' -f 2`
+		break
+	    fi
+	done
+	echo "${name}|$tbldir|$oid|$reloc" >> $tblspc_reloc
+    done
+fi
+
+
+# Display some info on the restore
+info
+info "backup directory:"
+info "  $backup_dir"
+info
+info "destinations directories:"
+info "  PGDATA -> $pgdata"
+if [ -n "$tblspc_reloc" ]; then
+    for l in `cat $tblspc_reloc`; do
+	name=`echo $l | cut -d '|' -f 1`
+	tbldir=`echo $l | cut -d '|' -f 2`
+	reloc=`echo $l | cut -d '|' -f 4`
+
+	info "  tablespace \"$name\" -> $tbldir (relocated: $reloc)"
+    done
+fi
+
+info
+info "recovery configuration:"
+info "  target owner of the restored files: $owner"
+info "  restore_command = '$restore_command'"
+[ -n "$target_date" ] && info "  recovery_target_time = '$target_date'"
+info 
+
+# Check if tablespace relocation list have duplicates
+if [ -n "$tblspc_reloc" ]; then
+    tscount=`cat $tblspc_reloc | wc -l`
+    tsucount=`cat $tblspc_reloc | awk -F'|' '{ print $2 }' | sort -u | wc -l`
+    [ $tsucount -lt $tscount ] && error "found duplicates in tablespace relocations. Check options and the list of tablespaces of the backup"
+fi
+
+if [ "$dry_run" = "yes" ]; then
+    # Cleanup and exit without error 
+    if [ -n "$tmp_dir" ]; then
+	rm -rf $tmp_dir
+    fi
+    exit 0
+fi
+
+# Real work starts here
+
+# Check target directories
+check_and_fix_directory $pgdata
+
+# Check the tablespaces directory and create them if possible
+if [ -n "$tblspc_reloc" ]; then
+    for l in `cat $tblspc_reloc`; do
 	name=`echo $l | cut -d '|' -f 1`
 	tbldir=`echo $l | cut -d '|' -f 2`
 
 	check_and_fix_directory $tbldir
 	if [ $? != 0 ]; then
-	    warn "bad tablespace location path in list for $name. Check $tblspc_list"
+	    warn "bad tablespace location path \"$tbldir\" for $name. Check $tblspc_list and -t switches"
 	    continue
 	fi
     done
 fi
-
-# Same goes for PGDATA
-check_and_fix_directory $pgdata
 
 # Extract everything
 # pgdata
@@ -343,9 +439,26 @@ if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
 fi
 
 # tablespaces
-[ -n "$tblspc_list" ] && for l in `cat $tblspc_list`; do
+[ -n "$tblspc_reloc" ] && for l in `cat $tblspc_reloc`; do
     name=`echo $l | cut -d '|' -f 1`
     tbldir=`echo $l | cut -d '|' -f 2`
+    oid=`echo $l | cut -d '|' -f 3`
+    reloc=`echo $l | cut -d '|' -f 4`
+
+    # Change the symlink in pg_tblspc when the tablespace directory changes
+    if [ "$reloc" = "yes" ]; then
+	was=`pwd`
+	cd $pgdata/pg_tblspc
+	rm $oid || error "could not remove symbolic link $oid"
+	ln -s $tbldir $oid || error "could not update the symbolic of tablespace $name ($oid) to $tbldir"
+
+	# Ensure the new link has the correct owner, the chown -R
+	# issued after extraction will not do it
+	if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+	    chown -h ${owner}: $oid
+	fi
+	cd $was
+    fi
 
     info "extracting tablespace \"${name}\" to $tbldir"
     was=`pwd`
@@ -403,29 +516,15 @@ fi
 
 # Create a recovery.conf file in $PGDATA
 info "preparing recovery.conf file"
-
-# When no restore_command is given, build it using restore_xlog
-if [ -z "$restore_cli" ]; then
-    restore_command="@BINDIR@/restore_xlog"
-    echo "'$archive_xlog_conf'"
-    [ -n "$archive_xlog_conf" ] && restore_command="$restore_command -C $archive_xlog_conf"
-    if [ -n "$archive_host" ]; then
-	restore_command="$restore_command -h $archive_host"
-	[ -n "$archive_ssh_user" ] && restore_command="$restore_command -u $archive_ssh_user"
-    else
-	# Unless the host storing archives is given, restore from a local dir
-	restore_command="$restore_command -L"
-    fi
-    [ -n "$archive_dir" ] && restore_command="$restore_command -d $archive_dir"
-
-    restore_command="$restore_command %f %p"
-else
-    restore_command="$restore_cli"
-fi
-
-info "restore_command set to '$restore_command'"
 echo "restore_command = '$restore_command'" > $pgdata/recovery.conf
 
+# Put the given target date in recovery.conf
+if [ -n "$target_date" ]; then
+    echo "recovery_target_time = '$target_date'" >> $pgdata/recovery.conf
+fi
+
+# Ensure recovery.conf as the correct owner so that PostgreSQL can
+# rename it at the end of the recovery
 if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
     chown -R ${owner}: $pgdata/recovery.conf
     if [ $? != 0 ]; then
@@ -433,14 +532,48 @@ if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
     fi
 fi
 
-if [ -n "$target_date" ]; then
-    echo "recovery_target_time = '$target_date'" >> $pgdata/recovery.conf
+# Generate a SQL file in PGDATA to update the catalog when tablespace
+# locations have changed. It is only needed when using PostgreSQL <=9.1
+updsql=$pgdata/update_catalog_tablespaces.sql
+if [ -f "$tblspc_reloc" ]; then
+    # Check PG_VERSION
+    if [ -f $pgdata/PG_VERSION ]; then
+	pgvers=`cat $pgdata/PG_VERSION | sed -e 's/\./0/'`
+    else
+	warn "PG_VERSION file is missing"
+    fi
+
+    # Generate script
+    [ "$pgvers" -le 901 ] && for l in `cat $tblspc_reloc | grep 'yes$'`; do
+	name=`echo $l | cut -d '|' -f 1`
+	tbldir=`echo $l | cut -d '|' -f 2`
+	oid=`echo $l | cut -d '|' -f 3`
+
+	echo "-- update location of $name to $tbldir" >> $updsql
+	echo -e "UPDATE pg_catalog.pg_tablespace SET spclocation = '$tbldir' WHERE oid = $oid;\n" >> $updsql
+    done
+
+    if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+	chown ${owner}: $updsql 2>/dev/null
+    fi
 fi
 
+
+
 # Cleanup
-if [ -n "$tmpdir" ]; then
-    rm -rf $tmpdir
+if [ -n "$tmp_dir" ]; then
+    rm -rf $tmp_dir
 fi
 
 info "done"
+info
 info "please check directories and recovery.conf before starting the cluster"
+info "and do not forget to update the configuration of pitrery if needed"
+info
+
+
+if [ -f $updsql ]; then
+    warn "locations of tablespaces have changed, after recovery update the catalog with:"
+    warn "  $updsql"
+fi
+

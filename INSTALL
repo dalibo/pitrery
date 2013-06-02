@@ -24,7 +24,7 @@ PostgreSQL has filled a number of WAL files, when a timeout occurs or
 when a superuser asks it, the engine starts a checkpoint.  The
 checkpoint consists of writing all the modification of the data to the
 database files.  So data is first written to the WAL, then to the data
-files.
+files.  The checkpoint permits PostgreSQL to recycle the WAL files.
 
 The purpose of this is to permit crash recovery without losing data.
 If PostgreSQL detects that the cluster was not cleanly shut down at
@@ -67,7 +67,7 @@ configuration file to find where to archive WAL files.  As of version
 1.3, archive_xlog no longer try to archive to many places.  Instead,
 the user has to integrate it in a already existing archiving script or
 simply modify the archive_command parameter of postgresql.conf to make
-it archive to times.  archive_xlog can copy and compress WAL files
+it archive the WAL files.  archive_xlog can copy and compress WAL files
 locally or to another server reachable using SSH.  A configuration
 file can be used to reduce the size of the command line defined in the
 configuration file of PostgreSQL.
@@ -84,8 +84,8 @@ be high at a time when end-users cannot access the database.
 
 The storage place can be a remote server or the local machine. If is a
 remote server, it must accessible using SSH in batch mode.  Using the
-local machine as storage space can be useful back up on a filer, whose
-file systems are mounted locally.
+local machine as storage space can be useful to backup on a filer, whose
+filesystems are mounted locally.
 
 On the backup host, pitrery organizes backed up files in the following
 way:
@@ -111,7 +111,7 @@ Installation
 Prerequisites
 -------------
 
-pitrery is a set of Bash scripts, so bash is needed. Apart from bash,
+pitrery is a set of bash scripts, so bash is needed. Apart from bash,
 standard tools found on any Linux server are needed: grep, sed, awk,
 tar, gzip, ssh, scp...
 
@@ -137,7 +137,7 @@ paths in the scripts:
     make
 
 
-Finally, run install it, as root if needed: 
+Finally, install it, as root if needed: 
 
     make install
 
@@ -167,7 +167,7 @@ restore script to get archived segments.
 
 archive_xlog can use a configuration file named archive_xlog.conf,
 which sets defaults up. By default, its location is
-/usr/local/etc/pitrery/archive_xlog.conf, which can be overridden ion
+/usr/local/etc/pitrery/archive_xlog.conf, which can be overridden on
 the command line with -C option. The following parameters can be
 configured:
 
@@ -175,7 +175,7 @@ configured:
 
 * LOCAL controls whether local copy is performed. When this parameter
   is set to "yes", archive_xlog uses cp to copy the file on a local
-  path. This path maybe a local filesystem or a remote path mounted
+  path. This path maybe a local filesystem or a remote filesystem mounted
   locally.  This parameter can be overridden on the command line with
   the -L option.
 
@@ -186,7 +186,10 @@ configured:
   connection. When not set, the username is the system user used by
   PostgreSQL.
 
-* COMPRESS controls if the segment is compressed using gzip.
+* COMPRESS controls if the segment is compressed using
+  gzip. Compression is enabled by default, it can be disabled on busy
+  server doing a lot write transaction, this can avoid contention on
+  archiving.
 
 * SYSLOG can be set to "yes" to log messages to syslog, otherwise
   stderr is used for message.  SYSLOG_FACILITY and SYSLOG_IDENT can
@@ -194,8 +197,9 @@ configured:
   is configured to use syslog.
 
 If archiving is set up to a remote host, this host must be accessible
-using SSH in batch mode, meaning that passphraseless access is to be
-configured for the system user running PostgreSQL to the remote host.
+using SSH in batch mode, meaning that passphraseless access using key
+is to be configured for the system user running PostgreSQL to the
+remote host.
 
 Once archive_xlog is configured, PostgreSQL must be setup to use it by
 modifying the archive_command parameter in postgresql.conf and
@@ -225,8 +229,8 @@ Using pitr_mgr to manage backups
 Configuration
 -------------
 
-Once the WAL archiving is setup and properly working, pitr_mgr can be
-used to create, restore and manage base backups of the PostgreSQL
+Once the WAL archiving is setup and properly working, pitr_mgr can
+create, restore and manage base backups of the PostgreSQL
 cluster. pitr_mgr command syntax is:
 
     pitr_mgr [options] action [action-specific options]
@@ -238,8 +242,8 @@ corresponding script stored by default in
 action based on the options given on the command line at execution
 time.  The purpose of pitr_mgr is to wrap there scripts and provide
 them with their command line options based on a configuration file.
-This enables to reduce the command line size and try to avoid mistakes
-at runtime.
+This reduces the command line size and try to avoid mistakes at
+runtime.
 
 Before using pitr_mgr to backup and manage backups for a specific
 PostgreSQL cluster, a configuration file shall be created in the
@@ -248,7 +252,7 @@ configuration hold all the information necessary to manage backups for
 this cluster. The default configuration file is pitr.conf, containing
 all the default parameters.
 
-To easiest way to configure pitr_mgr is to copy the default
+The easiest way to configure pitr_mgr is to copy the default
 configuration file to new name meaningful to our setup:
 
     cd /usr/local/etc/pitrery
@@ -256,13 +260,13 @@ configuration file to new name meaningful to our setup:
 
 
 We will create a configuration file for the backup of our critical
-production server. We edit this file to defined the specific
-parameters of this PostgreSQL server.
+production server. We edit this file to define the specific
+parameters for this PostgreSQL server.
 
-The first parameters define how to connect to the PostgreSQL server to
-backup. It is needed to run pg_start_backup() and pg_stop_backup() to
+The first parameters configure how to connect to the PostgreSQL server to
+backup.  It is needed to run pg_start_backup() and pg_stop_backup() to
 let us tell PostgreSQL a backup is being run. pitrery uses the same
-variable as the tools of PostgreSQL :
+variables as the tools of PostgreSQL :
 
 * PGDATA is the path to the directory storing the cluster
 
@@ -276,10 +280,10 @@ one found in the PATH. If other variables are defined in the
 environment, they can be commented out in the file to have pitrery use
 them.
 
-The following parameters controls the different actions accessible
+The following parameters control the different actions accessible
 through pitr_mgr :
 
-* PGOWNER is the system user with possess the files of the cluster, it
+* PGOWNER is the system user which owns the files of the cluster, it
   is useful when restoring as root if the user want to restore as
   another user.
 
@@ -287,25 +291,29 @@ through pitr_mgr :
   local machine. When set to "yes", the target host is no longer
   needed.
 
-* BACKUP_DIR is the path to the directory where to store the backups
+* BACKUP_DIR is the path to the directory where to store the backups.
 
 * BACKUP_LABEL is the name of the set of backups, all backups will be
   stored in a subdirectory named with this value to let the user store
-  backups for different servers in the same BACKUP_DIR
+  backups for different servers in the same BACKUP_DIR.
 
 * BACKUP_HOST is the IP address of the host where backups shall be
-  stored
+  stored. BACKUP_USER is the username to use for SSH login, if empty,
+  the username is the one running pitr_mgr.
 
 * RESTORE_COMMAND can be used to define the command run by PostgreSQL
-  when it needs to retrieve a WAL file to apply it in recovery
+  when it needs to retrieve a WAL file before applying it in recovery
   mode. It is useful when WAL archiving is not performed by
-  pitrery. When archive_xlog is used, this parameter default to a call
-  to restore_xlog and it is not necessary to set it up here unless
-  archived WAL files are stored on a different host than BACKUP_HOST
+  pitrery. When archive_xlog is used, e.g. RESTORE_COMMAND is left
+  empty, it defaults to a call to restore_xlog and it is not necessary
+  to set it up here, unless archived WAL files are stored on a
+  different host than BACKUP_HOST.
 
-* ARCHIVE_DIR when using restore_xlog to recover archived WAL files,
-  this is the path where the WAL files are stored. It should be set to
-  same path that was defined in archiv_nodes.conf for archiving.
+* ARCHIVE_DIR, ARCHIVE_HOST and ARCHIVE_USER are passed to
+  restore_xlog when RESTORE_COMMAND is empty. They define the location
+  (either local or through SSH) where the WAL files are stored. It
+  should be set to same path that was defined in archive_xlog.conf for
+  archiving.
 
 * PURGE_KEEP_COUNT controls how many backups must be kept when purging
   old backups.
@@ -317,21 +325,23 @@ through pitr_mgr :
 Usage
 -----
 
+Note: all commands have a -? switch to show their usage details.
+
 The help for pitr_mgr is available by running it with the -h option :
 
-    $ pitr_mgr -h
+    $ pitr_mgr -?
     usage: pitr_mgr [options] action [args]
     options:
         -c file      Path to the configuration file
         -n           Show the command instead of executing it
-        -h           Print help
+        -?           Print help
     
     actions:
         list
         backup
         restore
         purge
-
+    
 
 If we want to backup our example production server, the name of the
 configuration must given to pitr_mgr with the -c option. The name of
@@ -356,6 +366,7 @@ action, for example :
         -L              Perform a local backup
         -b dir          Backup directory
         -l label        Backup label, it will be suffixed with the date and time
+        -u username     Username for SSH login
         -D dir          Path to $PGDATA
     
     Connection options:
@@ -366,7 +377,7 @@ action, for example :
         -d DATABASE     database to use for connection
     
         -?              Print help
-
+    
 
 The -n option of pitr_mgr can be used to show the action script
 command line that would be runned, but without running it. It is
@@ -409,6 +420,7 @@ action is:
         -L              Perform a local backup
         -b dir          Backup directory
         -l label        Backup label, it will be suffixed with the date and time
+        -u username     Username for SSH login
         -D dir          Path to $PGDATA
     
     Connection options:
@@ -419,7 +431,7 @@ action is:
         -d DATABASE     database to use for connection
     
         -?              Print help
-
+    
 
 For example, the configuration file for our example production server
 is the following:
@@ -435,7 +447,10 @@ is the following:
     BACKUP_DIR="/home/postgres/backups"
     BACKUP_LABEL="prod"
     BACKUP_HOST=10.100.0.16
+    BACKUP_USER=
     RESTORE_COMMAND=
+    ARCHIVE_HOST=
+    ARCHIVE_USER=
     ARCHIVE_DIR="/home/postgres/backups/prod/xlog"
     PURGE_KEEP_COUNT=2
     PURGE_OLDER_THAN=
@@ -464,6 +479,7 @@ directory on the backup host:
     └── prod
         ├── 2011.08.17-11.16.30
         │   ├── backup_label
+        │   ├── backup_timestamp
         │   ├── pgdata.tar.gz
         │   ├── tblspc
         │   │   └── t1.tar.gz
@@ -482,85 +498,14 @@ directory on the backup host:
 
 The backup is stored in the prod/2011.08.17-11.16.30 diretory of
 BACKUP_DIR, "prod" being the label defined by BACKUP_LABEL. The backup
-directory is named with the date and time of the backup, this naming
-will be used by the restore action to find the best candidate when
-restoring to a specific date and time. The directory stores the backup
-label file of PostgreSQL, a tarball of the PGDATA directory, tarballs
-for each tablespace and the tablespace list for their path. Here we
-have configured archive_xlog to store the WAL files in prod/Xlog to
-have them close to the base backups.
-
-
-Restore
--------
-
-The restore action takes a backup and prepares the recovery to restore
-to a particular point in time. The target date must given on the
-command line using the -d option. Its format is the one expected by
-PostgreSQL: Y-m-D H:M:S TZ'.
-
-This action perform the following steps:
-
-* Find the newer possible backup from the store
-
-* Retrieve and extract the contents of PGDATA and the tablespaces
-
-* Create a recovery.conf file for PostgreSQL
-
-The restore will only work if the target destination directory (PGDATA
-in the configuration file of pitr_mgr) and the directory used by
-tablespaces exist, are writable and are empty. It is important to
-prepare those directories before running the restore.
-
-When specifiying a target date, it will be used in the
-$PGDATA/recovery.conf file as value for the recovery_target_time
-parameter.
-
-Unless RESTORE_COMMAND is defined to something else, the restore_xlog
-script will be used by PostgreSQL to retrieve archived WAL files. The
-purpose of this script is to find, copy on PostgreSQL server, and
-uncompress the archived WAL file asked by PostgreSQL. restore_xlog can
-read the archive_xlog.conf file to get its logging options, its
-behavior is controlled from its command line options, for example:
-
-    restore_xlog -h HOST -d ARCHIVE_DIR %f %p
-
-
-Let's say the target directories are ready for a restore run by the
-postgres user, the restore can be started with pitr_mgr on our example
-production server:
-
-    $ pitr_mgr -c prod restore -d '2011-08-17 12:00:00'
-    INFO: searching backup directory
-    INFO: target date is: 2011-08-17 12:00:00
-    INFO: backup directory is /home/postgres/backups/prod/2011.08.17-11.16.30
-    INFO: creating /home/postgres/postgresql-9.0.4/t1
-    INFO: setting permissions of /home/postgres/postgresql-9.0.4/t1
-    INFO: checking if /home/postgres/postgresql-9.0.4/t1 is empty
-    INFO: creating /home/postgres/postgresql-9.0.4/data
-    INFO: setting permissions of /home/postgres/postgresql-9.0.4/data
-    INFO: checking if /home/postgres/postgresql-9.0.4/data is empty
-    INFO: extracting PGDATA to /home/postgres/postgresql-9.0.4/data
-    INFO: extracting tablespace "t1" to /home/postgres/postgresql-9.0.4/t1
-    INFO: preparing pg_xlog directory
-    INFO: preparing recovery.conf file
-    INFO: done
-    INFO: please check directories and recovery.conf before starting the cluster
-
-
-The restore script finds that the backup to be restored is located in
-/home/postgres/backups/prod/2011.08.17-11.16.30 on our backup
-server. It then extracts everything, including the tablespace named t1
-and prepares the recovery.conf at the root of $PGDATA. The script tell
-the user to check everything before starting the PostgreSQL cluster:
-This behavior is intentionnal, it allows the user to modify parameters
-of PostgreSQL or change how the recovery is configured in
-recovery.conf.
-
-When everything is fine, the PostgreSQL can be started, it will apply
-the archived WAL files until the target date is reached or until all
-WAL files are consumed if no target date was specified.
-
+directory is named with the start date and time of the backup. The
+backup_timestamp contains the timestamp value of the stop time of the
+backup, which is used by the restore action to find the best candidate
+when restoring to a specific date and time. The directory stores the
+backup label file of PostgreSQL, a tarball of the PGDATA directory,
+tarballs for each tablespace and the tablespace list for their
+path. Here we have configured archive_xlog to store the WAL files in
+prod/xlog to have them close to the base backups.
 
 Listing backups
 ---------------
@@ -601,6 +546,153 @@ by adding the -? option after the action:
         -?              Print help
 
 
+Restore
+-------
+
+The restore action takes a backup and prepares the recovery to restore
+to a particular point in time. The target date must be given on the
+command line using the -d option. Its format is the one expected by
+PostgreSQL: YYYY-mm-DD HH:MM:SS [+-]TZTZ'. The '[+-]TZTZ' is the
+timezone offset, it must given as HHMM, .e.g +2h30 would be +0230 and
+-7h would be -0700.
+
+This action perform the following steps:
+
+* Find the newest possible backup from the store.
+
+* Retrieve and extract the contents of PGDATA and the tablespaces.
+
+* Create a recovery.conf file for PostgreSQL.
+
+* Optinally, create a script to update the catalog when paths to
+  tablespaces have changed.
+
+The restore will only work if the target destination directory (PGDATA
+in the configuration file of pitr_mgr) and the directories used by
+tablespaces exist or can be created, are writable and empty. It is
+important to prepare those directories before running the restore.
+
+When specifiying a target date, it will be used in the
+$PGDATA/recovery.conf file as value for the recovery_target_time
+parameter.
+
+Unless RESTORE_COMMAND is defined to something else, the restore_xlog
+script will be used by PostgreSQL to retrieve archived WAL files. The
+purpose of this script is to find, copy on PostgreSQL server, and
+uncompress the archived WAL file asked by PostgreSQL. restore_xlog can
+read the archive_xlog.conf file to get its logging options, its
+behavior is controlled from its command line options, for example:
+
+    restore_xlog -h HOST -d ARCHIVE_DIR %f %p
+
+
+Let's say the target directories are ready for a restore run by the
+postgres user, the restore can be started with pitr_mgr on an example
+production server:
+
+    $ pitr_mgr -c prod restore -d '2013-06-01 13:00:00 +0200'
+    INFO: searching backup directory
+    INFO: searching for tablespaces information
+    INFO: 
+    INFO: backup directory:
+    INFO:   /home/pgsql/postgresql-9.1.9/pitr/prod/2013.06.01_12.15.38
+    INFO: 
+    INFO: destinations directories:
+    INFO:   PGDATA -> /home/pgsql/postgresql-9.1.9/data
+    INFO:   tablespace "ts1" -> /home/pgsql/postgresql-9.1.9/ts1 (relocated: no)
+    INFO:   tablespace "ts2" -> /home/pgsql/postgresql-9.1.9/ts2 (relocated: no)
+    INFO: 
+    INFO: recovery configuration:
+    INFO:   target owner of the restored files: postgres
+    INFO:   restore_command = '/usr/local/bin/restore_xlog -L -d /home/pgsql/postgresql-9.1.9/archives %f %p'
+    INFO:   recovery_target_time = '2013-06-01 13:00:00 +0200'
+    INFO: 
+    INFO: checking if /home/pgsql/postgresql-9.1.9/data is empty
+    INFO: checking if /home/pgsql/postgresql-9.1.9/ts1 is empty
+    INFO: checking if /home/pgsql/postgresql-9.1.9/ts2 is empty
+    INFO: extracting PGDATA to /home/pgsql/postgresql-9.1.9/data
+    INFO: extracting tablespace "ts1" to /home/pgsql/postgresql-9.1.9/ts1
+    INFO: extracting tablespace "ts2" to /home/pgsql/postgresql-9.1.9/ts2
+    INFO: preparing pg_xlog directory
+    INFO: preparing recovery.conf file
+    INFO: done
+    INFO: 
+    INFO: please check directories and recovery.conf before starting the cluster
+    INFO: and do not forget to update the configuration of pitrery if needed
+    INFO:
+
+
+The restore script finds that the backup to be restored is located in
+/home/pgsql/postgresql-9.1.9/pitr/prod/2013.06.01_12.15.38 on our backup
+server. It then extracts everything, including the tablespaces
+and prepares the recovery.conf at the root of $PGDATA. The script tell
+the user to check everything before starting the PostgreSQL cluster:
+This behavior is intentionnal, it allows the user to modify parameters
+of PostgreSQL or change how the recovery is configured in
+recovery.conf.
+
+When everything is fine, the PostgreSQL can be started, it will apply
+the archived WAL files until the target date is reached or until all
+WAL files are consumed if no target date was specified.
+
+If unsure about the options to give for a restore, use the -n switch
+of the restore action to make it stop after showing the informations.
+
+Furthermore, it possible choose the target directories when restoring,
+use -D switch to set the target directory for PGDATA, and one to many
+-t switches to relocate the tablespaces to other directories. The
+format of the value of a -t option is tablespace_name:new_directory.
+
+One -t option apply to one tablespace. For example:
+
+    $ pitr_mgr -c prod restore -d '2013-06-01 13:00:00 +0200' \
+      -D /home/pgsql/postgresql-9.1.9/data_restore \
+      -t ts1:/home/pgsql/postgresql-9.1.9/ts1_restore 
+    INFO: searching backup directory
+    INFO: searching for tablespaces information
+    INFO: 
+    INFO: backup directory:
+    INFO:   /home/pgsql/postgresql-9.1.9/pitr/pitr13/2013.06.01_12.15.38
+    INFO: 
+    INFO: destinations directories:
+    INFO:   PGDATA -> /home/pgsql/postgresql-9.1.9/data_restore
+    INFO:   tablespace "ts1" -> /home/pgsql/postgresql-9.1.9/ts1_restore (relocated: yes)
+    INFO:   tablespace "ts2" -> /home/pgsql/postgresql-9.1.9/ts2 (relocated: no)
+    INFO: 
+    INFO: recovery configuration:
+    INFO:   target owner of the restored files: orgrim
+    INFO:   restore_command = '/usr/local/bin/restore_xlog -L -d /home/pgsql/postgresql-9.1.9/archives %f %p'
+    INFO:   recovery_target_time = '2013-06-01 13:00:00 +0200'
+    INFO: 
+    INFO: creating /home/pgsql/postgresql-9.1.9/data_restore
+    INFO: setting permissions of /home/pgsql/postgresql-9.1.9/data_restore
+    INFO: creating /home/pgsql/postgresql-9.1.9/ts1_restore
+    INFO: setting permissions of /home/pgsql/postgresql-9.1.9/ts1_restore
+    INFO: checking if /home/pgsql/postgresql-9.1.9/ts2 is empty
+    INFO: extracting PGDATA to /home/pgsql/postgresql-9.1.9/data_restore
+    INFO: extracting tablespace "ts1" to /home/pgsql/postgresql-9.1.9/ts1_restore
+    INFO: extracting tablespace "ts2" to /home/pgsql/postgresql-9.1.9/ts2
+    INFO: preparing pg_xlog directory
+    INFO: preparing recovery.conf file
+    INFO: done
+    INFO: 
+    INFO: please check directories and recovery.conf before starting the cluster
+    INFO: and do not forget to update the configuration of pitrery if needed
+    INFO: 
+    WARNING: locations of tablespaces have changed, after recovery update the catalog with:
+    WARNING:   /home/pgsql/postgresql-9.1.9/data_restore/update_catalog_tablespaces.sql
+
+In the above example, the PGDATA has been changed along with the path
+of the ts1 tablespace. Since the version of PostgreSQL is 9.1, pitrery
+creates a SQL file with the UPDATE statements needed to update the
+spclocation column of pg_tablespace (this columns has been removed as
+of 9.2). This script must be run as a superuser role on the restored
+cluster after the recovery.
+
+Again, if unsure, run the restore action with the -n switch to display
+what would be done.
+
+
 Removing old backups
 --------------------
 
@@ -609,15 +701,16 @@ the number of backups to keep or their age in days. If the maximum
 number of backups and the maximum age are set, only the number of
 backups is used for the purge, it prevents the user from removing all
 backups if all of them are too old. The purge script will also try to
-remove unnecessary archived WAL file.
+remove unnecessary archived WAL files, provided it can reach the
+location where they are stored.
 
 The -m on the command line or the PURGE_KEEP_COUNT in the
 configuration file define the maximum number of backups to keep. The
 -d on the command line or the PURGE_OLDER_THAN in the configuration
-file is used to define the maximum age.
+file is used to define the maximum age in days.
 
 For example, we have two backups on the store and we want to keep only
-one:
+one, while PURGE_KEEP_COUNT=2:
 
     $ pitr_mgr -c prod purge -m 1
     INFO: purging /home/postgres/backups/prod/2011.08.17-11.16.30

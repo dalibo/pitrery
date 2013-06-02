@@ -33,7 +33,7 @@ usage() {
     echo "options:"
     echo "    -c file      Path to the configuration file"
     echo "    -n           Show the command instead of executing it"
-    echo "    -h           Print help"
+    echo "    -?           Print help"
     echo
     echo "actions:"
     echo "    list"
@@ -53,11 +53,11 @@ info() {
     echo "INFO: $*"
 }
 
-while getopts "c:nh" opt; do
+while getopts "c:n?" opt; do
     case "$opt" in
 	c) config=$OPTARG;;
 	n) dry_run="echo";;
-	h) usage 1;;
+	'?') usage 1;;
 	*) error "error while processing options";;
     esac
 done
@@ -188,7 +188,7 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lu:b:l:D:h:U:X:d:O:r:c:?" arg 2>/dev/null; do
+	while getopts "Lu:b:l:D:h:U:X:d:O:r:c:t:n?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		u) BACKUP_USER=$OPTARG;;
@@ -202,6 +202,8 @@ case $action in
 		O) PGOWNER=$OPTARG;;
 		r) RESTORE_COMMAND="$OPTARG";;
 		C) ARCHIVE_CONF=$OPTARG;;
+		t) TBLSPC_RELOC="$TBLSPC_RELOC -t $OPTARG";;
+		n) DRY_RUN="yes";;
 		"?") $cmd -?; exit $?;;
 	    esac
 	done
@@ -217,6 +219,8 @@ case $action in
 	[ -n "$ARCHIVE_DIR" ] && opts="$opts -X $ARCHIVE_DIR"
 	[ -n "$PGOWNER" ] && opts="$opts -O $PGOWNER"
 	[ -n "$ARCHIVE_CONF" ] && opts="$opts -C $ARCHIVE_CONF"
+	[ -n "$TBLSPC_RELOC" ] && opts="$opts $TBLSPC_RELOC"
+	[ "$DRY_RUN" = "yes" ] && opts="$opts -n"
 
 	# Take care of the source host
 	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then
