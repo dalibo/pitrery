@@ -326,7 +326,7 @@ fi
 
 # Prepare a temporary file with the final list of tablespace directories
 tblspc_reloc=$tmp_dir/tblspc_reloc
-if [ -n "$tblspc_list" ]; then
+if [ -f "$tblspc_list" ]; then
     for l in `cat $tblspc_list`; do
 	name=`echo $l | cut -d '|' -f 1`
 	tbldir=`echo $l | cut -d '|' -f 2`
@@ -353,7 +353,7 @@ info "  $backup_dir"
 info
 info "destinations directories:"
 info "  PGDATA -> $pgdata"
-if [ -n "$tblspc_reloc" ]; then
+if [ -f "$tblspc_reloc" ]; then
     for l in `cat $tblspc_reloc`; do
 	name=`echo $l | cut -d '|' -f 1`
 	tbldir=`echo $l | cut -d '|' -f 2`
@@ -371,7 +371,7 @@ info "  restore_command = '$restore_command'"
 info 
 
 # Check if tablespace relocation list have duplicates
-if [ -n "$tblspc_reloc" ]; then
+if [ -f "$tblspc_reloc" ]; then
     tscount=`cat $tblspc_reloc | wc -l`
     tsucount=`cat $tblspc_reloc | awk -F'|' '{ print $2 }' | sort -u | wc -l`
     [ $tsucount -lt $tscount ] && error "found duplicates in tablespace relocations. Check options and the list of tablespaces of the backup"
@@ -391,7 +391,7 @@ fi
 check_and_fix_directory $pgdata
 
 # Check the tablespaces directory and create them if possible
-if [ -n "$tblspc_reloc" ]; then
+if [ -f "$tblspc_reloc" ]; then
     for l in `cat $tblspc_reloc`; do
 	name=`echo $l | cut -d '|' -f 1`
 	tbldir=`echo $l | cut -d '|' -f 2`
@@ -439,7 +439,7 @@ if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
 fi
 
 # tablespaces
-[ -n "$tblspc_reloc" ] && for l in `cat $tblspc_reloc`; do
+[ -f "$tblspc_reloc" ] && for l in `cat $tblspc_reloc`; do
     name=`echo $l | cut -d '|' -f 1`
     tbldir=`echo $l | cut -d '|' -f 2`
     oid=`echo $l | cut -d '|' -f 3`
