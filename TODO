@@ -1,8 +1,13 @@
 TODO
 
 - general:
-  . (v1.3+) Reorganise with subdirectories
   . (v1.3+) Support for Major BSD Systems (ifconfig, stat?, grep -q?, mktemp?...)
+  . (v1.4)  Install the doc in the makefile and packages
+  . (v1.4)  Add an upgrade doc
+  . (v1.4)  Add a changelog
+  . (v1.4)  Rename pitr_mgr to pitrery with a symlink for backward compat
+  . (v1.4)  Merge archiving and backup configuration files
+  . (v1.5)  Support rsync for the base backup
 
 - restore_pitr:
   . (v1.3+) Add an option to force overriding contents of non empty directories
@@ -12,7 +17,7 @@ TODO
             like the directory to create for tablespaces, sizes,...
 
 - backup_pitr:
-  . (v1.3)  Consider creating a tar of extra files/directories from an arbitrary
+  . (v1.4)  Consider creating a tar of extra files/directories from an arbitrary
             list, this would allow to store postgres binaries and init script
             for example.
 
@@ -21,6 +26,3 @@ TODO
             to purge backups based on age _and_ keeping a minimum number of
             backups.
 
-- upgrade steps from 1.1 to 1.2:
-  . add a script to generate $backup_dir/backup_timestamp from the stop time of
-    the current backup where it does not exists : restore_xlog?
