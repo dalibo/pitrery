@@ -24,6 +24,7 @@ options:
 	@echo "BINDIR     = ${BINDIR}"
 	@echo "LIBDIR     = ${LIBDIR}/${NAME}"
 	@echo "SYSCONFDIR = ${SYSCONFDIR}"
+	@echo "DOCDIR     = ${DOCDIR}"
 	@echo
 
 $(BINS) $(LIBS): $(SRCS)
@@ -56,6 +57,9 @@ install: all
 	@echo installing configuration to ${DESTDIR}${SYSCONFDIR}
 	@mkdir -p ${DESTDIR}${SYSCONFDIR}
 	@cp -i $(CONFS) ${DESTDIR}${SYSCONFDIR} < /dev/null >/dev/null 2>&1
+	@echo installing docs to ${DESTDIR}${DOCDIR}
+	@mkdir -p ${DESTDIR}${DOCDIR}
+	@cp -f COPYRIGHT INSTALL ${DESTDIR}${DOCDIR}
 
 uninstall:
 	@echo removing executable files from ${DESTDIR}${BINDIR}
@@ -63,5 +67,8 @@ uninstall:
 	@echo removing helpers from ${DESTDIR}${LIBDIR}/${NAME}
 	@rm -f $(addprefix ${DESTDIR}${LIBDIR}/${NAME}/,$(LIBS))
 	@-rmdir ${DESTDIR}${LIBDIR}/${NAME}
+	@echo removing docs from ${DESTDIR}${DOCDIR}
+	@rm -f ${DESTDIR}${DOCDIR}/COPYRIGHT ${DESTDIR}${DOCDIR}/INSTALL
+	@-rmdir ${DESTDIR}${DOCDIR}
 
 .PHONY: all options clean install uninstall
