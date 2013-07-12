@@ -188,7 +188,7 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lu:b:l:D:h:U:X:d:O:r:c:t:n?" arg 2>/dev/null; do
+	while getopts "Lu:b:l:D:h:U:X:d:O:r:C:t:n?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		u) BACKUP_USER=$OPTARG;;
