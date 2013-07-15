@@ -59,7 +59,7 @@ install: all
 	@cp -i $(CONFS) ${DESTDIR}${SYSCONFDIR} < /dev/null >/dev/null 2>&1
 	@echo installing docs to ${DESTDIR}${DOCDIR}
 	@mkdir -p ${DESTDIR}${DOCDIR}
-	@cp -f COPYRIGHT INSTALL ${DESTDIR}${DOCDIR}
+	@cp -f $(CONFS) COPYRIGHT INSTALL ${DESTDIR}${DOCDIR}
 
 uninstall:
 	@echo removing executable files from ${DESTDIR}${BINDIR}
@@ -68,7 +68,7 @@ uninstall:
 	@rm -f $(addprefix ${DESTDIR}${LIBDIR}/${NAME}/,$(LIBS))
 	@-rmdir ${DESTDIR}${LIBDIR}/${NAME}
 	@echo removing docs from ${DESTDIR}${DOCDIR}
-	@rm -f ${DESTDIR}${DOCDIR}/COPYRIGHT ${DESTDIR}${DOCDIR}/INSTALL
+	@rm -f $(addprefix ${DESTDIR}${DOCDIR}/,$(CONFS)) ${DESTDIR}${DOCDIR}/COPYRIGHT ${DESTDIR}${DOCDIR}/INSTALL
 	@-rmdir ${DESTDIR}${DOCDIR}
 
 .PHONY: all options clean install uninstall
