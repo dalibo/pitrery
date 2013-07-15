@@ -209,6 +209,15 @@ else
     fi
 fi
 
+if [ -z "$backup_label" ]; then
+    info "no backup found after purge. Please remove old archives by hand."
+    # Clean temporary directory
+    if [ -d "$tmp_dir" ]; then
+	rm -rf $tmp_dir
+    fi
+    exit
+fi
+
 # Extract the name of the WAL file from the backup history file
 wal_file=`grep '^START WAL LOCATION' $backup_label | cut -d' ' -f 6 | sed -e 's/[^0-9A-F]//g'`
 max_wal_num=$(( 16#$wal_file ))
