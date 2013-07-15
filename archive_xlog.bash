@@ -49,11 +49,12 @@ usage() {
 }
 
 # Configuration defaults
-CONFIG=@SYSCONFDIR@/archive_xlog.conf
-DEST=/var/lib/pgsql/archived_xlog
-LOCAL="no"
+CONFIG=pitr.conf
+CONFIG_DIR=@SYSCONFDIR@
+ARCHIVE_DIR=/var/lib/pgsql/archived_xlog
+ARCHIVE_LOCAL="no"
 SYSLOG="no"
-COMPRESS="yes"
+ARCHIVE_COMPRESS="yes"
 
 # Internal configuration
 COMPRESS_BIN="gzip -f -4"
@@ -70,12 +71,12 @@ set -- $args
 for i in $*
 do
     case "$i" in
-        -L) CLI_LOCAL="yes"; shift;;
+        -L) CLI_ARCHIVE_LOCAL="yes"; shift;;
 	-C) CONFIG=$2; shift 2;;
-	-u) CLI_SSH_USER=$2; shift 2;;
-	-h) CLI_SSH_HOST=$2; shift 2;;
-	-d) CLI_DEST=$2; shift 2;;
-	-X) CLI_COMPRESS="no"; shift;;
+	-u) CLI_ARCHIVE_USER=$2; shift 2;;
+	-h) CLI_ARCHIVE_HOST=$2; shift 2;;
+	-d) CLI_ARCHIVE_DIR=$2; shift 2;;
+	-X) CLI_ARCHIVE_COMPRESS="no"; shift;;
 	-S) CLI_SYSLOG="yes"; shift;;
 	-f) CLI_SYSLOG_FACILITY=$2; shift 2;;
 	-t) CLI_SYSLOG_IDENT=$2; shift 2;;
@@ -92,17 +93,24 @@ fi
 
 xlog=$1
 
+# check if the config option is a path or in the current directory
+# otherwise prepend the configuration directory and .conf
+echo $CONFIG | grep -q '\/'
+if [ $? != 0 ] && [ ! -f $CONFIG ]; then
+    CONFIG="$CONFIG_DIR/`basename $CONFIG .conf`.conf"
+fi
+
 # Load configuration file
 if [ -f "$CONFIG" ]; then
     . $CONFIG
 fi
 
 # Overwrite configuration with cli options
-[ -n "$CLI_LOCAL" ] && LOCAL=$CLI_LOCAL
-[ -n "$CLI_SSH_USER" ] && SSH_USER=$CLI_SSH_USER
-[ -n "$CLI_SSH_HOST" ] && SSH_HOST=$CLI_SSH_HOST
-[ -n "$CLI_DEST" ] && DEST=$CLI_DEST
-[ -n "$CLI_COMPRESS" ] && COMPRESS=$CLI_COMPRESS
+[ -n "$CLI_ARCHIVE_LOCAL" ] && ARCHIVE_LOCAL=$CLI_ARCHIVE_LOCAL
+[ -n "$CLI_ARCHIVE_USER" ] && ARCHIVE_USER=$CLI_ARCHIVE_USER
+[ -n "$CLI_ARCHIVE_HOST" ] && ARCHIVE_HOST=$CLI_ARCHIVE_HOST
+[ -n "$CLI_ARCHIVE_DIR" ] && ARCHIVE_DIR=$CLI_ARCHIVE_DIR
+[ -n "$CLI_ARCHIVE_COMPRESS" ] && ARCHIVE_COMPRESS=$CLI_ARCHIVE_COMPRESS
 [ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
 [ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
 [ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
@@ -118,22 +126,22 @@ fi
 
 # Sanity check. We need at least to know if we want to perform a local
 # copy or have a hostname for an SSH copy
-if [ $LOCAL != "yes" -a -z "$SSH_HOST" ]; then
+if [ $ARCHIVE_LOCAL != "yes" -a -z "$ARCHIVE_HOST" ]; then
     error "Not enough information to archive the segment"
     exit 1
 fi
 
 # Copy the wal locally
-if [ $LOCAL = "yes" ]; then
-    cp $xlog $DEST 1>&2
+if [ $ARCHIVE_LOCAL = "yes" ]; then
+    cp $xlog $ARCHIVE_DIR 1>&2
     rc=$?
     if [ $rc != 0 ]; then
 	error "Unable to copy $xlog to $destdir"
 	exit $rc
     fi
 
-    if [ $COMPRESS = "yes" ]; then
-	dest_path=$DEST/`basename $xlog`
+    if [ $ARCHIVE_COMPRESS = "yes" ]; then
+	dest_path=$ARCHIVE_DIR/`basename $xlog`
 	$COMPRESS_BIN $dest_path
 	rc=$?
 	if [ $rc != 0 ]; then
@@ -144,21 +152,21 @@ if [ $LOCAL = "yes" ]; then
 
 else
     # Compress and copy with scp
-    echo $SSH_HOST | grep -q ':' && SSH_HOST="[${SSH_HOST}]" # Dummy test for IPv6
+    echo $ARCHIVE_HOST | grep -q ':' && ARCHIVE_HOST="[${ARCHIVE_HOST}]" # Dummy test for IPv6
 
-    if [ $COMPRESS = "yes" ]; then
-	$COMPRESS_BIN -c $xlog | ssh ${SSH_USER:+$SSH_USER@}${SSH_HOST} "cat > ${DEST:-'~'}/`basename $xlog`.$COMPRESS_SUFFIX" 2>/dev/null
+    if [ $ARCHIVE_COMPRESS = "yes" ]; then
+	$COMPRESS_BIN -c $xlog | ssh ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST} "cat > ${ARCHIVE_DIR:-'~'}/`basename $xlog`.$COMPRESS_SUFFIX" 2>/dev/null
 	rc=(${PIPESTATUS[*]})
 	compress_rc=${rc[0]}
 	ssh_rc=${rc[1]}
 	if [ $compress_rc != 0 ] || [ $ssh_rc != 0 ]; then
-	    error "Unable to send compressed $xlog to ${SSH_HOST}:${DEST}"
+	    error "Unable to send compressed $xlog to ${ARCHIVE_HOST}:${ARCHIVE_DIR}"
 	    exit 1
 	fi
     else
-	scp $xlog ${SSH_USER:+$SSH_USER@}${SSH_HOST}:$DEST
+	scp $xlog ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}:$ARCHIVE_DIR
 	if [ $? != 0 ]; then
-	    error "Unable to send $xlog to ${SSH_HOST}:${DEST}"
+	    error "Unable to send $xlog to ${ARCHIVE_HOST}:${ARCHIVE_DIR}"
 	    exit 1
 	fi
     fi

@@ -52,11 +52,15 @@ usage() {
     echo "    -n              Dry run: show restore information only"
     echo
     echo "Archived WAL files options:"
-    echo "    -C file         Path to archive_xlog.conf"
+    echo "    -A              Force the use of local archives"
     echo "    -h host         Host storing WAL files"
     echo "    -U username     Username for SSH login to WAL storage host"
     echo "    -X dir          Path to the archived xlog directory"
     echo "    -r cli          Command line to use in restore_command"
+    echo "    -C              Do not uncompress WAL files"
+    echo "    -S              Send messages to syslog"
+    echo "    -f facility     Syslog facility"
+    echo "    -i ident        Syslog ident"
     echo
     echo "    -?              Print help"
     echo
@@ -154,7 +158,7 @@ check_and_fix_directory() {
 
 
 # Process CLI Options
-while getopts "Lu:b:l:D:h:U:X:d:O:r:C:t:n?" opt; do
+while getopts "Lu:b:l:D:d:O:t:nAh:U:X:r:CSf:i:?" opt; do
     case "$opt" in
 	L) local_backup="yes";;
 	u) ssh_user=$OPTARG;;
@@ -166,11 +170,16 @@ while getopts "Lu:b:l:D:h:U:X:d:O:r:C:t:n?" opt; do
 	t) tsmv_list="$tsmv_list $OPTARG";;
 	n) dry_run="yes";;
 
-	C) archive_xlog_conf=$OPTARG;;
+	A) archive_local="yes";;
 	h) archive_host=$OPTARG;;
 	U) archive_ssh_user=$OPTARG;;
 	X) archive_dir=$OPTARG;;
 	r) restore_cli="$OPTARG";;
+	C) archive_compress="no";;
+	S) syslog="yes";;
+	f) syslog_facility=$OPTARG;;
+	i) syslog_ident=$OPTARG;;
+
 
 	"?") usage 1;;
 	*) error "Unknown error while processing options";;
@@ -209,15 +218,26 @@ fi
 # When no restore_command is given, build it using restore_xlog
 if [ -z "$restore_cli" ]; then
     restore_command="@BINDIR@/restore_xlog"
-    [ -n "$archive_xlog_conf" ] && restore_command="$restore_command -C $archive_xlog_conf"
-    if [ -n "$archive_host" ]; then
-	restore_command="$restore_command -h $archive_host"
-	[ -n "$archive_ssh_user" ] && restore_command="$restore_command -u $archive_ssh_user"
-    else
-	# Unless the host storing archives is given, restore from a local dir
+    if [ "$archive_local" = "yes" ]; then
 	restore_command="$restore_command -L"
+    else
+	if [ -n "$archive_host" ]; then
+	    restore_command="$restore_command -h $archive_host"
+	    [ -n "$archive_ssh_user" ] && restore_command="$restore_command -u $archive_ssh_user"
+	else
+	    # Prevent restore_xlog from failing afterwards when restore is
+	    # remote and no host is proveided
+	    echo "ERROR: not enough information for restoring archived WAL, use -A or -h host."
+	    usage 1
+	fi
     fi
     [ -n "$archive_dir" ] && restore_command="$restore_command -d $archive_dir"
+    [ "$archive_compress" = "no" ] && restore_command="$restore_command -X"
+    if [ "$syslog" = "yes" ]; then
+	restore_command="$restore_command -S"
+	[ -n "$syslog_facility" ] && restore_command="$restore_command -f $syslog_facility"
+	[ -n "$syslog_ident" ] && restore_command="$restore_command -t $syslog_ident"
+    fi
 
     restore_command="$restore_command %f %p"
 else
@@ -278,24 +298,28 @@ if [ -n "$target_date" ]; then
 else
     # get the latest
     if [ $local_backup = "yes" ]; then
-	backup_date=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null | tail -1`
+	backup_list_date=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null | tail -1`
 	if [ $? != 0 ]; then
 	    error "could not list the content of $backup_root/$label_prefix/"
 	fi
     else
-	backup_date=`ssh ${ssh_user:+$ssh_user@}$source "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
+	backup_list_date=`ssh ${ssh_user:+$ssh_user@}$source "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
 	if [ $? != 0 ]; then
 	    error "could not list the content of $backup_root/$label_prefix/ on $source"
 	fi
-	backup_date=`echo $backup_date | tr ' ' '\n' | tail -1`
+	backup_list_date=`echo $backup_list_date | tr ' ' '\n' | tail -1`
 	if [ $? != 0 ]; then
 	    error "could not find a backup from $backup_root/$label_prefix/ on $source"
 	fi
     fi
 
-    backup_date=`basename $backup_date`
-    if [ -z "$backup_date" ]; then
+    if [ -z "$backup_list_date" ]; then
 	error "Could not find a backup"
+    else
+	backup_date=`basename $backup_list_date`
+	if [ -z "$backup_date" ]; then
+	    error "Could not find a backup"
+	fi
     fi
 fi
 

@@ -50,11 +50,12 @@ usage() {
 }
 
 # Default configuration
-CONFIG=@SYSCONFDIR@/archive_xlog.conf
-SRCDIR=/var/lib/pgsql/archived_xlog
+CONFIG=pitr.conf
+CONFIG_DIR=@SYSCONFDIR@
+ARCHIVE_DIR=/var/lib/pgsql/archived_xlog
+ARCHIVE_LOCAL="no"
 SYSLOG="no"
-LOCAL="no"
-COMPRESS="yes"
+ARCHIVE_COMPRESS="yes"
 
 # Internal configuration
 UNCOMPRESS_BIN=gunzip
@@ -68,12 +69,12 @@ fi
 set -- $args
 for i in $*; do
     case "$i" in
-	-L) CLI_LOCAL="yes"; shift;;
+	-L) CLI_ARCHIVE_LOCAL="yes"; shift;;
 	-C) CONGIG=$2; shift 2;;
 	-u) CLI_SSH_USER=$2; shift 2;;
 	-h) CLI_SSH_HOST=$2; shift 2;;
-	-d) CLI_SRCDIR=$2; shift 2;;
-	-X) CLI_COMPRESS="no"; shift;;
+	-d) CLI_ARCHIVE_DIR=$2; shift 2;;
+	-X) CLI_ARCHIVE_COMPRESS="no"; shift;;
 	-S) CLI_SYSLOG="yes"; shift;;
 	-f) CLI_SYSLOG_FACILITY=$2; shift 2;;
 	-t) CLI_SYSLOG_IDENT=$2; shift 2;;
@@ -82,11 +83,12 @@ for i in $*; do
     esac
 done
 
-# Check input: the name of the xlog file (%f) is needed as well has the target path (%p)
-# PostgreSQL gives those two when executing restore_command
-[ $# != 2 ] && error "missing xlog filename and target path. Please use %f and %p in restore_command"
-xlog=$1
-target_path=$2
+# check if the config option is a path or in the current directory
+# otherwise prepend the configuration directory and .conf
+echo $CONFIG | grep -q '\/'
+if [ $? != 0 ] && [ ! -f $CONFIG ]; then
+    CONFIG="$CONFIG_DIR/`basename $CONFIG .conf`.conf"
+fi
 
 # Load configuration file
 if [ -f "$CONFIG" ]; then
@@ -99,11 +101,11 @@ if [ -n "$CLI_SSH_HOST" ]; then
     [ -n "$CLI_SSH_USER" ] && SSH_USER=$CLI_SSH_USER
     # When a host storing the archives is given for local to no, as it
     # can come from the configuration file
-    LOCAL="no"
+    ARCHIVE_LOCAL="no"
 fi
-[ -n "$CLI_LOCAL" ] && LOCAL=$CLI_LOCAL
-[ -n "$CLI_SRCDIR" ] && SRCDIR=$CLI_SRCDIR
-[ -n "$CLI_COMPRESS" ] && COMPRESS=$CLI_COMPRESS
+[ -n "$CLI_ARCHIVE_LOCAL" ] && ARCHIVE_LOCAL=$CLI_ARCHIVE_LOCAL
+[ -n "$CLI_ARCHIVE_DIR" ] && ARCHIVE_DIR=$CLI_ARCHIVE_DIR
+[ -n "$CLI_ARCHIVE_COMPRESS" ] && ARCHIVE_COMPRESS=$CLI_ARCHIVE_COMPRESS
 [ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
 [ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
 [ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
@@ -117,13 +119,19 @@ if [ "$SYSLOG" = "yes" ]; then
     exec 2> >(logger -t ${SYSLOG_IDENT} -p ${SYSLOG_FACILITY}.err)
 fi
 
+# Check input: the name of the xlog file (%f) is needed as well has the target path (%p)
+# PostgreSQL gives those two when executing restore_command
+[ $# != 2 ] && error "missing xlog filename and target path. Please use %f and %p in restore_command"
+xlog=$1
+target_path=$2
+
 # Check if we have enough information on where to get the file
-if [ $LOCAL != "yes" -a -z "$SSH_HOST" ]; then
+if [ $ARCHIVE_LOCAL != "yes" -a -z "$SSH_HOST" ]; then
     error "Could not find where to get the file from (local or ssh?)"
 fi
 
 # the filename to retrieve depends on compression
-if [ $COMPRESS = "yes" ]; then
+if [ $ARCHIVE_COMPRESS = "yes" ]; then
     xlog_file=${xlog}.$COMPRESS_SUFFIX
     target_file=${target_path}.$COMPRESS_SUFFIX
 else
@@ -132,27 +140,27 @@ else
 fi
 
 # Get the file: use cp when the file is on localhost, scp otherwise
-if [ $LOCAL = "yes" ]; then
-    if [ -f $SRCDIR/$xlog_file ]; then
-	cp $SRCDIR/$xlog_file $target_file
+if [ $ARCHIVE_LOCAL = "yes" ]; then
+    if [ -f $ARCHIVE_DIR/$xlog_file ]; then
+	cp $ARCHIVE_DIR/$xlog_file $target_file
 	if [ $? != 0 ]; then
-	    error "could not copy $SRCDIR/$xlog_file to $target_file"
+	    error "could not copy $ARCHIVE_DIR/$xlog_file to $target_file"
 	fi
     else
-	error "could not find $SRCDIR/$xlog_file"
+	error "could not find $ARCHIVE_DIR/$xlog_file"
     fi
 else
     # check if we have a IPv6, and put brackets for scp
     echo $SSH_HOST | grep -q ':' && SSH_HOST="[${SSH_HOST}]"
 
-    scp ${SSH_USER:+$SSH_USER@}${SSH_HOST}:$SRCDIR/$xlog_file $target_file >/dev/null
+    scp ${SSH_USER:+$SSH_USER@}${SSH_HOST}:$ARCHIVE_DIR/$xlog_file $target_file >/dev/null
     if [ $? != 0 ]; then
-	error "could not copy ${SSH_HOST}:$SRCDIR/$xlog_file to $target_file"
+	error "could not copy ${SSH_HOST}:$ARCHIVE_DIR/$xlog_file to $target_file"
     fi
 fi
 
 # Uncompress the file if needed
-if [ $COMPRESS = "yes" ]; then
+if [ $ARCHIVE_COMPRESS = "yes" ]; then
     $UNCOMPRESS_BIN $target_file
     if [ $? != 0 ]; then
 	error "could not uncompress $target_file"

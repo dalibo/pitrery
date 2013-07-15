@@ -188,22 +188,27 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lu:b:l:D:h:U:X:d:O:r:C:t:n?" arg 2>/dev/null; do
+	while getopts "Lu:b:l:D:d:O:t:nAh:U:X:r:CSf:i:?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		u) BACKUP_USER=$OPTARG;;
 		b) BACKUP_DIR=$OPTARG;;
 		l) BACKUP_LABEL=$OPTARG;;
 		D) PGDATA=$OPTARG;;
+		d) TARGET_DATE=$OPTARG;;
+		O) PGOWNER=$OPTARG;;
+		t) TBLSPC_RELOC="$TBLSPC_RELOC -t $OPTARG";;
+		n) DRY_RUN="yes";;
+		A) ARCHIVE_LOCAL="yes";;
 		h) ARCHIVE_HOST=$OPTARG;;
 		U) ARCHIVE_USER=$OPTARG;;
 		X) ARCHIVE_DIR=$OPTARG;;
-		d) TARGET_DATE=$OPTARG;;
-		O) PGOWNER=$OPTARG;;
 		r) RESTORE_COMMAND="$OPTARG";;
-		C) ARCHIVE_CONF=$OPTARG;;
-		t) TBLSPC_RELOC="$TBLSPC_RELOC -t $OPTARG";;
-		n) DRY_RUN="yes";;
+		C) ARCHIVE_COMPRESS="no";;
+		S) SYSLOG="yes";;
+		f) SYSLOG_FACILITY=$OPTARG;;
+		i) SYSLOG_IDENT=$OPTARG;;
+
 		"?") $cmd -?; exit $?;;
 	    esac
 	done
@@ -214,13 +219,19 @@ case $action in
 	[ -n "$BACKUP_DIR" ] && opts="$opts -b $BACKUP_DIR"
 	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
 	[ -n "$PGDATA" ] && opts="$opts -D $PGDATA"
+	[ -n "$PGOWNER" ] && opts="$opts -O $PGOWNER"
+	[ -n "$TBLSPC_RELOC" ] && opts="$opts $TBLSPC_RELOC"
+	[ "$DRY_RUN" = "yes" ] && opts="$opts -n"
+	[ "$ARCHIVE_LOCAL" = "yes" ] && opts="$opts -A"
 	[ -n "$ARCHIVE_HOST" ] && opts="$opts -h $ARCHIVE_HOST"
 	[ -n "$ARCHIVE_USER" ] && opts="$opts -U $ARCHIVE_USER"
 	[ -n "$ARCHIVE_DIR" ] && opts="$opts -X $ARCHIVE_DIR"
-	[ -n "$PGOWNER" ] && opts="$opts -O $PGOWNER"
-	[ -n "$ARCHIVE_CONF" ] && opts="$opts -C $ARCHIVE_CONF"
-	[ -n "$TBLSPC_RELOC" ] && opts="$opts $TBLSPC_RELOC"
-	[ "$DRY_RUN" = "yes" ] && opts="$opts -n"
+	[ "$ARCHIVE_COMPRESS" = "no" ] && opts="$opts -C"
+	if [ "$SYSLOG" = "yes" ]; then
+	    opts="$opts -S"
+	    [ -n "$SYSLOG_FACILITY" ] && opts="$opts -f $SYSLOG_FACILITY"
+	    [ -n "$SYSLOG_IDENT" ] && opts="$opts -i $SYSLOG_IDENT"
+	fi
 
 	# Take care of the source host
 	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then

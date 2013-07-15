@@ -37,7 +37,7 @@ PostgreSQL apply the changes they contain to the database files to let
 it know about not yet applied transactions, even if the cluster
 database files are in an inconsistent state.  To perform PITR backups,
 we need to store the WAL files in a safe place, this is called WAL
-archiving and PostgreSQL is able to execute an arbitrary command to
+archiving, PostgreSQL is able to execute an arbitrary command to
 archive a WAL segment.  Then, we need a copy of the database files
 along with the position in the WAL where recovery must start, this is
 called the base backup.  Finally, the recovery phase is configurable,
@@ -47,7 +47,10 @@ Time Recovery, comes from this feature of PostgreSQL.
 Finally, these features of PostgreSQL are used to create standby
 servers. When the WAL files are applied to another server, created
 from a base base backup, as soon as they are archived, we get a
-replicated server.
+replicated server.  While it is possible to setup replication with
+pitrery, it is not its purpose. One can do both: backups with pitrery
+and replication with other tools.
+
 
 
 How pitrery works
@@ -62,15 +65,18 @@ interesting if you already have WAL based replication set up and you
 do not want to replace you archiving script with the one provided by
 pitrery.
 
-The archive_xlog script takes care of WAL archiving.  It uses a
+The archive_xlog script takes care of WAL archiving.  It can use a
 configuration file to find where to archive WAL files.  As of version
 1.3, archive_xlog no longer try to archive to many places.  Instead,
 the user has to integrate it in a already existing archiving script or
 simply modify the archive_command parameter of postgresql.conf to make
-it archive the WAL files.  archive_xlog can copy and compress WAL files
-locally or to another server reachable using SSH.  A configuration
-file can be used to reduce the size of the command line defined in the
-configuration file of PostgreSQL.
+it archive the WAL files.  archive_xlog can copy and compress WAL
+files locally or to another server reachable using SSH.  A
+configuration file can be used to reduce the size of the command line
+defined in the configuration file of PostgreSQL.
+
+As of version 1.4, options of archive_xlog.conf have been merged to
+the configuration file of pitr_mgr.
 
 The management of base backups is divided in four parts, each one using
 a standalone script to perform an action: backup, restore, purge and
@@ -79,15 +85,16 @@ those scripts that uses a configuration file to define the backup
 options.  The purpose of pitr_mgr and its configuration file is reduce
 and simplify the commands needed to perform a particular action.  If
 it is well configured, then restore is possible from a simple command
-with few arguments, because the pressure on the person running it can
+with a few switchs, because the pressure on the person running it can
 be high at a time when end-users cannot access the database.
 
 The storage place can be a remote server or the local machine. If is a
-remote server, it must accessible using SSH in batch mode.  Using the
-local machine as storage space can be useful to backup on a filer, whose
-filesystems are mounted locally.
+remote server, it must accessible using SSH in batch mode (One needs
+the setup passphraseless SSH keys to do so).  Using the local machine
+as storage space can be useful to backup on a filer, whose filesystems
+are mounted locally.
 
-On the backup host, pitrery organizes backed up files in the following
+On the backup host, pitrery organizes backed up files the following
 way:
 
 * A backup root directory is used to store everything
@@ -98,7 +105,7 @@ way:
 
 * In the label subdirectory, each backup is named after the date when it
   was started, this name is used by the restore script to find the best
- candidate when restoring.
+  candidate when restoring.
 
 Please note that the archived WAL files can be stored in a directory
 inside the label subdirectory as long as its name does not start with
@@ -165,39 +172,39 @@ reachable using an SSH connection. It is not mandatory to use it, any
 script can be used: the only requirement is to provide a mean for the
 restore script to get archived segments.
 
-archive_xlog can use a configuration file named archive_xlog.conf,
-which sets defaults up. By default, its location is
-/usr/local/etc/pitrery/archive_xlog.conf, which can be overridden on
+archive_xlog can use the configuration file named pitr.conf,
+which sets up defaults. By default, its location is
+/usr/local/etc/pitrery/pitr.conf, which can be overridden on
 the command line with -C option. The following parameters can be
 configured:
 
-* DEST is the default target directory where to put files.
+* ARCHIVE_DIR is the target directory where to put files.
 
-* LOCAL controls whether local copy is performed. When this parameter
+* ARCHIVE_LOCAL controls whether local copy is performed. When this parameter
   is set to "yes", archive_xlog uses cp to copy the file on a local
   path. This path maybe a local filesystem or a remote filesystem mounted
   locally.  This parameter can be overridden on the command line with
   the -L option.
 
-* SSH_HOST is the target hostname or IP address used when copying over
+* ARCHIVE_HOST is the target hostname or IP address used when copying over
   an SSH connection.
 
-* SSH_USER can be used to specify a username for the SSH
+* ARCHIVE_USER can be used to specify a username for the SSH
   connection. When not set, the username is the system user used by
   PostgreSQL.
 
-* COMPRESS controls if the segment is compressed using
+* ARCHIVE_COMPRESS controls if the segment is compressed using
   gzip. Compression is enabled by default, it can be disabled on busy
   server doing a lot write transaction, this can avoid contention on
   archiving.
 
 * SYSLOG can be set to "yes" to log messages to syslog, otherwise
-  stderr is used for message.  SYSLOG_FACILITY and SYSLOG_IDENT can
+  stderr is used for messages.  SYSLOG_FACILITY and SYSLOG_IDENT can
   then by used to store messages in the log file of PostgreSQL when it
   is configured to use syslog.
 
 If archiving is set up to a remote host, this host must be accessible
-using SSH in batch mode, meaning that passphraseless access using key
+using SSH in batch mode, meaning that passphraseless access using keys
 is to be configured for the system user running PostgreSQL to the
 remote host.
 
@@ -210,13 +217,17 @@ dependent parameters:
     wal_level = archive
     
     # If using PostgreSQL >= 8.3, archiving must be enabled
+    # Changing this requires a restart
     archive_mode = on
     
     # The archive command using the defaults
     archive_command = '/usr/local/bin/archive_xlog %p'
     
     # The archive command with parameters
-    #archive_command = '/usr/local/bin/archive_xlog -C /path/to/archive_xlog.conf %p'
+    #archive_command = '/usr/local/bin/archive_xlog -C /path/to/pitr.conf %p'
+    # or to search /usr/local/etc/pitrery for the configuration:
+    #archive_command = '/usr/local/bin/archive_xlog -C pitr %p'
+
 
 
 Depending on the version of PostgreSQL, restart the server if
@@ -248,7 +259,7 @@ runtime.
 Before using pitr_mgr to backup and manage backups for a specific
 PostgreSQL cluster, a configuration file shall be created in the
 configuration directory, /usr/local/etc/pitrery by default. This
-configuration hold all the information necessary to manage backups for
+configuration holds all the information necessary to manage backups for
 this cluster. The default configuration file is pitr.conf, containing
 all the default parameters.
 
@@ -309,17 +320,15 @@ through pitr_mgr :
   to set it up here, unless archived WAL files are stored on a
   different host than BACKUP_HOST.
 
-* ARCHIVE_DIR, ARCHIVE_HOST and ARCHIVE_USER are passed to
-  restore_xlog when RESTORE_COMMAND is empty. They define the location
-  (either local or through SSH) where the WAL files are stored. It
-  should be set to same path that was defined in archive_xlog.conf for
-  archiving.
-
 * PURGE_KEEP_COUNT controls how many backups must be kept when purging
   old backups.
 
 * PURGE_OLDER_THAN controls how many __days__ backups are kept when
   purging. If PURGE_KEEP_COUNT is set, this parameter is ignored.
+
+* ARCHIVE_* and SYSLOG_* are passed to restore_xlog when
+  RESTORE_COMMAND is empty. They define the location (either local or
+  through SSH) where the WAL files are stored.
 
 
 Usage
@@ -449,11 +458,16 @@ is the following:
     BACKUP_HOST=10.100.0.16
     BACKUP_USER=
     RESTORE_COMMAND=
-    ARCHIVE_HOST=
-    ARCHIVE_USER=
-    ARCHIVE_DIR="/home/postgres/backups/prod/xlog"
     PURGE_KEEP_COUNT=2
     PURGE_OLDER_THAN=
+    ARCHIVE_LOCAL="no"
+    ARCHIVE_HOST=10.100.0.16
+    ARCHIVE_USER=
+    ARCHIVE_DIR="/home/postgres/backups/prod/xlog"
+    ARCHIVE_COMPRESS="yes"
+    SYSLOG="no"
+    SYSLOG_FACILITY="local0"
+    SYSLOG_IDENT="postgres"
 
 
 With those options, pitr_mgr can run a backup:
@@ -540,6 +554,7 @@ by adding the -? option after the action:
     usage: list_pitr [options] [hostname]
     options:
         -L              List from local storage
+        -u username     Username for SSH login
         -b dir          Backup storage directory
         -l label        Label used when backup was performed
     
@@ -565,7 +580,7 @@ This action perform the following steps:
 * Create a recovery.conf file for PostgreSQL.
 
 * Optinally, create a script to update the catalog when paths to
-  tablespaces have changed.
+  tablespaces have changed, for PostgreSQL <= 9.1.
 
 The restore will only work if the target destination directory (PGDATA
 in the configuration file of pitr_mgr) and the directories used by
@@ -579,12 +594,14 @@ parameter.
 Unless RESTORE_COMMAND is defined to something else, the restore_xlog
 script will be used by PostgreSQL to retrieve archived WAL files. The
 purpose of this script is to find, copy on PostgreSQL server, and
-uncompress the archived WAL file asked by PostgreSQL. restore_xlog can
-read the archive_xlog.conf file to get its logging options, its
-behavior is controlled from its command line options, for example:
+uncompress the archived WAL file asked by PostgreSQL.  its behavior is
+controlled from its command line options, for example:
 
     restore_xlog -h HOST -d ARCHIVE_DIR %f %p
 
+The restore script uses options values from the configuration, which
+can be tweaked on the command line. Beware that some options have
+different names between restore_xlog and the restore action.
 
 Let's say the target directories are ready for a restore run by the
 postgres user, the restore can be started with pitr_mgr on an example
@@ -633,7 +650,7 @@ recovery.conf.
 
 When everything is fine, the PostgreSQL can be started, it will apply
 the archived WAL files until the target date is reached or until all
-WAL files are consumed if no target date was specified.
+archived WAL files are consumed if no target date was specified.
 
 If unsure about the options to give for a restore, use the -n switch
 of the restore action to make it stop after showing the informations.

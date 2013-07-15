@@ -8,6 +8,10 @@
 # short.  All options defined here can be overridden on the command
 # line by specifying the options after the name of the action.
 
+####################
+# Backup management
+####################
+
 # Specify all needed information to be able to run SQL command on the
 # PostgreSQL cluster to backup.  Those options can be commented out to
 # let the scripts use the ones defined in the environment (be careful
@@ -44,7 +48,6 @@ BACKUP_HOST=
 # login will be performed with the default SSH configuration.
 BACKUP_USER=
 
-
 # After restoring from a backup, PostgreSQL will need a command to run
 # to get archived WAL segments that needed to be replayed on the
 # cluster files.  This can be any valid command or script for the
@@ -52,8 +55,19 @@ BACKUP_USER=
 # restore_xlog script is intended to be used here: leave empty to use it
 RESTORE_COMMAND=
 
-# When RESTORE_COMMAND is empty, the following parameters can be set
-# for restore_xlog.
+# The old backups can be removed by setting one of those two
+# parameters, one can keep at most PURGE_KEEP_COUNT backups or keep
+# backups that are younger than PURGE_OLDER_THAN in days.
+PURGE_KEEP_COUNT=
+PURGE_OLDER_THAN=
+
+
+####################
+# WAL archiving
+####################
+
+# Local copy
+ARCHIVE_LOCAL="no"
 
 # The host storing the archiced WAL files. If left empty, use restore
 # archives from the local machine
@@ -66,12 +80,17 @@ ARCHIVE_USER=
 # The directory where to look for archived WAL files on BACKUP_HOST.
 ARCHIVE_DIR="/var/lib/pgsql/archived_xlog"
 
+# Compress the WAL segment
+ARCHIVE_COMPRESS="yes"
 
-# The old backups can be removed by setting one of those two
-# parameters, one can keep at most PURGE_KEEP_COUNT backups or keep
-# backups that are younger than PURGE_OLDER_THAN in days.
-PURGE_KEEP_COUNT=
-PURGE_OLDER_THAN=
+# Logging options.  When SYSLOG is no, messages are written to stderr,
+# to allow the logging collector or redirection to catch them. These
+# parameters are intended to match their counterparts in
+# postgresql.conf
+SYSLOG="no"
+SYSLOG_FACILITY="local0"
+SYSLOG_IDENT="postgres"
+
 
 ####################
 
