@@ -24,9 +24,9 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-config_dir=@SYSCONFDIR@
+config_dir="@SYSCONFDIR@"
 config=pitr.conf
-scripts_dir=@LIBDIR@
+scripts_dir="@LIBDIR@"
 
 usage() {
     echo "usage: `basename $0` [options] action [args]"
