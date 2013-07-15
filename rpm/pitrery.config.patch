@@ -1,6 +1,6 @@
---- config.mk.orig	2011-08-08 14:37:40.936961997 +0200
-+++ config.mk	2011-08-08 14:39:03.713586742 +0200
-@@ -7,7 +7,7 @@
+--- config.mk.orig	2013-07-15 20:50:10.586291939 +0200
++++ config.mk	2013-07-15 20:50:44.590291433 +0200
+@@ -7,8 +7,8 @@
  BASH = /bin/bash
  
  # paths
@@ -10,3 +10,4 @@
  LIBDIR = ${PREFIX}/lib
 -SYSCONFDIR = ${PREFIX}/etc/${NAME}
 +SYSCONFDIR = /etc/sysconfig/pgsql
+ DOCDIR = ${PREFIX}/share/doc/${NAME}
