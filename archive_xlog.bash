@@ -131,6 +131,18 @@ if [ $ARCHIVE_LOCAL != "yes" -a -z "$ARCHIVE_HOST" ]; then
     exit 1
 fi
 
+# Check if the source file exists
+if [ -z "$xlog" ]; then
+    error "Empty input filename"
+    exit 1
+fi
+
+if [ ! -r $xlog ]; then
+    error "Input file does not exist or is not readable"
+    exit 1
+fi
+    
+
 # Copy the wal locally
 if [ $ARCHIVE_LOCAL = "yes" ]; then
     cp $xlog $ARCHIVE_DIR 1>&2
