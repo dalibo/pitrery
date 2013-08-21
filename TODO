@@ -2,16 +2,13 @@ TODO / Roadmap
 
 - general:
   . (v1.5+) Rename pitr_mgr to pitrery with a symlink for backward compat ?
-  . (v1.5)  Support rsync for the base backup
 
 - list_pitr:
-  . (v1.5) Add an option to list the content of the backup and give more info
+  . (v1.5)  Add an option to list the content of the backup and give more info
             like the directory to create for tablespaces, sizes,...
 
 - backup_pitr:
-  . (v1.5)  Consider creating a tar of extra files/directories from an arbitrary
-            list, this would allow to store postgres binaries and init script
-            for example.
+  . (v1.5)  Support rsync for the base backup
 
 - purge_pitr:
   . (v1.5)  Make the time based purge compatible with the count purge, allowing
