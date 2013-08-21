@@ -32,8 +32,8 @@ usage() {
     echo
     echo "Backup options:"
     echo "    -L              Perform a local backup"
-    echo "    -b dir          Backup directory"
-    echo "    -l label        Backup label, it will be suffixed with the date and time"
+    echo "    -b dir          Backup base directory"
+    echo "    -l label        Backup label"
     echo "    -u username     Username for SSH login"
     echo "    -D dir          Path to \$PGDATA"
     echo

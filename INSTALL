@@ -103,9 +103,9 @@ way:
   label. This enables to store backups for different servers in the same
   backup root directory without mixing them.
 
-* In the label subdirectory, each backup is named after the date when it
-  was started, this name is used by the restore script to find the best
-  candidate when restoring.
+* In the "label" subdirectory, each backup is in a directory named
+  after the date when it was started, this name is used by the restore
+  script to find the best candidate for a target date.
 
 Please note that the archived WAL files can be stored in a directory
 inside the label subdirectory as long as its name does not start with
@@ -241,7 +241,7 @@ Configuration
 -------------
 
 Once the WAL archiving is setup and properly working, pitr_mgr can
-create, restore and manage base backups of the PostgreSQL
+create, restore and manage base backups of the __local__ PostgreSQL
 cluster. pitr_mgr command syntax is:
 
     pitr_mgr [options] action [action-specific options]
@@ -306,7 +306,8 @@ through pitr_mgr :
 
 * BACKUP_LABEL is the name of the set of backups, all backups will be
   stored in a subdirectory named with this value to let the user store
-  backups for different servers in the same BACKUP_DIR.
+  backups for different servers in the same BACKUP_DIR. This value is
+  also used in the call to pg_start_backup() with the date appended.
 
 * BACKUP_HOST is the IP address of the host where backups shall be
   stored. BACKUP_USER is the username to use for SSH login, if empty,
@@ -442,6 +443,10 @@ for the example, this is why the IP address was added after the
 Backup
 ------
 
+**Beware that the backup must run on the PostgreSQL server host**,
+SSH login is used to __push__ data to a backup server, and PostgreSQL
+connection options to run SQL __locally__.
+
 To run a backup with pitr_mgr, either a configuration file is needed
 or the options must be put on the commandline. The usage of the backup
 action is:
@@ -454,8 +459,8 @@ action is:
     
     Backup options:
         -L              Perform a local backup
-        -b dir          Backup directory
-        -l label        Backup label, it will be suffixed with the date and time
+        -b dir          Backup base directory
+        -l label        Backup label
         -u username     Username for SSH login
         -D dir          Path to $PGDATA
     
