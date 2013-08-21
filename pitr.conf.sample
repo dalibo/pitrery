@@ -24,12 +24,11 @@ PGHOST="/tmp"
 PGDATABASE="postgres"
 PGOWNER=$PGUSER
 
-# common options:
 # BACKUP_IS_LOCAL permits to store the backups on the local machine.
 # When it is set to "yes", a target host is no longer required
 BACKUP_IS_LOCAL="no"
 
-# Directory where to store the files.  Each backup has its owner
+# Directory where to store the files.  Each backup has its own
 # subdirectory named after the date and time it was launched.
 BACKUP_DIR="/var/lib/pgsql/backups"
 
@@ -61,6 +60,9 @@ RESTORE_COMMAND=
 PURGE_KEEP_COUNT=
 PURGE_OLDER_THAN=
 
+# Hooks. Command run at some point in the different actions
+PRE_BACKUP_COMMAND=
+POST_BACKUP_COMMAND=
 
 ####################
 # WAL archiving

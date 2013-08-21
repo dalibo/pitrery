@@ -175,6 +175,10 @@ case $action in
 	    fi
 	fi
 
+	# If hooks are defined export them
+	[ -n "$PRE_BACKUP_COMMAND" ] && export PRE_BACKUP_COMMAND
+	[ -n "$POST_BACKUP_COMMAND" ] && export POST_BACKUP_COMMAND
+
 	# Run the command
 	$dry_run $cmd $opts
 	exit $?

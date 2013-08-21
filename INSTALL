@@ -331,6 +331,33 @@ through pitr_mgr :
   through SSH) where the WAL files are stored.
 
 
+Hooks
+-----
+
+Some user defined commands can be executed, they are given in the
+following configuration variables:
+
+* PRE_BACKUP_COMMAND is run before the backup is started.
+
+* POST_BACKUP_COMMAND is run after the backup is finished.
+
+The following variables are then available, to access the PostgreSQL
+or the current backup:
+
+* PITRERY_HOOK is the name of the hook being run
+
+* PITRERY_PSQL is the psql command line to run SQL statement on the
+  saved PostgreSQL server
+
+* PITRERY_DATABASE is the name of the connection database
+
+* PITRERY_BACKUP_DIR is the full path to the directory of the backup
+
+* PITRERY_BACKUP_LOCAL can be used to know is SSH is required to access the backup directory
+
+* PITRERY_SSH_TARGET the user@host part needed to access to backup server
+
+
 Usage
 -----
 

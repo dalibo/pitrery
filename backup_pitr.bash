@@ -121,6 +121,9 @@ fi
 # Get current date and time in a sortable format
 current_time=`date +%Y.%m.%d-%H.%M.%S`
 
+# scp needs IPv6 between brackets
+echo $target | grep -q ':' && target="[${target}]"
+
 # Prepare psql command line
 psql_command=${psql_command:-"psql"}
 [ -n "$dbhost" ] && psql_command="$psql_command -h $dbhost"
@@ -171,6 +174,21 @@ else
 	error "could not create $backup_dir/tblspc"
     fi
 
+fi
+
+# Execute the pre-backup command
+if [ -n "$PRE_BACKUP_COMMAND" ]; then
+    info "running pre backup hook"
+    export PITRERY_HOOK="pre_backup"
+    export PITRERY_BACKUP_DIR=$backup_dir
+    export PITRERY_PSQL=$psql_command
+    export PITRERY_DATABASE=$psql_condb
+    export PITRERY_BACKUP_LOCAL=$local_backup
+    export PITRERY_SSH_TARGET=${ssh_user:+$ssh_user@}$target
+    $PRE_BACKUP_COMMAND
+    if [ $? != 0 ]; then
+	error "pre_backup command exited with a non-zero code"
+    fi
 fi
 
 # Start the backup
@@ -331,9 +349,6 @@ if [ $local_backup = "yes" ]; then
 	error "could not copy the tablespace list to $backup_dir"
     fi
 else
-    # scp needs IPv6 between brackets
-    echo $target | grep -q ':' && target="[${target}]"
-
     # Rename the backup directory using the stop time
     ssh ${ssh_user:+$ssh_user@}${target} "mv $backup_dir $backup_root/${label_prefix}/$backup_name" 2>/dev/null
     if [ $? != 0 ]; then
@@ -359,6 +374,17 @@ else
     scp $tblspc_list ${ssh_user:+$ssh_user@}${target}:$backup_dir/tblspc_list >/dev/null
     if [ $? != 0 ]; then
 	error "could not copy the tablespace list to ${target}:$backup_dir"
+    fi
+fi
+
+# Execute the post-backup command
+if [ -n "$POST_BACKUP_COMMAND" ]; then
+    info "running post backup command"
+    export PITRERY_HOOK="post_backup"
+    export PITRERY_BACKUP_DIR=$backup_dir
+    $POST_BACKUP_COMMAND
+    if [ $? != 0 ]; then
+	error "post_backup command exited with a non-zero code"
     fi
 fi
 
