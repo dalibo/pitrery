@@ -200,7 +200,7 @@ if [ -n "$target_date" ]; then
     # digits let us use date to convert it to a timestamp for comparison
     echo $target_date | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}( *[+-][0-9]{4})?$'
     if [ $? != 0 ]; then
-	error "bad target date format. Use 'YYYY-MM-DD HH:MM:SS [(+|-)TZTZ]' with an optional 4 digit timezone offset"
+	error "bad target date format. Use 'YYYY-MM-DD HH:MM:SS [(+|-)TZTZ]' with an optional 4 digit (hours and minutes) timezone offset"
     fi
 fi
 
