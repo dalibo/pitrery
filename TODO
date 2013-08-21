@@ -1,7 +1,6 @@
 TODO / Roadmap
 
 - general:
-  . (v1.5+) Rename pitr_mgr to pitrery with a symlink for backward compat ?
 
 - list_pitr:
   . (v1.5)  Add an option to list the content of the backup and give more info

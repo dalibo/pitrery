@@ -33,6 +33,7 @@ make install DESTDIR=%{buildroot}
 %files
 %config(noreplace) /etc/sysconfig/pgsql/pitr.conf
 /usr/bin/archive_xlog
+/usr/bin/pitrery
 /usr/bin/pitr_mgr
 /usr/bin/restore_xlog
 /usr/lib/pitrery/backup_pitr

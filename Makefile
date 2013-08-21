@@ -3,7 +3,7 @@
 include config.mk
 
 SRCS = archive_xlog.bash \
-	pitr_mgr.bash \
+	pitrery.bash \
 	restore_xlog.bash
 HELPERS = backup_pitr.bash \
 	list_pitr.bash \
@@ -50,6 +50,7 @@ install: all
 	@mkdir -p ${DESTDIR}${BINDIR}
 	@cp -f $(BINS) ${DESTDIR}${BINDIR}
 	@chmod 755 $(addprefix ${DESTDIR}${BINDIR}/,$(BINS))
+	@cd ${DESTDIR}${BINDIR} && ln -s pitrery pitr_mgr
 	@echo installing helpers to ${DESTDIR}${LIBDIR}/${NAME}
 	@mkdir -p ${DESTDIR}${LIBDIR}/${NAME}
 	@cp -f $(LIBS) ${DESTDIR}${LIBDIR}/${NAME}
@@ -64,6 +65,7 @@ install: all
 uninstall:
 	@echo removing executable files from ${DESTDIR}${BINDIR}
 	@rm -f $(addprefix ${DESTDIR}${BINDIR}/,$(BINS))
+	@rm -f ${DESTDIR}${BINDIR}/pitr_mgr
 	@echo removing helpers from ${DESTDIR}${LIBDIR}/${NAME}
 	@rm -f $(addprefix ${DESTDIR}${LIBDIR}/${NAME}/,$(LIBS))
 	@-rmdir ${DESTDIR}${LIBDIR}/${NAME}

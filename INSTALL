@@ -76,13 +76,13 @@ configuration file can be used to reduce the size of the command line
 defined in the configuration file of PostgreSQL.
 
 As of version 1.4, options of archive_xlog.conf have been merged to
-the configuration file of pitr_mgr.
+the configuration file of pitrery.
 
 The management of base backups is divided in four parts, each one using
 a standalone script to perform an action: backup, restore, purge and
-list.  These action can then be called by pitr_mgr, a wrapper around
+list.  These action can then be called by pitrery, a wrapper around
 those scripts that uses a configuration file to define the backup
-options.  The purpose of pitr_mgr and its configuration file is reduce
+options.  The purpose of pitrery and its configuration file is reduce
 and simplify the commands needed to perform a particular action.  If
 it is well configured, then restore is possible from a simple command
 with a few switchs, because the pressure on the person running it can
@@ -153,7 +153,7 @@ By default, the files are installed in /usr/local:
 
 * scripts are installed in /usr/local/bin
 
-* actions used by pitr_mgr are installed in /usr/local/lib/pitrery
+* actions used by pitrery are installed in /usr/local/lib/pitrery
 
 * configuration samples are installed in /usr/local/etc/pitrery
 
@@ -234,36 +234,36 @@ Depending on the version of PostgreSQL, restart the server if
 wal_level or archive_mode were changed, otherwise reload it.
 
 
-Using pitr_mgr to manage backups
+Using pitrery to manage backups
 ================================
 
 Configuration
 -------------
 
-Once the WAL archiving is setup and properly working, pitr_mgr can
+Once the WAL archiving is setup and properly working, pitrery can
 create, restore and manage base backups of the __local__ PostgreSQL
-cluster. pitr_mgr command syntax is:
+cluster. pitrery command syntax is:
 
-    pitr_mgr [options] action [action-specific options]
+    pitrery [options] action [action-specific options]
 
 
 Each action that can be performed by pitr_migr executes the
 corresponding script stored by default in
 /usr/local/lib/pitrery. These scripts are standalone, they perform the
 action based on the options given on the command line at execution
-time.  The purpose of pitr_mgr is to wrap there scripts and provide
+time.  The purpose of pitrery is to wrap there scripts and provide
 them with their command line options based on a configuration file.
 This reduces the command line size and try to avoid mistakes at
 runtime.
 
-Before using pitr_mgr to backup and manage backups for a specific
+Before using pitrery to backup and manage backups for a specific
 PostgreSQL cluster, a configuration file shall be created in the
 configuration directory, /usr/local/etc/pitrery by default. This
 configuration holds all the information necessary to manage backups for
 this cluster. The default configuration file is pitr.conf, containing
 all the default parameters.
 
-The easiest way to configure pitr_mgr is to copy the default
+The easiest way to configure pitrery is to copy the default
 configuration file to new name meaningful to our setup:
 
     cd /usr/local/etc/pitrery
@@ -292,7 +292,7 @@ environment, they can be commented out in the file to have pitrery use
 them.
 
 The following parameters control the different actions accessible
-through pitr_mgr :
+through pitrery :
 
 * PGOWNER is the system user which owns the files of the cluster, it
   is useful when restoring as root if the user want to restore as
@@ -311,7 +311,7 @@ through pitr_mgr :
 
 * BACKUP_HOST is the IP address of the host where backups shall be
   stored. BACKUP_USER is the username to use for SSH login, if empty,
-  the username is the one running pitr_mgr.
+  the username is the one running pitrery.
 
 * RESTORE_COMMAND can be used to define the command run by PostgreSQL
   when it needs to retrieve a WAL file before applying it in recovery
@@ -364,10 +364,10 @@ Usage
 
 Note: all commands have a -? switch to show their usage details.
 
-The help for pitr_mgr is available by running it with the -h option :
+The help for pitrery is available by running it with the -h option :
 
-    $ pitr_mgr -?
-    usage: pitr_mgr [options] action [args]
+    $ pitrery -?
+    usage: pitrery [options] action [args]
     options:
         -c file      Path to the configuration file
         -n           Show the command instead of executing it
@@ -381,19 +381,19 @@ The help for pitr_mgr is available by running it with the -h option :
     
 
 If we want to backup our example production server, the name of the
-configuration must given to pitr_mgr with the -c option. The name of
+configuration must given to pitrery with the -c option. The name of
 the configuration file, if it is not a path, is searched in the
 configuration directory, any file ending with .conf is then taken, for
 example :
 
-    $ pitr_mgr -c prod action
+    $ pitrery -c prod action
 
 
 This will use the file /usr/local/etc/pitrery/prod.conf. When adding
-the -? switch after the action name, pitr_mgr outputs the help of the
+the -? switch after the action name, pitrery outputs the help of the
 action, for example :
 
-    $ pitr_mgr backup -?
+    $ pitrery backup -?
     backup_pitr performs a PITR base backup
     
     Usage:
@@ -416,13 +416,13 @@ action, for example :
         -?              Print help
     
 
-The -n option of pitr_mgr can be used to show the action script
+The -n option of pitrery can be used to show the action script
 command line that would be runned, but without running it. It is
 useful to check if the parameters configured in a particular
 configuration file are correct. For example, with the default
 configuration file pitr.conf :
 
-    $ pitr_mgr -n backup 192.168.0.50
+    $ pitrery -n backup 192.168.0.50
     /usr/local/lib/pitrery/backup_pitr -b /var/lib/pgsql/backups -l pitr -D /var/lib/pgsql/data -P psql -h /tmp -p 5432 -U postgres -d postgres 192.168.0.50
 
 
@@ -431,7 +431,7 @@ file can be overridden on the command line by adding the corresponding
 switch after the action. For example, if the port of the PostgreSQL is
 5433 :
 
-    $ pitr_mgr -n backup -p 5433 192.168.0.50
+    $ pitrery -n backup -p 5433 192.168.0.50
     /usr/local/lib/pitrery/backup_pitr -b /var/lib/pgsql/backups -l pitr -D /var/lib/pgsql/data -P psql -h /tmp -p 5433 -U postgres -d postgres 192.168.0.50
 
 
@@ -447,11 +447,11 @@ Backup
 SSH login is used to __push__ data to a backup server, and PostgreSQL
 connection options to run SQL __locally__.
 
-To run a backup with pitr_mgr, either a configuration file is needed
+To run a backup with pitrery, either a configuration file is needed
 or the options must be put on the commandline. The usage of the backup
 action is:
 
-    $ pitr_mgr backup -?
+    $ pitrery backup -?
     backup_pitr performs a PITR base backup
     
     Usage:
@@ -502,9 +502,9 @@ is the following:
     SYSLOG_IDENT="postgres"
 
 
-With those options, pitr_mgr can run a backup:
+With those options, pitrery can run a backup:
 
-    $ pitr_mgr -c prod backup
+    $ pitrery -c prod backup
     INFO: backup directory is /home/postgres/backups/prod/2011.08.17-11.16.30
     INFO: preparing directories
     INFO: starting the backup process
@@ -559,7 +559,7 @@ Listing backups
 The list action allow to find the backups for a particular label on
 the backup host. For example:
 
-    $ pitr_mgr -c prod list
+    $ pitrery -c prod list
     List of backups on 10.100.0.16:
     
     Directory:
@@ -582,7 +582,7 @@ when it was run.
 Like the other commands, the options of the list action can be display
 by adding the -? option after the action:
 
-    $ pitr_mgr list -?
+    $ pitrery list -?
     usage: list_pitr [options] [hostname]
     options:
         -L              List from local storage
@@ -615,7 +615,7 @@ This action perform the following steps:
   tablespaces have changed, for PostgreSQL <= 9.1.
 
 The restore will only work if the target destination directory (PGDATA
-in the configuration file of pitr_mgr) and the directories used by
+in the configuration file of pitrery) and the directories used by
 tablespaces exist or can be created, are writable and empty. It is
 important to prepare those directories before running the restore.
 
@@ -636,10 +636,10 @@ can be tweaked on the command line. Beware that some options have
 different names between restore_xlog and the restore action.
 
 Let's say the target directories are ready for a restore run by the
-postgres user, the restore can be started with pitr_mgr on an example
+postgres user, the restore can be started with pitrery on an example
 production server:
 
-    $ pitr_mgr -c prod restore -d '2013-06-01 13:00:00 +0200'
+    $ pitrery -c prod restore -d '2013-06-01 13:00:00 +0200'
     INFO: searching backup directory
     INFO: searching for tablespaces information
     INFO: 
@@ -694,7 +694,7 @@ format of the value of a -t option is tablespace_name:new_directory.
 
 One -t option apply to one tablespace. For example:
 
-    $ pitr_mgr -c prod restore -d '2013-06-01 13:00:00 +0200' \
+    $ pitrery -c prod restore -d '2013-06-01 13:00:00 +0200' \
       -D /home/pgsql/postgresql-9.1.9/data_restore \
       -t ts1:/home/pgsql/postgresql-9.1.9/ts1_restore 
     INFO: searching backup directory
@@ -761,7 +761,7 @@ file is used to define the maximum age in days.
 For example, we have two backups on the store and we want to keep only
 one, while PURGE_KEEP_COUNT=2:
 
-    $ pitr_mgr -c prod purge -m 1
+    $ pitrery -c prod purge -m 1
     INFO: purging /home/postgres/backups/prod/2011.08.17-11.16.30
     INFO: purging WAL files older than 000000020000000000000060
     INFO: done

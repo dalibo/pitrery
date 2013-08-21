@@ -32,7 +32,7 @@ QUICK SETUP
 
 6. Configure archiving (archive_command = 'archive_xlog -C pitr %p')
 
-7. Run pitr_mgr to perform your backups and restores
+7. Run pitrery to perform your backups and restores
 
 
 DEVELOPMENT

@@ -1,7 +1,7 @@
 # pitr.conf -- central configuration file for pitrery
 #
 # This file is intended to be copied for each backup set to be
-# performed with pitr_mgr.
+# performed with pitrery.
 #
 # Since pitr_migr is a wrapper for the different scripts that do each
 # action, all options are defined here so that the command line stays
