@@ -7,6 +7,7 @@ TODO / Roadmap
             like the directory to create for tablespaces, sizes,...
 
 - backup_pitr:
+  . (v1.5)  Save configuration files if they are outside of PGDATA
   . (v1.5)  Support rsync for the base backup
 
 - purge_pitr:
