@@ -154,7 +154,7 @@ done | sort -n -t '|' -k 1 > $backup_list
 # youngest backups from the list.
 remove_list=$tmp_dir/remove_list
 cat /dev/null > $remove_list
-if [ -n "$max_count" -a "$max_count" -ge 0 ]; then 
+if [ -n "$max_count" ] && [ "$max_count" -ge 0 ]; then
     head -n -$max_count $backup_list > $remove_list
 else
     cp $backup_list $remove_list
@@ -164,7 +164,7 @@ fi
 # list
 purge_list=$tmp_dir/purge_list
 cat /dev/null > $purge_list
-if [ -n "$max_days" -a "$max_days" -ge 0 ]; then
+if [ -n "$max_days" ] && [ "$max_days" -ge 0 ]; then
     limit_ts=$(($(date +%s) - 86400 * $max_days))
     for line in `cat $remove_list`; do
 	backup_ts=`echo $line | cut -d '|' -f 2`
