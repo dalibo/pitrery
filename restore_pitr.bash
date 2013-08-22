@@ -453,6 +453,29 @@ else
 fi
 cd $was
 
+# Restore the configuration file in a subdirectory of PGDATA
+restored_conf=$pgdata/restored_config_files
+if [ $local_backup = "yes" ]; then
+    # Check the directory, when configuration files are
+    # inside PGDATA it does not exist
+    if [ -d $backup_dir/conf ]; then
+	info "restoring configuration files to $restored_conf"
+	cp -r $backup_dir/conf $restored_conf
+	if [ $? != 0 ]; then
+	    warn "could not copy $backup_dir/conf to $restored_conf"
+	fi
+    fi
+else
+    ssh ${ssh_user:+$ssh_user@}$source "test -d $backup_dir/conf" 2>/dev/null
+    if [ $? = 0 ]; then
+	info "restoring configuration files to $restored_conf"
+	scp -r ${ssh_user:+$ssh_user@}$source:$backup_dir/conf $restored_conf >/dev/null
+	if [ $? != 0 ]; then
+	    warn "could not copy $source:$backup_dir/conf to $restored_conf"
+	fi
+    fi
+fi
+
 # change owner of PGDATA to the target owner
 if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
     info "setting owner of PGDATA ($pgdata)"
@@ -591,6 +614,11 @@ fi
 
 info "done"
 info
+if [ -d $restored_conf ]; then
+    info "saved configuration files have been restored to:"
+    info "  $restored_conf"
+    info
+fi
 info "please check directories and recovery.conf before starting the cluster"
 info "and do not forget to update the configuration of pitrery if needed"
 info

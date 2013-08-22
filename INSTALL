@@ -546,12 +546,17 @@ directory on the backup host:
 The backup is stored in the prod/2011.08.17-11.16.30 diretory of
 BACKUP_DIR, "prod" being the label defined by BACKUP_LABEL. The backup
 directory is named with the start date and time of the backup. The
-backup_timestamp contains the timestamp value of the stop time of the
-backup, which is used by the restore action to find the best candidate
-when restoring to a specific date and time. The directory stores the
-backup label file of PostgreSQL, a tarball of the PGDATA directory,
-tarballs for each tablespace and the tablespace list for their
-path. Here we have configured archive_xlog to store the WAL files in
+`backup_timestamp` file contains the timestamp value of the stop time
+of the backup, which is used by the restore action to find the best
+candidate when restoring to a specific date and time and by the purge
+action. The directory stores the backup label file of PostgreSQL, a
+tarball of the PGDATA directory, tarballs for each tablespace and the
+tablespace list for their path. Finally, but no shown in the example,
+a `conf` directory can be created to stored configuration files of the
+database cluster (`postgresql.conf`, `pg_hba.conf` and
+`pg_ident.conf`) when they are not located inside PGDATA.
+
+Note: Here we have configured archive_xlog to store the WAL files in
 prod/xlog to have them close to the base backups.
 
 Listing backups
@@ -611,6 +616,10 @@ This action perform the following steps:
 * Retrieve and extract the contents of PGDATA and the tablespaces.
 
 * Create a recovery.conf file for PostgreSQL.
+
+* Optionally, restore the saved configuration files in
+  PGDATA/restored_config_files if they were outside PGDATA at the time
+  of the backup.
 
 * Optinally, create a script to update the catalog when paths to
   tablespaces have changed, for PostgreSQL <= 9.1.

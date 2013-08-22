@@ -1,6 +1,8 @@
 pitrery 1.5
 ===========
 
+  * Save configuration files if they are outside of PGDATA
+
   * Rename `pitr_mgr` to `pitrery`, with a symlink for backward
     compatibility
 
