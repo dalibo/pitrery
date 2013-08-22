@@ -167,7 +167,7 @@ else
     echo $ARCHIVE_HOST | grep -q ':' && ARCHIVE_HOST="[${ARCHIVE_HOST}]" # Dummy test for IPv6
 
     if [ $ARCHIVE_COMPRESS = "yes" ]; then
-	$COMPRESS_BIN -c $xlog | ssh ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST} "cat > ${ARCHIVE_DIR:-'~'}/`basename $xlog`.$COMPRESS_SUFFIX" 2>/dev/null
+	$COMPRESS_BIN -c $xlog | ssh ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST} "dd of=${ARCHIVE_DIR:-'~'}/`basename $xlog`.$COMPRESS_SUFFIX" 2>/dev/null
 	rc=(${PIPESTATUS[*]})
 	compress_rc=${rc[0]}
 	ssh_rc=${rc[1]}
@@ -177,9 +177,10 @@ else
 	fi
     else
 	scp $xlog ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}:$ARCHIVE_DIR
-	if [ $? != 0 ]; then
+	rc=$?
+	if [ $rc != 0 ]; then
 	    error "Unable to send $xlog to ${ARCHIVE_HOST}:${ARCHIVE_DIR}"
-	    exit 1
+	    exit $rc
 	fi
     fi
 fi

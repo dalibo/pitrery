@@ -9,8 +9,3 @@ TODO / Roadmap
 - backup_pitr:
   . (v1.5)  Save configuration files if they are outside of PGDATA
   . (v1.5)  Support rsync for the base backup
-
-- purge_pitr:
-
-- archive_xlog:
-  . (v1.5)  Use rsync if possible and compress after
