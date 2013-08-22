@@ -192,13 +192,14 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lu:b:l:D:d:O:t:nAh:U:X:r:CSf:i:?" arg 2>/dev/null; do
+	while getopts "Lu:b:l:D:x:d:O:t:nAh:U:X:r:CSf:i:?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		u) BACKUP_USER=$OPTARG;;
 		b) BACKUP_DIR=$OPTARG;;
 		l) BACKUP_LABEL=$OPTARG;;
 		D) PGDATA=$OPTARG;;
+		x) PGXLOG=$OPTARG;;
 		d) TARGET_DATE=$OPTARG;;
 		O) PGOWNER=$OPTARG;;
 		t) TBLSPC_RELOC="$TBLSPC_RELOC -t $OPTARG";;
@@ -223,6 +224,7 @@ case $action in
 	[ -n "$BACKUP_DIR" ] && opts="$opts -b $BACKUP_DIR"
 	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
 	[ -n "$PGDATA" ] && opts="$opts -D $PGDATA"
+	[ -n "$PGXLOG" ] && opts="$opts -x $PGXLOG"
 	[ -n "$PGOWNER" ] && opts="$opts -O $PGOWNER"
 	[ -n "$TBLSPC_RELOC" ] && opts="$opts $TBLSPC_RELOC"
 	[ "$DRY_RUN" = "yes" ] && opts="$opts -n"

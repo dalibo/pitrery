@@ -298,6 +298,9 @@ through pitrery :
   is useful when restoring as root if the user want to restore as
   another user.
 
+* PGXLOG is a path where transaction logs can be stored on restore,
+  pg_xlog would then be a symbolic link to this path, like `initdb -X`
+
 * BACKUP_IS_LOCAL tells pitrery that the backups are stored on the
   local machine. When set to "yes", the target host is no longer
   needed.
@@ -749,7 +752,40 @@ of 9.2). This script must be run as a superuser role on the restored
 cluster after the recovery.
 
 Again, if unsure, run the restore action with the -n switch to display
-what would be done.
+what would be done. The options of restore are:
+
+    $ pitrery restore -?
+    restore_pitr performs a PITR restore
+    
+    Usage:
+        restore_pitr [options] [hostname]
+    
+    Restore options:
+        -L              Restore from local storage
+        -u username     Username for SSH login to the backup host
+        -b dir          Backup storage directory
+        -l label        Label used when backup was performed
+        -D dir          Path to target $PGDATA
+        -x dir          Path to the xlog directory (only if outside $PGDATA)
+        -d date         Restore until this date
+        -O user         If run by root, owner of the files
+        -t tblspc:dir   Change the target directory of tablespace "ts"
+                          this switch can be used many times
+        -n              Dry run: show restore information only
+    
+    Archived WAL files options:
+        -A              Force the use of local archives
+        -h host         Host storing WAL files
+        -U username     Username for SSH login to WAL storage host
+        -X dir          Path to the archived xlog directory
+        -r cli          Command line to use in restore_command
+        -C              Do not uncompress WAL files
+        -S              Send messages to syslog
+        -f facility     Syslog facility
+        -i ident        Syslog ident
+    
+        -?              Print help
+    
 
 
 Removing old backups

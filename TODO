@@ -8,6 +8,3 @@ TODO / Roadmap
 
 - backup_pitr:
   . (v1.5)  Support rsync for the base backup
-
-- restore_pitr:
-  . (v1.5)  add an option to configure the path of the xlog directory

@@ -45,6 +45,7 @@ usage() {
     echo "    -b dir          Backup storage directory"
     echo "    -l label        Label used when backup was performed"
     echo "    -D dir          Path to target \$PGDATA"
+    echo "    -x dir          Path to the xlog directory (only if outside \$PGDATA)"
     echo "    -d date         Restore until this date"
     echo "    -O user         If run by root, owner of the files"
     echo "    -t tblspc:dir   Change the target directory of tablespace \"ts\""
@@ -158,13 +159,14 @@ check_and_fix_directory() {
 
 
 # Process CLI Options
-while getopts "Lu:b:l:D:d:O:t:nAh:U:X:r:CSf:i:?" opt; do
+while getopts "Lu:b:l:D:x:d:O:t:nAh:U:X:r:CSf:i:?" opt; do
     case "$opt" in
 	L) local_backup="yes";;
 	u) ssh_user=$OPTARG;;
 	b) backup_root=$OPTARG;;
 	l) label_prefix=$OPTARG;;
 	D) pgdata=$OPTARG;;
+	x) pgxlog=$OPTARG;;
 	d) target_date=$OPTARG;;
 	O) owner=$OPTARG;;
 	t) tsmv_list="$tsmv_list $OPTARG";;
@@ -377,6 +379,9 @@ info "  $backup_dir"
 info
 info "destinations directories:"
 info "  PGDATA -> $pgdata"
+
+[ -n "$pgxlog" ] && info "  PGDATA/pg_xlog -> $pgxlog"
+
 if [ -f "$tblspc_reloc" ]; then
     for l in `cat $tblspc_reloc`; do
 	name=`echo $l | cut -d '|' -f 1`
@@ -413,6 +418,19 @@ fi
 
 # Check target directories
 check_and_fix_directory $pgdata
+
+if [ -n "$pgxlog" ]; then
+    echo $pgxlog | grep -q '^/'
+    if [ $? != 0 ]; then
+	error "pg_xlog must be an absolute path"
+    fi
+
+    if [ "$pgxlog" = "$pgdata/pg_xlog" ]; then
+	error "xlog path cannot be \$PGDATA/pg_xlog, this path is reserved. It appears you do not need -x"
+    fi
+
+    check_and_fix_directory $pgxlog
+fi
 
 # Check the tablespaces directory and create them if possible
 if [ -f "$tblspc_reloc" ]; then
@@ -540,7 +558,24 @@ fi
     fi
 done
 
-# Create pg_xlog directory if needed
+# Create or symlink pg_xlog directory if needed
+if [ -d "$pgxlog" ]; then
+    info "creating symbolic link pg_xlog to $pgxlog"
+    was=`pwd`
+    cd $pgdata
+    ln -sf $pgxlog pg_xlog
+    if [ $? != 0 ]; then
+	error "could not create $pgdata/pg_xlog symbolic link"
+    fi
+    if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+	chown -h ${owner}: pg_xlog
+	if [ $? != 0 ]; then
+	    error "could not change owner of pg_xlog symbolic link to $owner"
+	fi
+    fi
+    cd $was
+fi
+
 if [ ! -d $pgdata/pg_xlog/archive_status ]; then
     info "preparing pg_xlog directory"
     mkdir -p $pgdata/pg_xlog/archive_status
@@ -550,7 +585,7 @@ if [ ! -d $pgdata/pg_xlog/archive_status ]; then
 
     chmod 700 $pgdata/pg_xlog $pgdata/pg_xlog/archive_status 2>/dev/null
     if [ $? != 0 ]; then
-	error "could not set permissions of $pgdata/pg_xlog"
+	error "could not set permissions of $pgdata/pg_xlog and $pgdata/pg_xlog/archive_status"
     fi
 
     if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
