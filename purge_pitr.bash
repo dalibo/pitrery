@@ -30,6 +30,7 @@ backup_root=/var/lib/pgsql/backups
 label_prefix="pitr"
 local_xlog="no"
 xlog_dir=/var/lib/pgsql/archived_xlog
+compress_suffix="gz"
 
 usage() {
     echo "`basename $0` cleans old PITR backups"
@@ -57,7 +58,14 @@ info() {
 
 error() {
     echo "ERROR: $*" 1>&2
+    if [ -n "$tmp_dir" ]; then
+	[ -d "$tmp_dir" ] && rm -rf $tmp_dir
+    fi
     exit 1
+}
+
+warn() {
+    echo "WARNING: $*" 1>&2
 }
 
 # CLI options
@@ -99,7 +107,6 @@ if [ -z "$max_count" -a -z "$max_days" ]; then
     usage 1
 fi
 
-
 # When the host storing the WAL files is not given, use the host of the backups
 if [ -z "$xlog_host" ]; then
     local_xlog="yes"
@@ -111,68 +118,86 @@ fi
 [ -z "$target" ] || echo $target | grep -q ':' && target="[${target}]"
 [ -z "$xlog_host" ] || echo $xlog_host | grep -q ':' && xlog_host="[${xlog_host}]"
 
+# We need a temporary directory
+tmp_dir=`mktemp -d -t pg_pitr.XXXXXXXXXX`
+if [ $? != 0 ]; then
+    error "could not create temporary directory"
+fi
+
 # Get the list of backups
+info "searching backups"
 if [ $local_backup = "yes" ]; then
     list=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null`
     if [ $? != 0 ]; then
-	echo "ERROR: could not list the content of $backup_root/$label_prefix/" 1>&2
-	exit 1
+	error "could not list the content of $backup_root/$label_prefix/"
     fi
-
 else
     list=`ssh ${ssh_user:+$ssh_user@}$target "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
     if [ $? != 0 ]; then
-	echo "ERROR: could not list the content of $backup_root/$label_prefix/ on $target" 1>&2
-	exit 1
+	error "could not list the content of $backup_root/$label_prefix/ on $target"
     fi
-
 fi
 
-# Purge: specified backup count overrides the max number of days
-if [ -n "$max_count" ]; then
-    # Get the list of backup directory but the last $max_count'th
-    remove_list=`echo $list | sort -n | tr ' ' '\n' | head -n -$max_count`
-    if [ -n "$remove_list" ]; then
-	for dir in $remove_list; do
-	    if [ $local_backup = "yes" ]; then
-		info "purging $dir"
-		rm -rf $dir
-		if [ $? != 0 ]; then
-		    echo "WARNING: Unable to remove $dir" 1>&2
-		fi
-	    else
-		info "purging $dir"
-		ssh ${ssh_user:+$ssh_user@}$target "rm -rf $dir" 2>/dev/null
-		if [ $? != 0 ]; then
-		    echo "WARNING: Unable to remove $target:$dir" 1>&2
-		fi
-	    fi
-	done
+# Get the stop time timestamp of each backup, comparing timestamps is better
+backup_list=$tmp_dir/backup_list
+cat /dev/null > $backup_list
+for dir in $list; do
+    if [ $local_backup = "yes" ]; then
+	ts=`cat $dir/backup_timestamp 2>/dev/null`
+    else
+	ts=`ssh ${ssh_user:+$ssh_user@}$target "cat $dir/backup_timestamp" 2>/dev/null`
     fi
+    echo "$dir|$ts"
+done | sort -n -t '|' -k 1 > $backup_list
+
+# If a minimum number of backup must be kept, remove the $max_count
+# youngest backups from the list.
+remove_list=$tmp_dir/remove_list
+cat /dev/null > $remove_list
+if [ -n "$max_count" -a "$max_count" -ge 0 ]; then 
+    head -n -$max_count $backup_list > $remove_list
 else
-    if [ -n "$max_days" ]; then
-	# Find the limiting date from now and the specified number of days
-	ldate=`date --date="-$max_days day" +%Y%m%d%H%M%S`
-	for dir in $list; do
-	    bdate=`basename $dir | sed -e 's/[^0-9]//g'`
-	    if [ $ldate -gt $bdate ]; then
-		if [ $local_backup = "yes" ]; then
-		    info "purging $dir"
-		    rm -rf $dir
-		    if [ $? != 0 ]; then
-			echo "WARNING: Unable to remove $dir" 1>&2
-		    fi
-		else
-		    info "purging $dir"
-		    ssh ${ssh_user:+$ssh_user@}$target "rm -rf $dir" 2>/dev/null
-		    if [ $? != 0 ]; then
-			echo "WARNING: Unable to remove $target:$dir" 1>&2
-		    fi
-		fi
-	    fi
-	done
-    fi
+    cp $backup_list $remove_list
 fi
+
+# If older backups must be removed, filter matching backups in the
+# list
+purge_list=$tmp_dir/purge_list
+cat /dev/null > $purge_list
+if [ -n "$max_days" -a "$max_days" -ge 0 ]; then
+    limit_ts=$(($(date +%s) - 86400 * $max_days))
+    for line in `cat $remove_list`; do
+	backup_ts=`echo $line | cut -d '|' -f 2`
+	[ -z "$backup_ts" ] && continue
+	if [ $backup_ts -lt $limit_ts ]; then
+	    echo $line >> $purge_list
+	fi
+    done
+else
+    cp $remove_list $purge_list
+fi
+
+if [ `cat $purge_list | wc -l` = 0 ]; then
+    info "there are no backups to purge"
+fi
+
+# Purge the backups
+for line in `cat $purge_list`; do
+    dir=`echo $line | cut -d '|' -f 1`
+    if [ $local_backup = "yes" ]; then
+	info "purging $dir"
+	rm -rf $dir
+	if [ $? != 0 ]; then
+	    warn "Unable to remove $dir"
+	fi
+    else
+	info "purging $dir"
+	ssh ${ssh_user:+$ssh_user@}$target "rm -rf $dir" 2>/dev/null
+	if [ $? != 0 ]; then
+	    warn "Unable to remove $target:$dir"
+	fi
+    fi
+done
 
 # To be able to purge the archived xlogs, the backup_label of the oldest backup
 # is needed to find the oldest xlog file to keep.
@@ -181,31 +206,22 @@ fi
 if [ $local_backup = "yes" ]; then
     backup_label=`ls $backup_root/$label_prefix/[0-9]*/backup_label 2>/dev/null | head -1`
     if [ $? != 0 ]; then
-	echo "ERROR: could not list the content of $backup_root/$label_prefix/" 1>&2
-	exit 1
+	error "could not list the content of $backup_root/$label_prefix/"
     fi
 else
     remote_backup_label=`ssh ${ssh_user:+$ssh_user@}$target "ls -d $backup_root/$label_prefix/[0-9]*/backup_label" 2>/dev/null | head -1`
     if [ $? != 0 ]; then
-	echo "ERROR: could not list the content of $backup_root/$label_prefix/ on $source" 1>&2
-	exit 1
+	error "could not list the content of $backup_root/$label_prefix/ on $source"
     fi
     
     if [ -n "$remote_backup_label" ]; then
-	tmp_dir=`mktemp -d -t pg_pitr.XXXXXXXXXX`
-	if [ $? != 0 ]; then
-	    echo "ERROR: could not create temporary directory" 1>&2
-	    exit 1
-	fi
-    
 	scp ${ssh_user:+$ssh_user@}$target:$remote_backup_label $tmp_dir >/dev/null 2>&1
 	if [ $? != 0 ]; then
-	    echo "ERROR: could not copy backup label from $target" 1>&2
-	    exit 1
+	    error "could not copy backup label from $target"
 	fi
 	backup_label=$tmp_dir/backup_label
     else
-	echo "ERROR: could not find the backup label of the oldest backup, WAL won't be purged" 1>&2
+	warn "could not find the backup label of the oldest backup, WAL won't be purged"
     fi
 fi
 
@@ -218,9 +234,12 @@ if [ -z "$backup_label" ]; then
     exit
 fi
 
-# Extract the name of the WAL file from the backup history file
+# Extract the name of the WAL file from the backup history file, and
+# split it in timeline, log and segment
 wal_file=`grep '^START WAL LOCATION' $backup_label | cut -d' ' -f 6 | sed -e 's/[^0-9A-F]//g'`
-max_wal_num=$(( 16#$wal_file ))
+max_tln=$((16#`echo $wal_file | cut -b 1-8`))
+max_log=$((16#`echo $wal_file | cut -b 9-16`))
+max_seg=$((16#`echo $wal_file | cut -b 17-24`))
 
 info "purging WAL files older than `basename $wal_file`"
 
@@ -229,55 +248,60 @@ info "purging WAL files older than `basename $wal_file`"
 if [ $local_xlog = "yes" ]; then
     wal_list=`ls $xlog_dir 2>/dev/null | grep '^[0-9AF]'`
     if [ $? != 0 ]; then
-	echo "ERROR: could not list the content of $xlog_dir" 1>&2
-	exit 1
+	error "could not list the content of $xlog_dir"
     fi
-    for wal in $wal_list; do
-	file=`basename $wal` # filename with compression suffix
-	w=`echo $file | sed -E -e 's/\.[^\.]+$//'` # filename without compression suffix
-	# Exclude history and backup label files from the listing
-	echo $w | egrep -q '\.[^\.]+'
-	if [ $? != 0 ]; then
-	    echo $w | grep -qE '^[0-9A-F]+$' # ensure when have some hex
-	    if [ $? != 0 ]; then
-		continue
-	    fi
-	    wal_num=$(( 16#$w ))
-	    if [ $wal_num -lt $max_wal_num ]; then
-		# Remove the WAL file
-		rm $xlog_dir/$file
-		if [ $? != 0 ]; then
-		    echo "WARNING: Unable to remove $wal" 1>&2
-		fi
-	    fi
-	fi
-    done
 else
     wal_list=`ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "ls $xlog_dir | grep '^[0-9AF]'" 2>/dev/null`
     if [ $? != 0 ]; then
-	echo "ERROR: could not list the content of $xlog_dir on $xlog_host" 1>&2
-	exit 1
+	error "could not list the content of $xlog_dir on $xlog_host"
     fi
-    for wal in $wal_list; do
-	file=`basename $wal` # filename with compression suffix
-	w=`echo $file | sed -E -e 's/\.[^\.]+$//'` # filename without compression suffix
-	# Exclude history and backup label files
-	echo $w | egrep -q '\.[^\.]+'
-	if [ $? != 0 ]; then
-	    echo $w | grep -qE '^[0-9A-F]+$' # ensure when have some hex
+fi
+
+# Compare and remove files from the list
+i=0
+for wal in $wal_list; do
+    # filename with compression suffix
+    file=`basename $wal`
+    # filename without compression suffix
+    w=`echo $file | sed -E -e 's/\.'$compress_suffix'$//'`
+
+    # only work on wal files and backup_labels
+    echo $w | grep -qE '^[0-9A-F]+$'
+    is_wal=$?
+
+    echo $w | grep -qE '^[0-9A-F]+\.[0-9A-F]+.backup$'
+    is_bl=$?
+
+    if [ $is_wal != 0 -a $is_bl != 0 ]; then
+	continue
+    fi
+
+    # split the wal filename in timeline, log and segment for comparison
+    tln=$((16#`echo $w | cut -b 1-8`))
+    log=$((16#`echo $w | cut -b 9-16`))
+    seg=$((16#`echo $w | cut -b 17-24`))
+
+    # when the wal file name is "lower", it is older. remove it.
+    if [ $tln -le $max_tln ] && [ $log -eq $max_log -a $seg -lt $max_seg -o $log -lt $max_log ]; then
+	if [ $local_xlog = "yes" ]; then
+	    rm $xlog_dir/$file
 	    if [ $? != 0 ]; then
-		continue
+		warn "unable to remove $wal"
+	    else
+		i=$(($i + 1))
 	    fi
-	    wal_num=$(( 16#$w ))
-	    if [ $wal_num -lt $max_wal_num ]; then
-		ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "rm $xlog_dir/$file" 2>/dev/null
-		if [ $? != 0 ]; then
-		    echo "WARNING: Unable to remove $file on $xlog_host" 1>&2
-		fi
+	else
+	    ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "rm $xlog_dir/$file" 2>/dev/null
+	    if [ $? != 0 ]; then
+		warn "unable to remove $file on $xlog_host"
+	    else
+		i=$(($i + 1))
 	    fi
 	fi
-    done
-fi
+    fi
+done
+
+info "$i old WAL file(s) removed"
 
 # Clean temporary directory
 if [ -d "$tmp_dir" ]; then

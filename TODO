@@ -11,10 +11,6 @@ TODO / Roadmap
   . (v1.5)  Support rsync for the base backup
 
 - purge_pitr:
-  . (v1.5)  Make the time based purge compatible with the count purge, allowing
-            to purge backups based on age _and_ keeping a minimum number of
-            backups.
-  . (v1.5)  Make the wal purge better by comparing parts of the xlog file name
-            instead of the whole while bash does not handle well when converted
-            to a number.
-  . (v1.5)  Find a way to safely purge old .backup and .history files
+
+- archive_xlog:
+  . (v1.5)  Use rsync if possible and compress after

@@ -56,7 +56,8 @@ RESTORE_COMMAND=
 
 # The old backups can be removed by setting one of those two
 # parameters, one can keep at most PURGE_KEEP_COUNT backups or keep
-# backups that are younger than PURGE_OLDER_THAN in days.
+# backups that are younger than PURGE_OLDER_THAN in days. When both
+# parameters are set, age based purge keeps at least the given count.
 PURGE_KEEP_COUNT=
 PURGE_OLDER_THAN=
 

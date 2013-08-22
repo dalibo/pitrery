@@ -1,3 +1,24 @@
+pitrery 1.5
+===========
+
+  * Rename `pitr_mgr` to `pitrery`, with a symlink for backward
+    compatibility
+
+  * Make the time based purge compatible with the count purge,
+    allowing to purge backups based on age _and_ keeping a minimum
+    number of backups
+
+  * Make the old WAL purge better by comparing parts of the file name
+    instead of the whole. Bash does not handle well the full file name
+    when converted to a number (too big)
+
+  * Safely purge old .backup files. Always keep .history files
+
+  * Improve documentation
+
+  * Better check the input file in archive_xlog
+
+
 pitrery 1.4
 ===========
 

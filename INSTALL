@@ -325,7 +325,8 @@ through pitrery :
   old backups.
 
 * PURGE_OLDER_THAN controls how many __days__ backups are kept when
-  purging. If PURGE_KEEP_COUNT is set, this parameter is ignored.
+  purging. If PURGE_KEEP_COUNT is also set, age based purge will
+  always leave at least PURGE_KEEP_COUNT backups.
 
 * ARCHIVE_* and SYSLOG_* are passed to restore_xlog when
   RESTORE_COMMAND is empty. They define the location (either local or
@@ -746,12 +747,12 @@ Removing old backups
 --------------------
 
 The purge action can remove old backups according to a policy based on
-the number of backups to keep or their age in days. If the maximum
-number of backups and the maximum age are set, only the number of
-backups is used for the purge, it prevents the user from removing all
-backups if all of them are too old. The purge script will also try to
-remove unnecessary archived WAL files, provided it can reach the
-location where they are stored.
+the number of backups to keep and/or their age in days. If the maximum
+number of backups and the maximum age are set, the number is always
+respected: it prevents the user from removing all backups if all of
+them are too old. The purge script will also try to remove unnecessary
+archived WAL files, provided it can reach the location where they are
+stored.
 
 The -m on the command line or the PURGE_KEEP_COUNT in the
 configuration file define the maximum number of backups to keep. The
@@ -762,7 +763,8 @@ For example, we have two backups on the store and we want to keep only
 one, while PURGE_KEEP_COUNT=2:
 
     $ pitrery -c prod purge -m 1
+    INFO: searching backups
     INFO: purging /home/postgres/backups/prod/2011.08.17-11.16.30
     INFO: purging WAL files older than 000000020000000000000060
+    INFO: 75 old WAL file(s) removed
     INFO: done
-
