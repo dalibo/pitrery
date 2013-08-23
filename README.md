@@ -22,17 +22,17 @@ QUICK SETUP
 
 1. Get the source
 
-2. Edit the config.mk
+2. Edit the `config.mk`
 
-3. Run make and make install
+3. Run `make` and `make install`
 
-4. Copy pitr.conf to a new file to configure a particular backup
+4. Copy `pitr.conf` to a new file to configure a particular backup
 
 5. Edit this file to fit your system
 
-6. Configure archiving (archive_command = 'archive_xlog -C pitr %p')
+6. Configure archiving (`archive_command = 'archive_xlog -C pitr %p'`)
 
-7. Run pitrery to perform your backups and restores
+7. Run `pitrery` to perform your backups and restores
 
 
 DEVELOPMENT
