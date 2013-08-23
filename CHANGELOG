@@ -20,6 +20,8 @@ pitrery 1.5
 
   * Better check the input file in archive_xlog
 
+  * Use rsync to safely transfer to the remote host in archive_xlog
+
 
 pitrery 1.4
 ===========
