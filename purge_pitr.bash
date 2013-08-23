@@ -30,7 +30,6 @@ backup_root=/var/lib/pgsql/backups
 label_prefix="pitr"
 local_xlog="no"
 xlog_dir=/var/lib/pgsql/archived_xlog
-compress_suffix="gz"
 
 usage() {
     echo "`basename $0` cleans old PITR backups"
@@ -263,7 +262,12 @@ for wal in $wal_list; do
     # filename with compression suffix
     file=`basename $wal`
     # filename without compression suffix
-    w=`echo $file | sed -E -e 's/\.'$compress_suffix'$//'`
+    echo $file | grep -qE '\.(backup|history)$'
+    if [ $? != 0 ]; then
+	w=`echo $file | sed -E -e 's/\.[^\.]+$//'`
+    else
+	w=$file
+    fi
 
     # only work on wal files and backup_labels
     echo $w | grep -qE '^[0-9A-F]+$'
