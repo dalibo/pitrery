@@ -167,19 +167,39 @@ else
     echo $ARCHIVE_HOST | grep -q ':' && ARCHIVE_HOST="[${ARCHIVE_HOST}]" # Dummy test for IPv6
 
     if [ $ARCHIVE_COMPRESS = "yes" ]; then
-	$COMPRESS_BIN -c $xlog | ssh ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST} "dd of=${ARCHIVE_DIR:-'~'}/`basename $xlog`.$COMPRESS_SUFFIX" 2>/dev/null
-	rc=(${PIPESTATUS[*]})
-	compress_rc=${rc[0]}
-	ssh_rc=${rc[1]}
-	if [ $compress_rc != 0 ] || [ $ssh_rc != 0 ]; then
-	    error "Unable to send compressed $xlog to ${ARCHIVE_HOST}:${ARCHIVE_DIR}"
-	    exit 1
-	fi
-    else
-	scp $xlog ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}:$ARCHIVE_DIR
+	file=/tmp/`basename $xlog`.$COMPRESS_SUFFIX
+	# We take no risk, pipe the content to the compression program
+	# and save output elsewhere: the compression program never
+	# touches the input file
+	$COMPRESS_BIN -c < $xlog > $file
 	rc=$?
 	if [ $rc != 0 ]; then
-	    error "Unable to send $xlog to ${ARCHIVE_HOST}:${ARCHIVE_DIR}"
+	    error "Compression to $file failed"
+	    exit $rc
+	fi
+
+	# Using a temporary file is mandatory for rsync. Rsync is the
+	# safest way to archive, the file is transfered under a
+	# another name then moved to the target name when complete,
+	# partly copied files should not happen.
+	rsync -a $file ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}:${ARCHIVE_DIR:-'~'}/
+	rc=$?
+	if [ $rc != 0 ]; then
+	    error "Unable to rsync the compressed file to ${ARCHIVE_HOST}:${ARCHIVE_DIR}"
+	    exit $rc
+	fi
+
+	rm $file
+	rc=$?
+	if [ $rc != 0 ]; then
+	    error "Unable to remove temporary compressed file"
+	    exit $rc
+	fi
+    else
+	rsync -a $xlog ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}:${ARCHIVE_DIR:-'~'}/
+	rc=$?
+	if [ $rc != 0 ]; then
+	    error "Unable to rsync $xlog to ${ARCHIVE_HOST}:${ARCHIVE_DIR}"
 	    exit $rc
 	fi
     fi
