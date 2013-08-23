@@ -41,8 +41,8 @@ make install DESTDIR=%{buildroot}
 /usr/lib/pitrery/purge_pitr
 /usr/lib/pitrery/restore_pitr
 /usr/share/doc/pitrery/COPYRIGHT
-%doc /usr/share/doc/pitrery/INSTALL
-%doc /usr/share/doc/pitrery/UPGRADE
+%doc /usr/share/doc/pitrery/INSTALL.md
+%doc /usr/share/doc/pitrery/UPGRADE.md
 %doc /usr/share/doc/pitrery/pitr.conf
 
 %changelog

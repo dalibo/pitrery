@@ -1,4 +1,5 @@
 pitrery: Point-In-Time Recovery (PITR) tools for PostgreSQL
+===========================================================
 
 
 FEATURES

@@ -10,7 +10,7 @@ HELPERS = backup_pitr.bash \
 	purge_pitr.bash \
 	restore_pitr.bash
 SRCCONFS = pitr.conf.sample
-DOCS = COPYRIGHT INSTALL UPGRADE
+DOCS = COPYRIGHT INSTALL.md UPGRADE.md
 
 BINS = $(basename $(SRCS))
 LIBS = $(basename $(HELPERS))
