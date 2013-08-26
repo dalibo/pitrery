@@ -22,6 +22,8 @@ pitrery 1.5
 
   * Use rsync to safely transfer to the remote host in archive_xlog
 
+  * Document compression tools options
+
 
 pitrery 1.4
 ===========

@@ -99,6 +99,20 @@ SYSLOG="no"
 SYSLOG_FACILITY="local0"
 SYSLOG_IDENT="postgres"
 
+# Compression options. The following options allow to customize
+# compression tools for WAL archiving. The program used in
+# COMPRESS_BIN must support a -c option to output to stdout and access
+# data from stdin (tested gzip, pigz, bzip2, pbzip2).  Defaults to
+# "gzip -4"
+#COMPRESS_BIN=
+
+# The suffix added by the compression tool (needed for
+# decompression). Defaults to "gz"
+#COMPRESS_SUFFIX=
+
+# Path to the decompression program, it must take the file to process
+# as its first parameter. Defaults to "gunzip"
+#UNCOMPRESS_BIN=
 
 ####################
 

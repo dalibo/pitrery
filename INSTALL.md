@@ -236,6 +236,38 @@ Depending on the version of PostgreSQL, restart the server if
 wal_level or archive_mode were changed, otherwise reload it.
 
 
+Tuning WAL files compression
+============================
+
+By default, `archive_xlog` uses `gzip -4` to compress the WAL files
+when configured to do so (ARCHIVE_COMPRESS="yes"). It is possible to
+compress more and/or faster by using other compression tools, like
+`bzip2`, `pigz`, the prerequisites are that the compression program
+must accept the -c to output on stdout and the data to compress from
+stdin. The compression program can be configured by setting
+COMPRESS_BIN in the configuration file. The output filename has a
+suffix depending on the program used (e.g. "gz" or "bz2", etc), it
+must be configured using COMPRESS_SUFFIX (without the leading dot),
+this suffix is most of the time mandatory for decompression. The
+decompression program is then configured using UNCOMPRESS_BIN, this
+command must accept a compressed file as its first argument.
+
+For example, the fastest compression is achived with `pigz`, a
+multithreaded gzip:
+
+COMPRESS_BIN="pigz"
+UNCOMPRESS_BIN="pigz -d"
+
+Or maximum, but slow, compression with the standard `bzip2`:
+
+COMPRESS_BIN="bzip2 -9"
+COMPRESS_SUFFIX="bz2"
+UNCOMPRESS_BIN="bunzip"
+
+These three parameters can be configured only inside the configuration
+file, not from the command line of `archive_xlog` and `restore_xlog`.
+
+
 Using pitrery to manage backups
 ================================
 
