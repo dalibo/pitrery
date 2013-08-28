@@ -32,6 +32,7 @@ pgdata=/var/lib/pgsql/data
 owner=`id -un`
 archive_dir=/var/lib/pgsql/archived_xlog
 dry_run="no"
+rsync_opts="-q --whole-file" # Remote only
 
 usage() {
     echo "`basename $0` performs a PITR restore"
@@ -192,7 +193,7 @@ source=${@:$OPTIND:1}
 
 # Storage host is mandatory unless stored locally
 if [ -z "$source" ] && [ $local_backup != "yes" ]; then
-    echo "FATAL: missing target host" 1>&2
+    echo "ERROR: missing target host" 1>&2
     usage 1
 fi
 
@@ -426,7 +427,7 @@ if [ -n "$pgxlog" ]; then
     fi
 
     if [ "$pgxlog" = "$pgdata/pg_xlog" ]; then
-	error "xlog path cannot be \$PGDATA/pg_xlog, this path is reserved. It appears you do not need -x"
+	error "xlog path cannot be \$PGDATA/pg_xlog, this path is reserved. It seems you do not need -x"
     fi
 
     check_and_fix_directory $pgxlog
@@ -446,30 +447,82 @@ if [ -f "$tblspc_reloc" ]; then
     done
 fi
 
-# Extract everything
-# pgdata
-info "extracting PGDATA to $pgdata"
-was=`pwd`
-cd $pgdata
+# Find out what storage method is used in the backup. If the PGDATA is
+# stored as a gzip'ed tarball, the method is tar, if it is a
+# directory, then backup_pitr used rsync to put files there.
 if [ $local_backup = "yes" ]; then
-    tar xzf $backup_dir/pgdata.tar.gz
-    if [ $? != 0 ]; then
-	echo "ERROR: could extract $backup_dir/pgdata.tar.gz to $pgdata" 1>&2
-	cd $was
-	exit 1
+    if [ -f "$backup_dir/pgdata.tar.gz" ]; then
+	storage="tar"
+    elif [ -d "$backup_dir/pgdata" ]; then
+	storage="rsync"
+    else
+	error "could not find out what storage method is used in $backup_dir"
     fi
 else
-    ssh ${ssh_user:+$ssh_user@}$source "cat $backup_dir/pgdata.tar.gz" 2>/dev/null | tar xzf - 2>/dev/null
-    rc=(${PIPESTATUS[*]})
-    ssh_rc=${rc[0]}
-    tar_rc=${rc[1]}
-    if [ $ssh_rc != 0 ] || [ $tar_rc != 0 ]; then
-	echo "ERROR: could extract $source:$backup_dir/pgdata.tar.gz to $pgdata" 1>&2
-	cd $was
-	exit 1
+    ssh ${ssh_user:+$ssh_user@}$source "test -f $backup_dir/pgdata.tar.gz" 2>/dev/null
+    if [ $? = 0 ]; then
+	storage="tar"
+    else
+	ssh ${ssh_user:+$ssh_user@}$source "test -d $backup_dir/pgdata" 2>/dev/null
+	if [ $? = 0 ]; then
+	    storage="rsync"
+	else
+	    error "could not find out what storage method is used in $source:$backup_dir"
+	fi
     fi
 fi
-cd $was
+
+# Extract everything
+case $storage in
+    "tar")
+	# pgdata
+	info "extracting PGDATA to $pgdata"
+	was=`pwd`
+	cd $pgdata
+	if [ $local_backup = "yes" ]; then
+	    tar xzf $backup_dir/pgdata.tar.gz
+	    if [ $? != 0 ]; then
+		echo "ERROR: could extract $backup_dir/pgdata.tar.gz to $pgdata" 1>&2
+		cd $was
+		exit 1
+	    fi
+	else
+	    ssh ${ssh_user:+$ssh_user@}$source "cat $backup_dir/pgdata.tar.gz" 2>/dev/null | tar xzf - 2>/dev/null
+	    rc=(${PIPESTATUS[*]})
+	    ssh_rc=${rc[0]}
+	    tar_rc=${rc[1]}
+	    if [ $ssh_rc != 0 ] || [ $tar_rc != 0 ]; then
+		echo "ERROR: could extract $source:$backup_dir/pgdata.tar.gz to $pgdata" 1>&2
+		cd $was
+		exit 1
+	    fi
+	fi
+	cd $was
+	info "extraction of PGDATA successful"
+	;;
+
+    "rsync")
+	info "transfering PGDATA to $pgdata with rsync"
+	if [ $local_backup = "yes" ]; then
+	    rsync -aq --delete-before $backup_dir/pgdata/ $pgdata/
+	    rc=$?
+	    if [ $rc != 0 -a $rc != 24 ]; then
+		error "rsync of PGDATA failed with exit code $rc"
+	    fi
+	else
+	    rsync $rsync_opts -e "ssh -c blowfish-cbc -o Compression=no" -a --delete-before ${ssh_user:+$ssh_user@}${source}:$backup_dir/pgdata/ $pgdata/
+	    rc=$?
+	    if [ $rc != 0 -a $rc != 24 ]; then
+		error "rsync of PGDATA failed with exit code $rc"
+	    fi
+	fi
+	info "extraction of PGDATA successful"
+	;;
+
+    *)
+	error "do not know how to restore... I have a bug"
+	;;
+esac
 
 # Restore the configuration file in a subdirectory of PGDATA
 restored_conf=$pgdata/restored_config_files
@@ -514,7 +567,7 @@ fi
     if [ "$reloc" = "yes" ]; then
 	was=`pwd`
 	cd $pgdata/pg_tblspc
-	rm $oid || error "could not remove symbolic link $oid"
+	rm $oid || error "could not remove symbolic link $pgdata/pg_tblspc/$oid"
 	ln -s $tbldir $oid || error "could not update the symbolic of tablespace $name ($oid) to $tbldir"
 
 	# Ensure the new link has the correct owner, the chown -R
@@ -525,28 +578,57 @@ fi
 	cd $was
     fi
 
-    info "extracting tablespace \"${name}\" to $tbldir"
-    was=`pwd`
-    cd $tbldir
-    if [ $local_backup = "yes" ]; then
-	tar xzf $backup_dir/tblspc/${name}.tar.gz
-	if [ $? != 0 ]; then
-	    echo "ERROR: could not extract tablespace $name to $tbldir" 1>&2
+    # Get the data in place
+    case $storage in
+	"tar")
+	    info "extracting tablespace \"${name}\" to $tbldir"
+	    was=`pwd`
+	    cd $tbldir
+	    if [ $local_backup = "yes" ]; then
+		tar xzf $backup_dir/tblspc/${name}.tar.gz
+		if [ $? != 0 ]; then
+		    echo "ERROR: could not extract tablespace $name to $tbldir" 1>&2
+		    cd $was
+		    exit 1
+		fi
+	    else
+		ssh ${ssh_user:+$ssh_user@}$source "cat $backup_dir/tblspc/${name}.tar.gz" 2>/dev/null | tar xzf - 2>/dev/null
+		rc=(${PIPESTATUS[*]})
+		ssh_rc=${rc[0]}
+		tar_rc=${rc[1]}
+		if [ $ssh_rc != 0 ] || [ $tar_rc != 0 ]; then
+		    echo "ERROR: could not extract tablespace $name to $tbldir" 1>&2
+		    cd $was
+		    exit 1
+		fi
+	    fi
 	    cd $was
-	    exit 1
-	fi
-    else
-	ssh ${ssh_user:+$ssh_user@}$source "cat $backup_dir/tblspc/${name}.tar.gz" 2>/dev/null | tar xzf - 2>/dev/null
-	rc=(${PIPESTATUS[*]})
-	ssh_rc=${rc[0]}
-	tar_rc=${rc[1]}
-	if [ $ssh_rc != 0 ] || [ $tar_rc != 0 ]; then
-	    echo "ERROR: could not extract tablespace $name to $tbldir" 1>&2
-	    cd $was
-	    exit 1
-	fi
-    fi
-    cd $was
+	    info "extraction of tablespace \"${name}\" successful"
+	    ;;
+
+	"rsync")
+	    info "transfering PGDATA to $pgdata with rsync"
+	    if [ $local_backup = "yes" ]; then
+		rsync -aq --delete-before $backup_dir/tblspc/${name}/ $tbldir/
+		rc=$?
+		if [ $rc != 0 -a $rc != 24 ]; then
+		    error "rsync of tablespace \"${name}\" failed with exit code $rc"
+		fi
+	    else
+		rsync $rsync_opts -e "ssh -c blowfish-cbc -o Compression=no" -a --delete-before ${ssh_user:+$ssh_user@}${source}:$backup_dir/tblspc/${name}/ $tbldir/
+		rc=$?
+		if [ $rc != 0 -a $rc != 24 ]; then
+		    error "rsync of tablespace \"${name}\" failed with exit code $rc"
+		fi
+	    fi
+	    info "extraction of tablespace \"${name}\" successful"
+	    ;;
+
+	*)
+	    error "do not know how to restore... I have a bug"
+	    ;;
+    esac
+
 
     # change owner of the tablespace files to the target owner
     if [ `id -u` = 0 -a "`id -un`" != $owner ]; then

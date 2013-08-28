@@ -135,13 +135,14 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lb:l:u:D:P:h:p:U:d:?" arg 2>/dev/null; do
+	while getopts "Lb:l:u:D:s:P:h:p:U:d:?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		b) BACKUP_DIR=$OPTARG;;
 		l) BACKUP_LABEL=$OPTARG;;
 		u) BACKUP_USER=$OPTARG;;
 		D) PGDATA=$OPTARG;;
+		s) STORAGE=$OPTARG;;
 		P) PGPSQL=$OPTARG;;
 		h) PGHOST=$OPTARG;;
 		p) PGPORT=$OPTARG;;
@@ -157,6 +158,7 @@ case $action in
 	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
 	[ -n "$BACKUP_USER" ] && opts="$opts -u $BACKUP_USER"
 	[ -n "$PGDATA" ] && opts="$opts -D $PGDATA"
+	[ -n "$STORAGE" ] && opts="$opts -s $STORAGE"
 	[ -n "$PGPSQL" ] && opts="$opts -P $PGPSQL"
 	[ -n "$PGHOST" ] && opts="$opts -h $PGHOST"
 	[ -n "$PGPORT" ] && opts="$opts -p $PGPORT"

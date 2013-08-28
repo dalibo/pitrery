@@ -7,5 +7,4 @@ TODO / Roadmap
             like the directory to create for tablespaces, sizes,...
 
 - backup_pitr:
-  . (v1.5)  Support rsync for the base backup
   . (v1.5)  Force the checkpoint on pg_start_backup when possible

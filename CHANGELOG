@@ -1,6 +1,10 @@
 pitrery 1.5
 ===========
 
+  * Support rsync for the base backup. tar remains the default with a
+    new -s option for backup_pitr and the STORAGE configuration
+    variable
+
   * Save configuration files if they are outside of PGDATA
 
   * Rename `pitr_mgr` to `pitrery`, with a symlink for backward

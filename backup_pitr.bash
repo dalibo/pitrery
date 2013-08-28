@@ -36,6 +36,7 @@ usage() {
     echo "    -l label        Backup label"
     echo "    -u username     Username for SSH login"
     echo "    -D dir          Path to \$PGDATA"
+    echo "    -s mode         Storage method, tar or rsync"
     echo
     echo "Connection options:"
     echo "    -P PSQL         path to the psql command"
@@ -61,6 +62,7 @@ cleanup() {
 	    ssh $target "rm -rf $backup_dir" 2>/dev/null
 	fi
     fi
+    [ -n "$tblspc_list" ] && rm $tblspc_list
 }
 
 error() {
@@ -82,9 +84,11 @@ local_backup="no"
 backup_root=/var/lib/pgsql/backups
 label_prefix="pitr"
 pgdata=/var/lib/pgsql/data
+storage="tar"
+rsync_opts="-q --whole-file" # Remote only
 
 # CLI options
-args=`getopt "Lb:l:u:D:P:h:p:U:d:?" $*`
+args=`getopt "Lb:l:u:D:s:P:h:p:U:d:?" $*`
 if [ $? -ne 0 ]
 then
     usage 2
@@ -99,6 +103,7 @@ do
 	-l) label_prefix=$2; shift 2;;
 	-u) ssh_user=$2; shift 2;;
 	-D) pgdata=$2; shift 2;;
+	-s) storage=$2; shift 2;;
 
 	-P) psql_command=$2; shift 2;;
 	-h) dbhost=$2; shift 2;;
@@ -114,7 +119,13 @@ done
 target=$1
 # Destination host is mandatory unless the backup is local
 if [ -z "$target" ] && [ $local_backup != "yes" ]; then
-    echo -e "FATAL: missing target host\n" 1>&2
+    echo "ERROR: missing target host" 1>&2
+    usage 1
+fi
+
+# Only tar or rsync are allowed as storage method
+if [ "$storage" != "tar" -a "$storage" != "rsync" ]; then
+    echo "ERROR: storage method must be 'tar' or 'rsync'" 1>&2
     usage 1
 fi
 
@@ -147,6 +158,18 @@ stop_backup() {
     # Reset the signal handler, this function should only be called once
     trap - INT TERM KILL EXIT
 }
+
+# When using rsync storage, search for the previous backup to prepare
+# the target directories. We try to optimize the space usage by
+# hardlinking the previous backup, so that files that have not changed
+# between backups are not duplicated from a filesystem point of view
+if [ $storage = "rsync" ]; then
+    if [ $local_backup = "yes" ]; then
+	prev_backup=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null | tail -1`
+    else
+	prev_backup=`ssh ${ssh_user:+$ssh_user@}$target "ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null" | tail -1`
+    fi
+fi
 
 # Prepare target directoties
 backup_dir=$backup_root/${label_prefix}/current
@@ -191,46 +214,9 @@ if [ -n "$PRE_BACKUP_COMMAND" ]; then
     fi
 fi
 
-# Start the backup
-info "starting the backup process"
-start_backup_xlog=`$psql_command -Atc "SELECT pg_xlogfile_name(pg_start_backup('${label_prefix}_${current_time}'));" $psql_condb`
-if [ $? != 0 ]; then
-    error "could not start backup process"
-fi
 
-# Add a signal handler to avoid leaving the cluster in backup mode when exiting on error
-trap stop_backup INT TERM KILL EXIT
-
-# Tar $PGDATA
-info "archiving PGDATA: $pgdata"
-was=`pwd`
-cd $pgdata
-if [ $? != 0 ]; then
-    error "could not change current directory to $pgdata"
-fi
-
-if [ $local_backup = "yes" ]; then
-    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip > $backup_dir/pgdata.tar.gz
-    rc=(${PIPESTATUS[*]})
-    tar_rc=${rc[0]}
-    gzip_rc=${rc[1]}
-    if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
-	error "could not tar PGDATA"
-    fi
-else
-    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/pgdata.tar.gz" 2>/dev/null
-    rc=(${PIPESTATUS[*]})
-    tar_rc=${rc[0]}
-    gzip_rc=${rc[1]}
-    ssh_rc=${rc[2]}
-    if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
-	error "could not tar PGDATA"
-    fi
-fi
-cd $was
-
-# Tar the tablespaces.  The list comes from PostgreSQL to be sure to tar only
-# defined tablespaces.
+# Get the list of tablespaces. It comes from PostgreSQL to be sure to
+# process only defined tablespaces.
 info "listing tablespaces"
 tblspc_list=`mktemp -t backup_pitr.XXXXXX`
 if [ $? != 0 ]; then
@@ -263,45 +249,200 @@ if [ $psql_rc != 0 ] || [ $tr_rc != 0 ]; then
     error "could not get the list of tablespaces from PostgreSQL"
 fi
 
-for line in `cat $tblspc_list`; do
 
-    name=`echo $line | cut -d '|' -f 1`
-    location=`echo $line | cut -d '|' -f 2`
 
-    info "archiving tablespace \"$name\" ($location)"
+# Start the backup
+info "starting the backup process"
+start_backup_xlog=`$psql_command -Atc "SELECT pg_xlogfile_name(pg_start_backup('${label_prefix}_${current_time}'));" $psql_condb`
+if [ $? != 0 ]; then
+    error "could not start backup process"
+fi
 
-    # Change directory to the parent directory or the tablespace to be
-    # able to tar only the base directory
-    was=`pwd`
-    cd $location
-    if [ $? != 0 ]; then
-	error "could not change current directory to $location"
-    fi
+# Add a signal handler to avoid leaving the cluster in backup mode when exiting on error
+trap stop_backup INT TERM KILL EXIT
 
-    # Tar the directory, directly to the remote location if needed.  The name
-    # of the tar file is the tablespace name defined in the cluster, which is
-    # unique.
-    if [ $local_backup = "yes" ]; then
-	tar -cpf - --ignore-failed-read * 2>/dev/null | gzip > $backup_dir/tblspc/${name}.tar.gz
-	rc=(${PIPESTATUS[*]})
-	tar_rc=${rc[0]}
-	gzip_rc=${rc[1]}
-	if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
-	    error "could not tar tablespace $name"
+case $storage in
+    "tar")
+        # Tar $PGDATA
+	info "backing up PGDATA with tar"
+	was=`pwd`
+	cd $pgdata
+	if [ $? != 0 ]; then
+	    error "could not change current directory to $pgdata"
 	fi
-    else
-	tar -cpf - --ignore-failed-read * 2>/dev/null | gzip | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/tblspc/${name}.tar.gz" 2>/dev/null
-	rc=(${PIPESTATUS[*]})
-	tar_rc=${rc[0]}
-	gzip_rc=${rc[1]}
-	ssh_rc=${rc[2]}
-	if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
-	    error "could not tar tablespace $name"
-	fi
-    fi
 
-    cd $was
-done	
+	info "archiving $pgdata"
+	if [ $local_backup = "yes" ]; then
+	    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip > $backup_dir/pgdata.tar.gz
+	    rc=(${PIPESTATUS[*]})
+	    tar_rc=${rc[0]}
+	    gzip_rc=${rc[1]}
+	    if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
+		error "could not tar PGDATA"
+	    fi
+	else
+	    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/pgdata.tar.gz" 2>/dev/null
+	    rc=(${PIPESTATUS[*]})
+	    tar_rc=${rc[0]}
+	    gzip_rc=${rc[1]}
+	    ssh_rc=${rc[2]}
+	    if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
+		error "could not tar PGDATA"
+	    fi
+	fi
+	cd $was
+
+	info "backup of PGDATA successful"
+
+	# Tar the tablespaces
+	for line in `cat $tblspc_list`; do
+
+	    name=`echo $line | cut -d '|' -f 1`
+	    location=`echo $line | cut -d '|' -f 2`
+
+	    info "backing up tablespace \"$name\" with tar"
+
+            # Change directory to the parent directory or the tablespace to be
+            # able to tar only the base directory
+	    was=`pwd`
+	    cd $location
+	    if [ $? != 0 ]; then
+		error "could not change current directory to $location"
+	    fi
+
+	    # Tar the directory, directly to the remote location if needed.  The name
+            # of the tar file is the tablespace name defined in the cluster, which is
+            # unique.
+	    info "archiving $location"
+	    if [ $local_backup = "yes" ]; then
+		tar -cpf - --ignore-failed-read * 2>/dev/null | gzip > $backup_dir/tblspc/${name}.tar.gz
+		rc=(${PIPESTATUS[*]})
+		tar_rc=${rc[0]}
+		gzip_rc=${rc[1]}
+		if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
+		    error "could not tar tablespace $name"
+		fi
+	    else
+		tar -cpf - --ignore-failed-read * 2>/dev/null | gzip | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/tblspc/${name}.tar.gz" 2>/dev/null
+		rc=(${PIPESTATUS[*]})
+		tar_rc=${rc[0]}
+		gzip_rc=${rc[1]}
+		ssh_rc=${rc[2]}
+		if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
+		    error "could not tar tablespace $name"
+		fi
+	    fi
+
+	    cd $was
+
+	    info "backup of tablespace \"$name\" successful"
+	done
+	;;
+
+
+
+    "rsync")
+	info "backing up PGDATA with rsync"
+	if [ -n "$prev_backup" ]; then
+	    # Link previous backup of pgdata
+	    if [ $local_backup = "yes" ]; then
+		# Check if pgdata is a directory, this checks if the
+		# storage method is rsync or tar.
+		if [ -d $prev_backup/pgdata ]; then
+		    info "preparing hardlinks from previous backup"
+		    cp -rl $prev_backup/pgdata $backup_dir/pgdata
+		    if [ $? != 0 ]; then
+			error "could not hardlink previous backup"
+		    fi
+		fi
+	    else
+		ssh ${ssh_user:+$ssh_user@}$target "test -d $prev_backup/pgdata" 2>/dev/null
+		if [ $? = 0 ]; then
+		    info "preparing hardlinks from previous backup"
+		    ssh ${ssh_user:+$ssh_user@}$target "cp -rl $prev_backup/pgdata $backup_dir/pgdata" 2>/dev/null
+		    if [ $? != 0 ]; then
+			error "could not hardlink previous backup"
+		    fi
+		fi
+	    fi
+	fi
+
+	info "transfering data from $pgdata"
+	if [ $local_backup = "yes" ]; then
+	    rsync -aq --delete-before --exclude pg_xlog --exclude 'postmaster.*' $pgdata/ $backup_dir/pgdata/
+	    rc=$?
+	    if [ $rc != 0 -a $rc != 24 ]; then
+		error "rsync of PGDATA failed with exit code $rc"
+	    fi
+	else
+	    rsync $rsync_opts -e "ssh -c blowfish-cbc -o Compression=no" -a --delete-before --exclude pg_xlog --exclude 'postmaster.*' $pgdata/ ${ssh_user:+$ssh_user@}${target}:$backup_dir/pgdata/
+	    rc=$?
+	    if [ $rc != 0 -a $rc != 24 ]; then
+		error "rsync of PGDATA failed with exit code $rc"
+	    fi
+	fi
+
+	info "backup of PGDATA successful"
+
+
+	# Tablespaces. We do the same as pgdata: hardlink the previous
+	# backup directory if possible, then rsync.
+	for line in `cat $tblspc_list`; do
+
+	    name=`echo $line | cut -d '|' -f 1`
+	    location=`echo $line | cut -d '|' -f 2`
+
+	    info "backing up tablespace \"$name\" with rsync"
+
+	    if [ -n "$prev_backup" ]; then
+		# Link previous backup of the tablespace
+		if [ $local_backup = "yes" ]; then
+		    if [ -d $prev_backup/tblspc/$name ]; then
+			info "preparing hardlinks from previous backup"
+			cp -rl $prev_backup/tblspc/$name $backup_dir/tblspc/$name
+			if [ $? != 0 ]; then
+			    error "could not hardlink previous backup"
+			fi
+		    fi
+		else
+		    ssh ${ssh_user:+$ssh_user@}$target "test -d $prev_backup/tblspc/$name" 2>/dev/null
+		    if [ $? = 0 ]; then
+			info "preparing hardlinks from previous backup"
+			ssh ${ssh_user:+$ssh_user@}$target "cp -rl $prev_backup/tblspc/$name $backup_dir/tblspc/$name" 2>/dev/null
+			if [ $? != 0 ]; then
+			    error "could not hardlink previous backup"
+			fi
+		    fi
+		fi
+	    fi
+
+	    # rsync
+	    info "transfering data from $location"
+	    if [ $local_backup = "yes" ]; then
+		rsync -aq --delete-before $location/ $backup_dir/tblspc/$name/
+		rc=$?
+		if [ $rc != 0 -a $rc != 24 ]; then
+		    error "rsync of tablespace \"$name\" failed with exit code $rc"
+		fi
+	    else
+		rsync $rsync_opts -e "ssh -c blowfish-cbc -o Compression=no" -a --delete-before $location/ ${ssh_user:+$ssh_user@}${target}:$backup_dir/tblspc/$name/
+		rc=$?
+		if [ $rc != 0 -a $rc != 24 ]; then
+		    error "rsync of tablespace \"$name\" failed with exit code $rc"
+		fi
+	    fi
+
+	    info "backup of tablespace \"$name\" successful"
+	done
+	;;
+
+
+
+    *)
+	error "do not know how to backup... I have a bug"
+	;;
+esac
+
 
 # Stop backup
 stop_backup

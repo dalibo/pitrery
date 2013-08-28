@@ -397,6 +397,28 @@ or the current backup:
 * PITRERY_SSH_TARGET the user@host part needed to access to backup server
 
 
+Backup storage
+--------------
+
+As of version 1.5, pitrery offers two storage technics for the base backup.
+
+The first, and historical, is `tar`, where it creates one compressed
+tarball (with gzip) for PGDATA and each tablespace. The `tar` method
+is quite slow and can become difficult to use with bigger database
+clusters, however the compression saves a lot of space.
+
+The second is `rsync`. It synchronizes PGDATA and each tablespace to a
+directory inside the backup, and try to optimize data transfer by
+hardlinking the files of the previous backup (provided it was done
+with the "rsync" method). This method should offer the best speed for
+the base backup, and is recommanded for big databases clusters (more
+than several hundreds of gigabytes).
+
+The default method is `tar`. It can be configured by setting the
+`STORAGE` variable to either `tar` or `rsync` in the configuration
+file.
+
+
 Usage
 -----
 
@@ -443,6 +465,7 @@ action, for example :
         -l label        Backup label, it will be suffixed with the date and time
         -u username     Username for SSH login
         -D dir          Path to $PGDATA
+        -s mode         Storage method, tar or rsync
     
     Connection options:
         -P PSQL         path to the psql command
@@ -461,7 +484,9 @@ configuration file are correct. For example, with the default
 configuration file pitr.conf :
 
     $ pitrery -n backup 192.168.0.50
-    /usr/local/lib/pitrery/backup_pitr -b /var/lib/pgsql/backups -l pitr -D /var/lib/pgsql/data -P psql -h /tmp -p 5432 -U postgres -d postgres 192.168.0.50
+    /usr/local/lib/pitrery/backup_pitr -b /var/lib/pgsql/backups \
+      -l pitr -D /var/lib/pgsql/data -P psql -h /tmp -p 5432 \
+      -U postgres -d postgres 192.168.0.50
 
 
 Finally, every configuration parameter defined in the configuration
@@ -470,7 +495,9 @@ switch after the action. For example, if the port of the PostgreSQL is
 5433 :
 
     $ pitrery -n backup -p 5433 192.168.0.50
-    /usr/local/lib/pitrery/backup_pitr -b /var/lib/pgsql/backups -l pitr -D /var/lib/pgsql/data -P psql -h /tmp -p 5433 -U postgres -d postgres 192.168.0.50
+    /usr/local/lib/pitrery/backup_pitr -b /var/lib/pgsql/backups \
+      -l pitr -D /var/lib/pgsql/data -P psql -h /tmp -p 5433 \
+      -U postgres -d postgres 192.168.0.50
 
 
 Note: the BACKUP_HOST is not defined in the configuration file used
@@ -501,6 +528,7 @@ action is:
         -l label        Backup label
         -u username     Username for SSH login
         -D dir          Path to $PGDATA
+        -s mode         Storage method, tar or rsync
     
     Connection options:
         -P PSQL         path to the psql command
@@ -515,8 +543,8 @@ action is:
 For example, the configuration file for our example production server
 is the following:
 
-    PGDATA="/home/postgres/postgresql-9.0.4/data"
-    PGPSQL="/home/postgres/postgresql-9.0.4/bin/psql"
+    PGDATA="/home/postgres/postgresql-9.2.4/data"
+    PGPSQL="/home/postgres/postgresql-9.2.4/bin/psql"
     PGUSER="postgres"
     PGPORT=5432
     PGHOST="/tmp"
@@ -530,6 +558,9 @@ is the following:
     RESTORE_COMMAND=
     PURGE_KEEP_COUNT=2
     PURGE_OLDER_THAN=
+    PRE_BACKUP_COMMAND=
+    POST_BACKUP_COMMAND=
+    STORAGE="tar"
     ARCHIVE_LOCAL="no"
     ARCHIVE_HOST=10.100.0.16
     ARCHIVE_USER=
@@ -538,17 +569,21 @@ is the following:
     SYSLOG="no"
     SYSLOG_FACILITY="local0"
     SYSLOG_IDENT="postgres"
+    STORAGE="tar"
 
 
 With those options, pitrery can run a backup:
 
     $ pitrery -c prod backup
-    INFO: backup directory is /home/postgres/backups/prod/2011.08.17-11.16.30
     INFO: preparing directories
-    INFO: starting the backup process
-    INFO: archiving PGDATA: /home/postgres/postgresql-9.0.4/data
     INFO: listing tablespaces
-    INFO: archiving tablespace "t1" (/home/postgres/postgresql-9.0.4/t1)
+    INFO: starting the backup process
+    INFO: backing up PGDATA with tar
+    INFO: archiving /home/postgres/postgresql-9.0.4/data
+    INFO: backup of PGDATA successful
+    INFO: backing up tablespace "ts2" with tar
+    INFO: archiving /home/postgres/postgresql-9.0.4/ts2
+    INFO: backup of tablespace "ts2" successful
     INFO: stopping the backup process
     NOTICE:  pg_stop_backup complete, all required WAL segments have been archived
     INFO: copying the backup history file
@@ -556,17 +591,18 @@ With those options, pitrery can run a backup:
     INFO: done
 
 
+
 If we have a look at the contents of the /home/postgres/backups
 directory on the backup host:
 
     /home/postgres/backups
     └── prod
-        ├── 2011.08.17-11.16.30
+        ├── 2013.08.28-11.16.30
         │   ├── backup_label
         │   ├── backup_timestamp
         │   ├── pgdata.tar.gz
         │   ├── tblspc
-        │   │   └── t1.tar.gz
+        │   │   └── t2.tar.gz
         │   └── tblspc_list
         └── xlog
             ├── 000000010000000000000036.gz
@@ -580,7 +616,7 @@ directory on the backup host:
             └── 00000001000000000000003D.gz
 
 
-The backup is stored in the prod/2011.08.17-11.16.30 diretory of
+The backup is stored in the `prod/2013.08.28-11.16.30` diretory of
 BACKUP_DIR, "prod" being the label defined by BACKUP_LABEL. The backup
 directory is named with the start date and time of the backup. The
 `backup_timestamp` file contains the timestamp value of the stop time
@@ -588,13 +624,17 @@ of the backup, which is used by the restore action to find the best
 candidate when restoring to a specific date and time and by the purge
 action. The directory stores the backup label file of PostgreSQL, a
 tarball of the PGDATA directory, tarballs for each tablespace and the
-tablespace list for their path. Finally, but no shown in the example,
+tablespace list with their path. Finally, but no shown in the example,
 a `conf` directory can be created to stored configuration files of the
 database cluster (`postgresql.conf`, `pg_hba.conf` and
 `pg_ident.conf`) when they are not located inside PGDATA.
 
-Note: Here we have configured archive_xlog to store the WAL files in
-prod/xlog to have them close to the base backups.
+Notes:
+* Here we have configured archive_xlog to store the WAL files in
+  `prod/xlog` to have them close to the base backups.
+* When using the `rsync` storage method, tarballs are replaced with
+  directory with the same base name.
+
 
 Listing backups
 ---------------
@@ -780,10 +820,10 @@ One -t option apply to one tablespace. For example:
 
 In the above example, the PGDATA has been changed along with the path
 of the ts1 tablespace. Since the version of PostgreSQL is 9.1, pitrery
-creates a SQL file with the UPDATE statements needed to update the
-spclocation column of pg_tablespace (this columns has been removed as
-of 9.2). This script must be run as a superuser role on the restored
-cluster after the recovery.
+creates a SQL file with the `UPDATE` statements needed to change the
+`spclocation` column of `pg_tablespace` (this columns has been removed
+as of 9.2). This script must be run as a superuser role on the
+restored cluster after the recovery.
 
 Again, if unsure, run the restore action with the -n switch to display
 what would be done. The options of restore are:
