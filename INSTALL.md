@@ -575,7 +575,7 @@ is the following:
 With those options, pitrery can run a backup:
 
     $ pitrery -c prod backup
-    INFO: preparing directories
+    INFO: preparing directories in 10.100.0.16:/home/postgres/backups/prod
     INFO: listing tablespaces
     INFO: starting the backup process
     INFO: backing up PGDATA with tar
@@ -588,6 +588,7 @@ With those options, pitrery can run a backup:
     NOTICE:  pg_stop_backup complete, all required WAL segments have been archived
     INFO: copying the backup history file
     INFO: copying the tablespaces list
+    INFO: backup directory is 10.100.0.16:/home/postgres/backups/prod/2013.08.28-11.16.30
     INFO: done
 
 
