@@ -176,6 +176,13 @@ backup_dir=$backup_root/${label_prefix}/current
 info "preparing directories"
 
 if [ $local_backup = "yes" ]; then
+    # Ensure the destination is clean from failed backups and that no
+    # concurrent backup is running, the "current" temporary directory
+    # acts as a lock.
+    if [ -e $backup_dir ]; then
+	error "$backup_dir already exists, another backup may be in progress"
+    fi
+
     mkdir -p $backup_dir
     if [ $? != 0 ]; then
 	error "could not create $backup_dir"
@@ -187,6 +194,11 @@ if [ $local_backup = "yes" ]; then
     fi
 
 else
+    ssh ${ssh_user:+$ssh_user@}$target "test -e $backup_dir" 2>/dev/null
+    if [ $? = 0 ]; then
+	error "$backup_dir already exists, another backup may be in progress"
+    fi
+
     ssh ${ssh_user:+$ssh_user@}$target "mkdir -p $backup_dir" 2>/dev/null
     if [ $? != 0 ]; then
 	error "could not create $backup_dir"
