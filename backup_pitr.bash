@@ -173,7 +173,7 @@ fi
 
 # Prepare target directoties
 backup_dir=$backup_root/${label_prefix}/current
-info "preparing directories"
+info "preparing directories in ${target:+$target:}$backup_root/${label_prefix}"
 
 if [ $local_backup = "yes" ]; then
     # Ensure the destination is clean from failed backups and that no
@@ -568,6 +568,9 @@ else
 	error "could not copy the tablespace list to ${target}:$backup_dir"
     fi
 fi
+
+# Give the name of the backup
+info "backup directory is ${target:+$target:}$backup_dir"
 
 # Execute the post-backup command
 if [ -n "$POST_BACKUP_COMMAND" ]; then
