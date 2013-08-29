@@ -516,7 +516,7 @@ case $storage in
 		error "rsync of PGDATA failed with exit code $rc"
 	    fi
 	fi
-	info "extraction of PGDATA successful"
+	info "transfer of PGDATA successful"
 	;;
 
     *)
@@ -621,7 +621,7 @@ fi
 		    error "rsync of tablespace \"${name}\" failed with exit code $rc"
 		fi
 	    fi
-	    info "extraction of tablespace \"${name}\" successful"
+	    info "transfer of tablespace \"${name}\" successful"
 	    ;;
 
 	*)
