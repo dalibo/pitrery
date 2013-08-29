@@ -1,6 +1,8 @@
 pitrery 1.5
 ===========
 
+  * Force the checkpoint on pg_start_backup() when possible
+
   * Support rsync for the base backup. tar remains the default with a
     new -s option for backup_pitr and the STORAGE configuration
     variable

@@ -253,8 +253,17 @@ fi
 
 # Start the backup
 info "starting the backup process"
-start_backup_xlog=`$psql_command -Atc "SELECT pg_xlogfile_name(pg_start_backup('${label_prefix}_${current_time}'));" $psql_condb`
-if [ $? != 0 ]; then
+
+# Force a checkpoint for version >= 8.4
+if [ $pg_version -ge 80400 ]; then
+    start_backup_xlog=`$psql_command -Atc "SELECT pg_xlogfile_name(pg_start_backup('${label_prefix}_${current_time}', true));" $psql_condb`
+    rc=$?
+else
+    start_backup_xlog=`$psql_command -Atc "SELECT pg_xlogfile_name(pg_start_backup('${label_prefix}_${current_time}'));" $psql_condb`
+    rc=$?
+fi
+
+if [ $rc != 0 ]; then
     error "could not start backup process"
 fi
 

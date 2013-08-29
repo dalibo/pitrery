@@ -1,10 +1,6 @@
 TODO / Roadmap
 
-- general:
-
 - list_pitr:
   . (v1.5)  Add an option to list the content of the backup and give more info
             like the directory to create for tablespaces, sizes,...
 
-- backup_pitr:
-  . (v1.5)  Force the checkpoint on pg_start_backup when possible
