@@ -354,22 +354,26 @@ fi
 # Prepare a temporary file with the final list of tablespace directories
 tblspc_reloc=$tmp_dir/tblspc_reloc
 if [ -f "$tblspc_list" ]; then
-    for l in `cat $tblspc_list`; do
+    while read l; do
 	name=`echo $l | cut -d '|' -f 1`
 	tbldir=`echo $l | cut -d '|' -f 2`
 	oid=`echo $l | cut -d '|' -f 3`
 	reloc="no"
 
+	# skip pg_default and pg_global, they are located inside PGDATA
+	[ -z "$tbldir" ] && continue
+
 	for t in $tsmv_list; do
-	    tname=`echo $t | cut -d ':' -f 1`
-	    if [ $tname = $name ]; then
+	    tname="`echo $t | cut -d ':' -f 1`"
+	    # relocation can be done using the name or the oid of the tablespace
+	    if [ "$tname" = "$name" -o $tname = $oid ]; then
 		[ "$tbldir" != "`echo $t | cut -d ':' -f 2`" ] && reloc="yes"
-		tbldir=`echo $t | cut -d ':' -f 2`
+		tbldir="`echo $t | cut -d ':' -f 2`"
 		break
 	    fi
 	done
 	echo "${name}|$tbldir|$oid|$reloc" >> $tblspc_reloc
-    done
+    done < $tblspc_list
 fi
 
 
@@ -384,13 +388,14 @@ info "  PGDATA -> $pgdata"
 [ -n "$pgxlog" ] && info "  PGDATA/pg_xlog -> $pgxlog"
 
 if [ -f "$tblspc_reloc" ]; then
-    for l in `cat $tblspc_reloc`; do
+    while read l; do
 	name=`echo $l | cut -d '|' -f 1`
 	tbldir=`echo $l | cut -d '|' -f 2`
+	oid=`echo $l | cut -d '|' -f 3`
 	reloc=`echo $l | cut -d '|' -f 4`
 
-	info "  tablespace \"$name\" -> $tbldir (relocated: $reloc)"
-    done
+	info "  tablespace \"$name\" ($oid) -> $tbldir (relocated: $reloc)"
+    done < $tblspc_reloc
 fi
 
 info
@@ -435,7 +440,7 @@ fi
 
 # Check the tablespaces directory and create them if possible
 if [ -f "$tblspc_reloc" ]; then
-    for l in `cat $tblspc_reloc`; do
+    while read l; do
 	name=`echo $l | cut -d '|' -f 1`
 	tbldir=`echo $l | cut -d '|' -f 2`
 
@@ -444,7 +449,7 @@ if [ -f "$tblspc_reloc" ]; then
 	    warn "bad tablespace location path \"$tbldir\" for $name. Check $tblspc_list and -t switches"
 	    continue
 	fi
-    done
+    done < $tblspc_reloc
 fi
 
 # Find out what storage method is used in the backup. If the PGDATA is
@@ -557,88 +562,90 @@ if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
 fi
 
 # tablespaces
-[ -f "$tblspc_reloc" ] && for l in `cat $tblspc_reloc`; do
-    name=`echo $l | cut -d '|' -f 1`
-    tbldir=`echo $l | cut -d '|' -f 2`
-    oid=`echo $l | cut -d '|' -f 3`
-    reloc=`echo $l | cut -d '|' -f 4`
+if [ -f "$tblspc_reloc" ]; then
+    while read l; do
+	name=`echo $l | cut -d '|' -f 1`
+	_name=`echo $name | sed -Ee 's/\s+/_/g'` # No space version, we want paths without spaces
+	tbldir=`echo $l | cut -d '|' -f 2`
+	oid=`echo $l | cut -d '|' -f 3`
+	reloc=`echo $l | cut -d '|' -f 4`
 
-    # Change the symlink in pg_tblspc when the tablespace directory changes
-    if [ "$reloc" = "yes" ]; then
-	was=`pwd`
-	cd $pgdata/pg_tblspc
-	rm $oid || error "could not remove symbolic link $pgdata/pg_tblspc/$oid"
-	ln -s $tbldir $oid || error "could not update the symbolic of tablespace $name ($oid) to $tbldir"
-
-	# Ensure the new link has the correct owner, the chown -R
-	# issued after extraction will not do it
-	if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
-	    chown -h ${owner}: $oid
-	fi
-	cd $was
-    fi
-
-    # Get the data in place
-    case $storage in
-	"tar")
-	    info "extracting tablespace \"${name}\" to $tbldir"
+	# Change the symlink in pg_tblspc when the tablespace directory changes
+	if [ "$reloc" = "yes" ]; then
 	    was=`pwd`
-	    cd $tbldir
-	    if [ $local_backup = "yes" ]; then
-		tar xzf $backup_dir/tblspc/${name}.tar.gz
-		if [ $? != 0 ]; then
-		    echo "ERROR: could not extract tablespace $name to $tbldir" 1>&2
-		    cd $was
-		    exit 1
-		fi
-	    else
-		ssh ${ssh_user:+$ssh_user@}$source "cat $backup_dir/tblspc/${name}.tar.gz" 2>/dev/null | tar xzf - 2>/dev/null
-		rc=(${PIPESTATUS[*]})
-		ssh_rc=${rc[0]}
-		tar_rc=${rc[1]}
-		if [ $ssh_rc != 0 ] || [ $tar_rc != 0 ]; then
-		    echo "ERROR: could not extract tablespace $name to $tbldir" 1>&2
-		    cd $was
-		    exit 1
-		fi
+	    cd $pgdata/pg_tblspc
+	    rm $oid || error "could not remove symbolic link $pgdata/pg_tblspc/$oid"
+	    ln -s $tbldir $oid || error "could not update the symbolic of tablespace $name ($oid) to $tbldir"
+
+	    # Ensure the new link has the correct owner, the chown -R
+	    # issued after extraction will not do it
+	    if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+		chown -h ${owner}: $oid
 	    fi
 	    cd $was
-	    info "extraction of tablespace \"${name}\" successful"
-	    ;;
-
-	"rsync")
-	    info "transfering PGDATA to $pgdata with rsync"
-	    if [ $local_backup = "yes" ]; then
-		rsync -aq --delete-before $backup_dir/tblspc/${name}/ $tbldir/
-		rc=$?
-		if [ $rc != 0 -a $rc != 24 ]; then
-		    error "rsync of tablespace \"${name}\" failed with exit code $rc"
-		fi
-	    else
-		rsync $rsync_opts -e "ssh -c blowfish-cbc -o Compression=no" -a --delete-before ${ssh_user:+$ssh_user@}${source}:$backup_dir/tblspc/${name}/ $tbldir/
-		rc=$?
-		if [ $rc != 0 -a $rc != 24 ]; then
-		    error "rsync of tablespace \"${name}\" failed with exit code $rc"
-		fi
-	    fi
-	    info "transfer of tablespace \"${name}\" successful"
-	    ;;
-
-	*)
-	    error "do not know how to restore... I have a bug"
-	    ;;
-    esac
-
-
-    # change owner of the tablespace files to the target owner
-    if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
-	info "setting owner of tablespace \"$name\" ($tbldir)"
-	chown -R ${owner}: $tbldir
-	if [ $? != 0 ]; then
-	    error "could not change owner of tablespace \"$name\" to $owner"
 	fi
-    fi
-done
+
+	# Get the data in place
+	case $storage in
+	    "tar")
+		info "extracting tablespace \"${name}\" to $tbldir"
+		was=`pwd`
+		cd $tbldir
+		if [ $local_backup = "yes" ]; then
+		    tar xzf $backup_dir/tblspc/${_name}.tar.gz
+		    if [ $? != 0 ]; then
+			echo "ERROR: could not extract tablespace $name to $tbldir" 1>&2
+			cd $was
+			exit 1
+		    fi
+		else
+		    ssh -n ${ssh_user:+$ssh_user@}$source "cat $backup_dir/tblspc/${_name}.tar.gz" 2>/dev/null | tar xzf - 2>/dev/null
+		    rc=(${PIPESTATUS[*]})
+		    ssh_rc=${rc[0]}
+		    tar_rc=${rc[1]}
+		    if [ $ssh_rc != 0 ] || [ $tar_rc != 0 ]; then
+			echo "ERROR: could not extract tablespace $name to $tbldir" 1>&2
+			cd $was
+			exit 1
+		    fi
+		fi
+		cd $was
+		info "extraction of tablespace \"${name}\" successful"
+		;;
+
+	    "rsync")
+		info "transfering PGDATA to $pgdata with rsync"
+		if [ $local_backup = "yes" ]; then
+		    rsync -aq --delete-before $backup_dir/tblspc/${_name}/ $tbldir/
+		    rc=$?
+		    if [ $rc != 0 -a $rc != 24 ]; then
+			error "rsync of tablespace \"${name}\" failed with exit code $rc"
+		    fi
+		else
+		    rsync $rsync_opts -e "ssh -c blowfish-cbc -o Compression=no" -a --delete-before ${ssh_user:+$ssh_user@}${source}:$backup_dir/tblspc/${_name}/ $tbldir/
+		    rc=$?
+		    if [ $rc != 0 -a $rc != 24 ]; then
+			error "rsync of tablespace \"${name}\" failed with exit code $rc"
+		    fi
+		fi
+		info "transfer of tablespace \"${name}\" successful"
+		;;
+
+	    *)
+		error "do not know how to restore... I have a bug"
+		;;
+	esac
+
+	# change owner of the tablespace files to the target owner
+	if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+	    info "setting owner of tablespace \"$name\" ($tbldir)"
+	    chown -R ${owner}: $tbldir
+	    if [ $? != 0 ]; then
+		error "could not change owner of tablespace \"$name\" to $owner"
+	    fi
+	fi
+    done < $tblspc_reloc
+fi
 
 # Create or symlink pg_xlog directory if needed
 if [ -d "$pgxlog" ]; then
@@ -708,14 +715,16 @@ if [ -f "$tblspc_reloc" ]; then
     fi
 
     # Generate script
-    [ "$pgvers" -le 901 ] && for l in `cat $tblspc_reloc | grep 'yes$'`; do
-	name=`echo $l | cut -d '|' -f 1`
-	tbldir=`echo $l | cut -d '|' -f 2`
-	oid=`echo $l | cut -d '|' -f 3`
+    if [ "$pgvers" -le 901 ]; then
+	cat  $tblspc_reloc | grep 'yes$' | while read l; do
+	    name=`echo $l | cut -d '|' -f 1`
+	    tbldir=`echo $l | cut -d '|' -f 2`
+	    oid=`echo $l | cut -d '|' -f 3`
 
-	echo "-- update location of $name to $tbldir" >> $updsql
-	echo -e "UPDATE pg_catalog.pg_tablespace SET spclocation = '$tbldir' WHERE oid = $oid;\n" >> $updsql
-    done
+	    echo "-- update location of $name to $tbldir" >> $updsql
+	    echo -e "UPDATE pg_catalog.pg_tablespace SET spclocation = '$tbldir' WHERE oid = $oid;\n" >> $updsql
+	done
+    fi
 
     if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
 	chown ${owner}: $updsql 2>/dev/null

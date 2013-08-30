@@ -248,20 +248,16 @@ fi
 
 # Ask PostgreSQL the list of tablespaces
 if [ $pg_version -ge 90200 ]; then
-    $psql_command -Atc "SELECT spcname,pg_tablespace_location(oid),oid FROM pg_tablespace WHERE pg_tablespace_location(oid) NOT IN ('pg_default', 'pg_global') AND pg_tablespace_location(oid) <> '';" $psql_condb | tr ' ' '_' > $tblspc_list
+    $psql_command -Atc "SELECT spcname, pg_tablespace_location(oid), oid, pg_size_pretty(pg_tablespace_size(oid)) FROM pg_tablespace;" $psql_condb > $tblspc_list
+    rc=$?
 else
-    $psql_command -Atc "SELECT spcname,spclocation,oid FROM pg_tablespace WHERE spcname NOT IN ('pg_default', 'pg_global') AND spclocation <> '';" $psql_condb | tr ' ' '_' > $tblspc_list
+    $psql_command -Atc "SELECT spcname, spclocation, oid, pg_size_pretty(pg_tablespace_size(oid)) FROM pg_tablespace;" $psql_condb > $tblspc_list
+    rc=$?
 fi
 
-rc=(${PIPESTATUS[*]})
-psql_rc=${rc[0]}
-tr_rc=${rc[1]}
-
-if [ $psql_rc != 0 ] || [ $tr_rc != 0 ]; then
+if [ $rc != 0 ]; then
     error "could not get the list of tablespaces from PostgreSQL"
 fi
-
-
 
 # Start the backup
 info "starting the backup process"
@@ -313,13 +309,14 @@ case $storage in
 	fi
 	cd $was
 
-	info "backup of PGDATA successful"
-
 	# Tar the tablespaces
-	for line in `cat $tblspc_list`; do
-
+	while read line ; do
 	    name=`echo $line | cut -d '|' -f 1`
+	    _name=`echo $name | sed -Ee 's/\s+/_/g'` # No space version, we want paths without spaces
 	    location=`echo $line | cut -d '|' -f 2`
+
+	    # Skip empty locations used for pg_default and pg_global, which are in PGDATA
+	    [ -z "$location" ] && continue
 
 	    info "backing up tablespace \"$name\" with tar"
 
@@ -336,28 +333,27 @@ case $storage in
             # unique.
 	    info "archiving $location"
 	    if [ $local_backup = "yes" ]; then
-		tar -cpf - --ignore-failed-read * 2>/dev/null | gzip > $backup_dir/tblspc/${name}.tar.gz
+		tar -cpf - --ignore-failed-read * 2>/dev/null | gzip > $backup_dir/tblspc/${_name}.tar.gz
 		rc=(${PIPESTATUS[*]})
 		tar_rc=${rc[0]}
 		gzip_rc=${rc[1]}
 		if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
-		    error "could not tar tablespace $name"
+		    error "could not tar tablespace \"$name\""
 		fi
 	    else
-		tar -cpf - --ignore-failed-read * 2>/dev/null | gzip | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/tblspc/${name}.tar.gz" 2>/dev/null
+		tar -cpf - --ignore-failed-read * 2>/dev/null | gzip | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/tblspc/${_name}.tar.gz" 2>/dev/null
 		rc=(${PIPESTATUS[*]})
 		tar_rc=${rc[0]}
 		gzip_rc=${rc[1]}
 		ssh_rc=${rc[2]}
 		if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
-		    error "could not tar tablespace $name"
+		    error "could not tar tablespace \"$name\""
 		fi
 	    fi
 
 	    cd $was
 
-	    info "backup of tablespace \"$name\" successful"
-	done
+	done < $tblspc_list
 	;;
 
 
@@ -403,58 +399,58 @@ case $storage in
 	    fi
 	fi
 
-	info "backup of PGDATA successful"
-
 
 	# Tablespaces. We do the same as pgdata: hardlink the previous
 	# backup directory if possible, then rsync.
-	for line in `cat $tblspc_list`; do
+	while read line; do
+	    name=`echo "$line" | cut -d '|' -f 1`
+	    _name=`echo "$name" | sed -Ee 's/\s+/_/g'` # No space version, we want paths without spaces
+	    location=`echo "$line" | cut -d '|' -f 2`
 
-	    name=`echo $line | cut -d '|' -f 1`
-	    location=`echo $line | cut -d '|' -f 2`
+	    # Skip empty locations used for pg_default and pg_global, which are in PGDATA
+	    [ -z "$location" ] && continue
 
 	    info "backing up tablespace \"$name\" with rsync"
 
 	    if [ -n "$prev_backup" ]; then
-		# Link previous backup of the tablespace
-		if [ $local_backup = "yes" ]; then
-		    if [ -d $prev_backup/tblspc/$name ]; then
-			info "preparing hardlinks from previous backup"
-			cp -rl $prev_backup/tblspc/$name $backup_dir/tblspc/$name
-			if [ $? != 0 ]; then
-			    error "could not hardlink previous backup"
-			fi
-		    fi
-		else
-		    ssh ${ssh_user:+$ssh_user@}$target "test -d $prev_backup/tblspc/$name" 2>/dev/null
-		    if [ $? = 0 ]; then
-			info "preparing hardlinks from previous backup"
-			ssh ${ssh_user:+$ssh_user@}$target "cp -rl $prev_backup/tblspc/$name $backup_dir/tblspc/$name" 2>/dev/null
-			if [ $? != 0 ]; then
-			    error "could not hardlink previous backup"
-			fi
-		    fi
-		fi
+	    	# Link previous backup of the tablespace
+	    	if [ $local_backup = "yes" ]; then
+	    	    if [ -d $prev_backup/tblspc/$_name ]; then
+	    		info "preparing hardlinks from previous backup"
+	    		cp -rl $prev_backup/tblspc/$_name $backup_dir/tblspc/$_name
+	    		if [ $? != 0 ]; then
+	    		    error "could not hardlink previous backup"
+	    		fi
+	    	    fi
+	    	else
+	    	    ssh -n ${ssh_user:+$ssh_user@}$target "test -d $prev_backup/tblspc/$_name" 2>/dev/null
+	    	    if [ $? = 0 ]; then
+	    		info "preparing hardlinks from previous backup"
+	    		ssh -n ${ssh_user:+$ssh_user@}$target "cp -rl $prev_backup/tblspc/$_name $backup_dir/tblspc/$_name" 2>/dev/null
+	    		if [ $? != 0 ]; then
+	    		    error "could not hardlink previous backup"
+	    		fi
+	    	    fi
+	    	fi
 	    fi
 
 	    # rsync
 	    info "transfering data from $location"
 	    if [ $local_backup = "yes" ]; then
-		rsync -aq --delete-before $location/ $backup_dir/tblspc/$name/
-		rc=$?
-		if [ $rc != 0 -a $rc != 24 ]; then
-		    error "rsync of tablespace \"$name\" failed with exit code $rc"
-		fi
+	    	rsync -aq --delete-before $location/ $backup_dir/tblspc/$_name/
+	    	rc=$?
+	    	if [ $rc != 0 -a $rc != 24 ]; then
+	    	    error "rsync of tablespace \"$name\" failed with exit code $rc"
+	    	fi
 	    else
-		rsync $rsync_opts -e "ssh -c blowfish-cbc -o Compression=no" -a --delete-before $location/ ${ssh_user:+$ssh_user@}${target}:$backup_dir/tblspc/$name/
-		rc=$?
-		if [ $rc != 0 -a $rc != 24 ]; then
-		    error "rsync of tablespace \"$name\" failed with exit code $rc"
-		fi
+	    	rsync $rsync_opts -e "ssh -c blowfish-cbc -o Compression=no" -a --delete-before $location/ ${ssh_user:+$ssh_user@}${target}:$backup_dir/tblspc/$_name/
+	    	rc=$?
+	    	if [ $rc != 0 -a $rc != 24 ]; then
+	    	    error "rsync of tablespace \"$name\" failed with exit code $rc"
+	    	fi
 	    fi
 
-	    info "backup of tablespace \"$name\" successful"
-	done
+	done < $tblspc_list
 	;;
 
 

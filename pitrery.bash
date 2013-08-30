@@ -94,12 +94,13 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lu:b:l:?" arg 2>/dev/null; do
+	while getopts "Lu:b:l:v?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		u) BACKUP_USER=$OPTARG;;
 		b) BACKUP_DIR=$OPTARG;;
 		l) BACKUP_LABEL=$OPTARG;;
+		v) VERBOSE="yes";;
 		'?') $cmd -?; exit $?;;
 	    esac
 	done
@@ -109,6 +110,7 @@ case $action in
 	[ -n "$BACKUP_USER" ] && opts="$opts -u $BACKUP_USER"
 	[ -n "$BACKUP_DIR" ] && opts="$opts -b $BACKUP_DIR"
 	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
+	[ "$VERBOSE" = "yes" ] && opts="$opts -v"
 
 	# Take care of the destination host
 	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then

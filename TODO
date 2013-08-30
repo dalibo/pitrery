@@ -1,6 +1,2 @@
 TODO / Roadmap
 
-- list_pitr:
-  . (v1.5)  Add an option to list the content of the backup and give more info
-            like the directory to create for tablespaces, sizes,...
-

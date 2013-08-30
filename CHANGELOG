@@ -30,6 +30,11 @@ pitrery 1.5
 
   * Document compression tools options
 
+  * Add a verbose mode to list, with sizes and locations
+
+  * Allow to specify the oid of a tablespace when give path for relocation:
+    -t oid:/new/path or -t name:/new/path is possible
+
 
 pitrery 1.4
 ===========
