@@ -1,3 +1,19 @@
+pitrery (1.5-1) unstable; urgency=low
+
+  * New upstream release
+  * Support rsync for the base backup
+  * Save configuration files if they are outside of PGDATA
+  * Rename pitr_mgr to pitrery, with a symlink
+  * Make the time based purge compatible with the count purge
+  * Improve old WAL files purge
+  * Safely purge old .backup files. Always keep .history files
+  * Improve documentation
+  * Use rsync to safely transfer to the remote host in archive_xlog
+  * Add a verbose mode to list, with sizes and locations
+  * Allow to specify the oid of a tablespace when giving path for relocation
+
+ -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Sun, 01 Sep 2013 18:42:16 +0200
+
 pitrery (1.4-1) unstable; urgency=low
 
   * New upstream release
