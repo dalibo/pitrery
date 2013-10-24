@@ -1,7 +1,7 @@
 body {
   padding:50px;
-  font:14px/1.5 "DejaVu Sans", Helvetica, Arial, sans-serif;
-  color:#777;
+  font:12px/1.5 "DejaVu Sans", Helvetica, Arial, sans-serif;
+  color:#666;
   font-weight:300;
 }
 
@@ -19,7 +19,7 @@ h1, h2, h3 {
 }
 
 h1 {
-  font-size:28px;
+  font-size:24px;
 }
 
 h2 {
@@ -41,7 +41,7 @@ a:hover {
 }
 
 a small {
-  font-size:11px;
+  font-size:10px;
   color:#777;
   margin-top:-0.6em;
   display:block;
@@ -139,7 +139,7 @@ section {
 }
 
 small {
-  font-size:11px;
+  font-size:10px;
 }
 
 hr {
