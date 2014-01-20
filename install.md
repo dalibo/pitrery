@@ -3,5 +3,5 @@ layout: default
 title: pitrery - Installation
 ---
 
-{% markdown install.md %}
+{% include install.md %}
 

@@ -3,5 +3,5 @@ layout: default
 title: pitrery - Upgrade
 ---
 
-{% markdown upgrade.md %}
+{% include upgrade.md %}
 
