@@ -1,3 +1,8 @@
+---
+layout: default
+title: pitrery - Upgrade
+---
+
 Upgrade to 1.5
 ==============
 
