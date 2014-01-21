@@ -260,14 +260,14 @@ command must accept a compressed file as its first argument.
 For example, the fastest compression is achived with `pigz`, a
 multithreaded implementation of gzip:
 
-COMPRESS_BIN="pigz"
-UNCOMPRESS_BIN="pigz -d"
+    COMPRESS_BIN="pigz"
+    UNCOMPRESS_BIN="pigz -d"
 
 Or maximum, but slow, compression with the standard `bzip2`:
 
-COMPRESS_BIN="bzip2 -9"
-COMPRESS_SUFFIX="bz2"
-UNCOMPRESS_BIN="bunzip"
+    COMPRESS_BIN="bzip2 -9"
+    COMPRESS_SUFFIX="bz2"
+    UNCOMPRESS_BIN="bunzip"
 
 These three parameters can be configured only inside the configuration
 file, not from the command line of `archive_xlog` and `restore_xlog`.
