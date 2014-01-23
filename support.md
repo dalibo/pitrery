@@ -14,7 +14,7 @@ Please use the issue system in the github project page: [https://github.com/dali
 Mailing-lists
 -------------
 
-Currently, there are no mailing list for pitrery.
+Currently, there are no mailing lists for pitrery.
 
 Commercial support
 ------------------

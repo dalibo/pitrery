@@ -1,7 +1,7 @@
 body {
   padding:50px;
-  font:12px/1.5 "DejaVu Sans", Helvetica, Arial, sans-serif;
-  color:#666;
+  font: 12px/1.5 Bitstream Vera Sans, Helvetica, Arial, sans-serif;
+  color:#333;
   font-weight:300;
 }
 
@@ -52,7 +52,7 @@ a:hover small {
 }
 
 .wrapper {
-  width:860px;
+  width:870px;
   margin:0 auto;
 }
 
@@ -102,15 +102,16 @@ img {
 }
 
 header {
-  width:270px;
+  width:250px;
   float:left;
   position:fixed;
+  font-size: 11px;
 }
 
 header ul {
   list-style:none;
   padding:0;
-  width:270px;
+  width:250px;
 }
 
 header ul a {
@@ -133,7 +134,7 @@ strong {
 }
 
 section {
-  width:500px;
+  width:600px;
   float:right;
   padding-bottom:50px;
 }
@@ -150,10 +151,11 @@ hr {
 }
 
 footer {
-  width:270px;
+  width:250px;
   float:left;
   position:fixed;
   bottom:50px;
+  font-size: 11px;
 }
 
 @media print, screen and (max-width: 960px) {
