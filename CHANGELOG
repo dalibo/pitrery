@@ -1,6 +1,10 @@
 pitrery 1.6
 ===========
 
+  * Exit without error when backup is run on a hot standby
+    server. Issue a warning message when run interactively, so an
+    active cron job does not send any mail.
+
   * Bugfixes and improvements on documentation
 
 

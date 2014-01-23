@@ -135,6 +135,9 @@ current_time=`date +%Y.%m.%d-%H.%M.%S`
 # scp needs IPv6 between brackets
 echo $target | grep -q ':' && target="[${target}]"
 
+# initialize the target path early, so that cleaning works best
+backup_dir=$backup_root/${label_prefix}/current
+
 # Prepare psql command line
 psql_command=${psql_command:-"psql"}
 [ -n "$dbhost" ] && psql_command="$psql_command -h $dbhost"
@@ -159,20 +162,31 @@ stop_backup() {
     trap - INT TERM KILL EXIT
 }
 
-# When using rsync storage, search for the previous backup to prepare
-# the target directories. We try to optimize the space usage by
-# hardlinking the previous backup, so that files that have not changed
-# between backups are not duplicated from a filesystem point of view
-if [ $storage = "rsync" ]; then
-    if [ $local_backup = "yes" ]; then
-	prev_backup=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null | tail -1`
-    else
-	prev_backup=`ssh ${ssh_user:+$ssh_user@}$target "ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null" | tail -1`
+# Get the version of the server
+pg_version=`$psql_command -Atc "SELECT setting FROM pg_settings WHERE name = 'server_version_num';" $psql_condb`
+if [ $? != 0 ]; then
+    error "could not get the version of the server"
+fi
+
+# Check if the server is in hot standby, it can happen from 9.0
+# otherwise we would have already exited on error.
+if [ $pg_version -ge 90000 ]; then
+    standby=`$psql_command -Atc "SELECT pg_is_in_recovery();" $psql_condb`
+    if [ $? != 0 ]; then
+	error "could not check if the server is in recovery"
+    fi
+
+    # When the server is in recovery, exit without any error and print
+    # a warning. This way, the backup cronjobs can be active on
+    # standby servers
+    if [ "$standby" = "t" ]; then
+	# Output a warning message only when run interactively
+	[ -t 0 ] && warn "unable to perform a base backup on a server in recovery mode. Aborting"
+	exit 0
     fi
 fi
 
 # Prepare target directoties
-backup_dir=$backup_root/${label_prefix}/current
 info "preparing directories in ${target:+$target:}$backup_root/${label_prefix}"
 
 if [ $local_backup = "yes" ]; then
@@ -226,7 +240,6 @@ if [ -n "$PRE_BACKUP_COMMAND" ]; then
     fi
 fi
 
-
 # Get the list of tablespaces. It comes from PostgreSQL to be sure to
 # process only defined tablespaces.
 info "listing tablespaces"
@@ -239,12 +252,6 @@ fi
 # in pg_tablespace. This allows to change locations of tablespaces by
 # modifying the symbolic links in pg_tblspc. As a result, the query to
 # get list of tablespaces is different.
-
-# Get the version of the server
-pg_version=`$psql_command -Atc "SELECT setting FROM pg_settings WHERE name = 'server_version_num';" $psql_condb`
-if [ $? != 0 ]; then
-    error "could not get the version of the server"
-fi
 
 # Ask PostgreSQL the list of tablespaces
 if [ $pg_version -ge 90200 ]; then
@@ -278,6 +285,19 @@ fi
 # Add a signal handler to avoid leaving the cluster in backup mode when exiting on error
 trap stop_backup INT TERM KILL EXIT
 
+# When using rsync storage, search for the previous backup to prepare
+# the target directories. We try to optimize the space usage by
+# hardlinking the previous backup, so that files that have not changed
+# between backups are not duplicated from a filesystem point of view
+if [ $storage = "rsync" ]; then
+    if [ $local_backup = "yes" ]; then
+	prev_backup=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null | tail -1`
+    else
+	prev_backup=`ssh ${ssh_user:+$ssh_user@}$target "ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null" | tail -1`
+    fi
+fi
+
+# Copy the files
 case $storage in
     "tar")
         # Tar $PGDATA
