@@ -9,5 +9,5 @@
  BINDIR = ${PREFIX}/bin
  LIBDIR = ${PREFIX}/lib
 -SYSCONFDIR = ${PREFIX}/etc/${NAME}
-+SYSCONFDIR = /etc/sysconfig/pgsql
++SYSCONFDIR = /etc/${NAME}
  DOCDIR = ${PREFIX}/share/doc/${NAME}

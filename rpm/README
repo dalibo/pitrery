@@ -1,6 +1,6 @@
 The rpm/ directory contains a spec file and a patch to create RPM
 files.  The patch configures the Makfile (config.mk) to put things in
-/usr/bin, /usr/lib and /etc/sysconfig/pgsql.
+/usr/bin, /usr/lib and /etc/pitrery.
 
 To build a rpm:
 - copy the spec file to /usr/src/redhat/SPECS

@@ -1,3 +1,11 @@
+pitrery (1.6-1) unstable; urgency=low
+
+  * New upstream release
+  * Exit without error when backup is run on a hot standby server
+  * Bugfixes and improvements on documentation
+
+ -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Tue, 18 Feb 2014 16:42:06 +0100
+
 pitrery (1.5-1) unstable; urgency=low
 
   * New upstream release
