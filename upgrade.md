@@ -3,6 +3,16 @@ layout: default
 title: pitrery - Upgrade
 ---
 
+Upgrade to 1.6
+==============
+
+RPM Package
+-----------
+
+* Configuration files have been moved from `/etc/sysconfig/pgsql` to
+  `/etc/pitrery`
+
+
 Upgrade to 1.5
 ==============
 
