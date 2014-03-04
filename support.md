@@ -14,7 +14,17 @@ Please use the issue system in the github project page: [https://github.com/dali
 Mailing-lists
 -------------
 
-Currently, there are no mailing lists for pitrery.
+The mailing list hosted on [librelist].  It can be used for
+general questions and development discussions.
+
+To subscribe, send a mail to *pitrery@librelist.com*, you will receive a
+confirmation mail explaining what to do next.
+
+The [archives] are are available at librelist.
+
+[librelist]: http://librelist.com
+[archives]: http://librelist.com/browser/pitrery/
+
 
 Commercial support
 ------------------
