@@ -332,7 +332,7 @@ case $storage in
 	# Tar the tablespaces
 	while read line ; do
 	    name=`echo $line | cut -d '|' -f 1`
-	    _name=`echo $name | sed -Ee 's/\s+/_/g'` # No space version, we want paths without spaces
+	    _name=`echo $name | sed -re 's/\s+/_/g'` # No space version, we want paths without spaces
 	    location=`echo $line | cut -d '|' -f 2`
 
 	    # Skip empty locations used for pg_default and pg_global, which are in PGDATA
@@ -424,7 +424,7 @@ case $storage in
 	# backup directory if possible, then rsync.
 	while read line; do
 	    name=`echo "$line" | cut -d '|' -f 1`
-	    _name=`echo "$name" | sed -Ee 's/\s+/_/g'` # No space version, we want paths without spaces
+	    _name=`echo "$name" | sed -re 's/\s+/_/g'` # No space version, we want paths without spaces
 	    location=`echo "$line" | cut -d '|' -f 2`
 
 	    # Skip empty locations used for pg_default and pg_global, which are in PGDATA

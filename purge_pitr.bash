@@ -264,7 +264,7 @@ for wal in $wal_list; do
     # filename without compression suffix
     echo $file | grep -qE '\.(backup|history)$'
     if [ $? != 0 ]; then
-	w=`echo $file | sed -E -e 's/\.[^\.]+$//'`
+	w=`echo $file | sed -r -e 's/\.[^\.]+$//'`
     else
 	w=$file
     fi
