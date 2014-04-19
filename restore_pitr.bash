@@ -205,9 +205,10 @@ if [ -n "$target_date" ]; then
     if [ $? != 0 ]; then
 	error "bad target date format. Use 'YYYY-MM-DD HH:MM:SS [(+|-)TZTZ]' with an optional 4 digit (hours and minutes) timezone offset"
     fi
+
+    target_timestamp=`date -d "$target_date" -u +%s`
 fi
 
-target_timestamp=`date -d "$target_date" -u +%s`
 if [ $? != 0 ]; then
     error "could not get timestamp from target date. Check your date command"
 fi
