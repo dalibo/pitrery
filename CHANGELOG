@@ -1,6 +1,9 @@
 pitrery 1.7
 ===========
 
+  * Run backup hook command even if the backup fails. The exit code of the
+    backup is available to the hook in the PITRERY_EXIT_CODE env variable.
+
   * Bugfix on sed -E vs sed -r, use the later for older GNU sed.
 
 

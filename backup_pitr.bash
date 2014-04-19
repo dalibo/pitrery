@@ -71,6 +71,7 @@ error() {
     exit 1
 }
 
+
 warn() {
     echo "WARNING: $*" 1>&2
 }
@@ -147,6 +148,34 @@ psql_command=${psql_command:-"psql"}
 psql_condb=${dbname:-postgres}
 
 # Functions
+post_backup_hook() {
+    if [ -n "$POST_BACKUP_COMMAND" ]; then
+	info "running post backup command"
+	export PITRERY_HOOK="post_backup"
+	export PITRERY_BACKUP_DIR=$backup_dir
+	# Do not overwrite the return code which can be set by
+	# error_and_hook to inform to hook command that the backup
+	# failed
+	export PITRERY_EXIT_CODE=${PITRERY_EXIT_CODE:-0}
+	$POST_BACKUP_COMMAND
+	if [ $? != 0 ]; then
+	    error "post_backup command exited with a non-zero code"
+	fi
+    fi
+}
+
+# This special error function permit to run the post hook when the
+# backup fails. This is because the post hook must run after the pre
+# hook, while it is possible to have failure before (which need
+# error())
+error_and_hook() {
+    echo "ERROR: $*" 1>&2
+    PITRERY_EXIT_CODE=1
+    post_backup_hook
+    cleanup
+    exit 1
+}
+
 stop_backup() {
     # This function is a signal handler, so block signals it handles
     trap '' INT TERM EXIT
@@ -155,7 +184,7 @@ stop_backup() {
     info "stopping the backup process"
     $psql_command -Atc "SELECT pg_stop_backup();" $psql_condb >/dev/null
     if [ $? != 0 ]; then
-	error "could not stop backup process"
+	error_and_hook "could not stop backup process"
     fi
 
     # Reset the signal handler, this function should only be called once
@@ -245,7 +274,7 @@ fi
 info "listing tablespaces"
 tblspc_list=`mktemp -t backup_pitr.XXXXXX`
 if [ $? != 0 ]; then
-    error "could not create temporary file"
+    error_and_hook "could not create temporary file"
 fi
 
 # Starting from 9.2, the location of tablespaces is no longer stored
@@ -263,7 +292,7 @@ else
 fi
 
 if [ $rc != 0 ]; then
-    error "could not get the list of tablespaces from PostgreSQL"
+    error_and_hook "could not get the list of tablespaces from PostgreSQL"
 fi
 
 # Start the backup
@@ -279,7 +308,7 @@ else
 fi
 
 if [ $rc != 0 ]; then
-    error "could not start backup process"
+    error_and_hook "could not start backup process"
 fi
 
 # Add a signal handler to avoid leaving the cluster in backup mode when exiting on error
@@ -305,7 +334,7 @@ case $storage in
 	was=`pwd`
 	cd $pgdata
 	if [ $? != 0 ]; then
-	    error "could not change current directory to $pgdata"
+	    error_and_hook "could not change current directory to $pgdata"
 	fi
 
 	info "archiving $pgdata"
@@ -315,7 +344,7 @@ case $storage in
 	    tar_rc=${rc[0]}
 	    gzip_rc=${rc[1]}
 	    if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
-		error "could not tar PGDATA"
+		error_and_hook "could not tar PGDATA"
 	    fi
 	else
 	    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/pgdata.tar.gz" 2>/dev/null
@@ -324,7 +353,7 @@ case $storage in
 	    gzip_rc=${rc[1]}
 	    ssh_rc=${rc[2]}
 	    if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
-		error "could not tar PGDATA"
+		error_and_hook "could not tar PGDATA"
 	    fi
 	fi
 	cd $was
@@ -345,7 +374,7 @@ case $storage in
 	    was=`pwd`
 	    cd $location
 	    if [ $? != 0 ]; then
-		error "could not change current directory to $location"
+		error_and_hook "could not change current directory to $location"
 	    fi
 
 	    # Tar the directory, directly to the remote location if needed.  The name
@@ -358,7 +387,7 @@ case $storage in
 		tar_rc=${rc[0]}
 		gzip_rc=${rc[1]}
 		if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
-		    error "could not tar tablespace \"$name\""
+		    error_and_hook "could not tar tablespace \"$name\""
 		fi
 	    else
 		tar -cpf - --ignore-failed-read * 2>/dev/null | gzip | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/tblspc/${_name}.tar.gz" 2>/dev/null
@@ -367,7 +396,7 @@ case $storage in
 		gzip_rc=${rc[1]}
 		ssh_rc=${rc[2]}
 		if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
-		    error "could not tar tablespace \"$name\""
+		    error_and_hook "could not tar tablespace \"$name\""
 		fi
 	    fi
 
@@ -389,7 +418,7 @@ case $storage in
 		    info "preparing hardlinks from previous backup"
 		    cp -rl $prev_backup/pgdata $backup_dir/pgdata
 		    if [ $? != 0 ]; then
-			error "could not hardlink previous backup"
+			error_and_hook "could not hardlink previous backup"
 		    fi
 		fi
 	    else
@@ -398,7 +427,7 @@ case $storage in
 		    info "preparing hardlinks from previous backup"
 		    ssh ${ssh_user:+$ssh_user@}$target "cp -rl $prev_backup/pgdata $backup_dir/pgdata" 2>/dev/null
 		    if [ $? != 0 ]; then
-			error "could not hardlink previous backup"
+			error_and_hook "could not hardlink previous backup"
 		    fi
 		fi
 	    fi
@@ -409,13 +438,13 @@ case $storage in
 	    rsync -aq --delete-before --exclude pg_xlog --exclude 'postmaster.*' $pgdata/ $backup_dir/pgdata/
 	    rc=$?
 	    if [ $rc != 0 -a $rc != 24 ]; then
-		error "rsync of PGDATA failed with exit code $rc"
+		error_and_hook "rsync of PGDATA failed with exit code $rc"
 	    fi
 	else
 	    rsync $rsync_opts -e "ssh -c blowfish-cbc -o Compression=no" -a --delete-before --exclude pg_xlog --exclude 'postmaster.*' $pgdata/ ${ssh_user:+$ssh_user@}${target}:$backup_dir/pgdata/
 	    rc=$?
 	    if [ $rc != 0 -a $rc != 24 ]; then
-		error "rsync of PGDATA failed with exit code $rc"
+		error_and_hook "rsync of PGDATA failed with exit code $rc"
 	    fi
 	fi
 
@@ -439,7 +468,7 @@ case $storage in
 	    		info "preparing hardlinks from previous backup"
 	    		cp -rl $prev_backup/tblspc/$_name $backup_dir/tblspc/$_name
 	    		if [ $? != 0 ]; then
-	    		    error "could not hardlink previous backup"
+	    		    error_and_hook "could not hardlink previous backup"
 	    		fi
 	    	    fi
 	    	else
@@ -448,7 +477,7 @@ case $storage in
 	    		info "preparing hardlinks from previous backup"
 	    		ssh -n ${ssh_user:+$ssh_user@}$target "cp -rl $prev_backup/tblspc/$_name $backup_dir/tblspc/$_name" 2>/dev/null
 	    		if [ $? != 0 ]; then
-	    		    error "could not hardlink previous backup"
+	    		    error_and_hook "could not hardlink previous backup"
 	    		fi
 	    	    fi
 	    	fi
@@ -460,13 +489,13 @@ case $storage in
 	    	rsync -aq --delete-before $location/ $backup_dir/tblspc/$_name/
 	    	rc=$?
 	    	if [ $rc != 0 -a $rc != 24 ]; then
-	    	    error "rsync of tablespace \"$name\" failed with exit code $rc"
+	    	    error_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 	    	fi
 	    else
 	    	rsync $rsync_opts -e "ssh -c blowfish-cbc -o Compression=no" -a --delete-before $location/ ${ssh_user:+$ssh_user@}${target}:$backup_dir/tblspc/$_name/
 	    	rc=$?
 	    	if [ $rc != 0 -a $rc != 24 ]; then
-	    	    error "rsync of tablespace \"$name\" failed with exit code $rc"
+	    	    error_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 	    	fi
 	    fi
 
@@ -476,7 +505,7 @@ case $storage in
 
 
     *)
-	error "do not know how to backup... I have a bug"
+	error_and_hook "do not know how to backup... I have a bug"
 	;;
 esac
 
@@ -512,13 +541,13 @@ for f in $file_list; do
 	    mkdir -p $backup_dir/conf
 	    cp $file $backup_dir/conf/`basename $file`
 	    if [ $? != 0 ]; then
-		error "could not copy $f to backup directory"
+		error_and_hook "could not copy $f to backup directory"
 	    fi
 	else
 	    ssh ${ssh_user:+$ssh_user@}${target} "mkdir -p $backup_dir/conf" 2>/dev/null
 	    scp $file ${ssh_user:+$ssh_user@}${target}:$backup_dir/conf/`basename $file` >/dev/null
 	    if [ $? != 0 ]; then
-		error "could not copy $f to backup directory on $target"
+		error_and_hook "could not copy $f to backup directory on $target"
 	    fi
 	fi
     fi
@@ -533,7 +562,7 @@ if [ $local_backup = "yes" ]; then
     # Rename the backup directory using the stop time
     mv $backup_dir $backup_root/${label_prefix}/$backup_name
     if [ $? != 0 ]; then
-	error "could not rename the backup directory"
+	error_and_hook "could not rename the backup directory"
     fi
     backup_dir=$backup_root/${label_prefix}/$backup_name
     
@@ -541,7 +570,7 @@ if [ $local_backup = "yes" ]; then
     info "copying the backup history file"
     cp $pgdata/pg_xlog/${start_backup_xlog}.*.backup $backup_dir/backup_label
     if [ $? != 0 ]; then
-	error "could not copy backup history file to $backup_dir"
+	error_and_hook "could not copy backup history file to $backup_dir"
     fi
 
     # Save the end of backup timestamp to a file
@@ -554,13 +583,13 @@ if [ $local_backup = "yes" ]; then
     info "copying the tablespaces list"
     cp $tblspc_list $backup_dir/tblspc_list
     if [ $? != 0 ]; then
-	error "could not copy the tablespace list to $backup_dir"
+	error_and_hook "could not copy the tablespace list to $backup_dir"
     fi
 else
     # Rename the backup directory using the stop time
     ssh ${ssh_user:+$ssh_user@}${target} "mv $backup_dir $backup_root/${label_prefix}/$backup_name" 2>/dev/null
     if [ $? != 0 ]; then
-	error "could not rename the backup directory"
+	error_and_hook "could not rename the backup directory"
     fi
     backup_dir=$backup_root/${label_prefix}/$backup_name
     
@@ -573,7 +602,7 @@ else
     info "copying the backup history file"
     scp $pgdata/pg_xlog/${start_backup_xlog}.*.backup ${ssh_user:+$ssh_user@}${target}:$backup_dir/backup_label > /dev/null 
     if [ $? != 0 ]; then
-	error "could not copy backup history file to ${target}:$backup_dir"
+	error_and_hook "could not copy backup history file to ${target}:$backup_dir"
     fi
 
     # Add the name and location of the tablespace to an helper file for
@@ -581,23 +610,16 @@ else
     info "copying the tablespaces list"
     scp $tblspc_list ${ssh_user:+$ssh_user@}${target}:$backup_dir/tblspc_list >/dev/null
     if [ $? != 0 ]; then
-	error "could not copy the tablespace list to ${target}:$backup_dir"
+	error_and_hook "could not copy the tablespace list to ${target}:$backup_dir"
     fi
 fi
 
 # Give the name of the backup
 info "backup directory is ${target:+$target:}$backup_dir"
 
-# Execute the post-backup command
-if [ -n "$POST_BACKUP_COMMAND" ]; then
-    info "running post backup command"
-    export PITRERY_HOOK="post_backup"
-    export PITRERY_BACKUP_DIR=$backup_dir
-    $POST_BACKUP_COMMAND
-    if [ $? != 0 ]; then
-	error "post_backup command exited with a non-zero code"
-    fi
-fi
+# Execute the post-backup command. It does not return on failure.
+PITRERY_EXIT_CODE=0
+post_backup_hook
 
 # Cleanup
 rm $tblspc_list
