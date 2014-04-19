@@ -57,7 +57,7 @@ install: all
 	@chmod 755 $(addprefix ${DESTDIR}${LIBDIR}/${NAME}/,$(LIBS))
 	@echo installing configuration to ${DESTDIR}${SYSCONFDIR}
 	@mkdir -p ${DESTDIR}${SYSCONFDIR}
-	@cp -i $(CONFS) ${DESTDIR}${SYSCONFDIR} < /dev/null >/dev/null 2>&1
+	@-cp -i $(CONFS) ${DESTDIR}${SYSCONFDIR} < /dev/null >/dev/null 2>&1
 	@echo installing docs to ${DESTDIR}${DOCDIR}
 	@mkdir -p ${DESTDIR}${DOCDIR}
 	@cp -f $(CONFS) $(DOCS) ${DESTDIR}${DOCDIR}
