@@ -1,6 +1,5 @@
 TODO / Roadmap
 
 - bugfix: make archive_xlog create the target directory
-- run post hook even if backup fails
 - configure tar base backup compression
 
