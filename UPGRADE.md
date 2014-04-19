@@ -1,3 +1,19 @@
+Upgrade to 1.7
+==============
+
+Usage
+-----
+
+* Calling `pitrery` by using `pitr_mgr` is no longer possible. The
+  symloink has been removed after keeping backward compatibility for
+  two versions.
+
+* The post backup hook script, configurable using
+  `PRE_BACKUP_COMMAND`, is now run after the pre backup hook, even if
+  the backup fails. The new `PITRERY_EXIT_CODE` environment variable
+  is set to the exit code of the backup.
+
+
 Upgrade to 1.6
 ==============
 
