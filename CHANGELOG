@@ -1,6 +1,8 @@
 pitrery 1.7
 ===========
 
+  * Remove the `pitr_mgr` symlink.
+
   * Have `archive_xlog` create the local target directory so that we don't
     end up archiving on the same path, when the user forget to create it.
 

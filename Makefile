@@ -50,7 +50,6 @@ install: all
 	@mkdir -p ${DESTDIR}${BINDIR}
 	@cp -f $(BINS) ${DESTDIR}${BINDIR}
 	@chmod 755 $(addprefix ${DESTDIR}${BINDIR}/,$(BINS))
-	@cd ${DESTDIR}${BINDIR} && ln -sf pitrery pitr_mgr
 	@echo installing helpers to ${DESTDIR}${LIBDIR}/${NAME}
 	@mkdir -p ${DESTDIR}${LIBDIR}/${NAME}
 	@cp -f $(LIBS) ${DESTDIR}${LIBDIR}/${NAME}
