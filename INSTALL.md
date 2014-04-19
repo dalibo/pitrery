@@ -378,7 +378,10 @@ following configuration variables:
 
 * `PRE_BACKUP_COMMAND` is run before the backup is started.
 
-* `POST_BACKUP_COMMAND` is run after the backup is finished.
+* `POST_BACKUP_COMMAND` is run after the backup is finished. Starting
+  with version 1.7, the command is run even if the backup fails, but
+  not if the backup fails because of the `PRE_BACKUP_COMMAND` or
+  earlier (e.g. the order "pre -- base backup -- post" is ensured).
 
 The following variables are then available, to access the PostgreSQL
 or the current backup:
@@ -395,6 +398,8 @@ or the current backup:
 * `PITRERY_BACKUP_LOCAL` can be used to know is SSH is required to access the backup directory
 
 * `PITRERY_SSH_TARGET` the user@host part needed to access to backup server
+
+* `PITRERY_EXIT_CODE` is the exit code of the backup. 0 for success, 1 for failure
 
 
 Backup storage
