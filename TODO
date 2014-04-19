@@ -1,5 +1,4 @@
 TODO / Roadmap
 
-- bugfix: make archive_xlog create the target directory
 - configure tar base backup compression
 

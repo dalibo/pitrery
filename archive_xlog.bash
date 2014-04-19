@@ -145,10 +145,17 @@ fi
 
 # Copy the wal locally
 if [ $ARCHIVE_LOCAL = "yes" ]; then
+    mkdir -p $ARCHIVE_DIR 1>&2
+    rc=$?
+    if [ $rc != 0 ]; then
+	error "Unable to create target directory"
+	exit $rc
+    fi
+
     cp $xlog $ARCHIVE_DIR 1>&2
     rc=$?
     if [ $rc != 0 ]; then
-	error "Unable to copy $xlog to $destdir"
+	error "Unable to copy $xlog to $ARCHIVE_DIR"
 	exit $rc
     fi
 

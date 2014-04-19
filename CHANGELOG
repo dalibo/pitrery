@@ -1,6 +1,9 @@
 pitrery 1.7
 ===========
 
+  * Have `archive_xlog` create the local target directory so that we don't
+    end up archiving on the same path, when the user forget to create it.
+
   * Run backup hook command even if the backup fails. The exit code of the
     backup is available to the hook in the PITRERY_EXIT_CODE env variable.
 
