@@ -1,3 +1,9 @@
+pitrery 1.7
+===========
+
+  * Bugfix on sed -E vs sed -r, use the later for older GNU sed.
+
+
 pitrery 1.6
 ===========
 
