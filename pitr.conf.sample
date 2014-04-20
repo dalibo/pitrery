@@ -107,11 +107,14 @@ SYSLOG="no"
 SYSLOG_FACILITY="local0"
 SYSLOG_IDENT="postgres"
 
-# Compression options. The following options allow to customize
-# compression tools for WAL archiving. The program used in
-# COMPRESS_BIN must support a -c option to output to stdout and access
-# data from stdin (tested gzip, pigz, bzip2, pbzip2).  Defaults to
-# "gzip -4"
+####################
+# Compression
+####################
+
+# The following options allow to customize compression tools for WAL
+# archiving. The program used in COMPRESS_BIN must support a -c option
+# to output to stdout and access data from stdin (tested with gzip, pigz,
+# bzip2, pbzip2).  Defaults to "gzip -4"
 #COMPRESS_BIN=
 
 # The suffix added by the compression tool (needed for
@@ -121,6 +124,21 @@ SYSLOG_IDENT="postgres"
 # Path to the decompression program, it must take the file to process
 # as its first parameter. Defaults to "gunzip"
 #UNCOMPRESS_BIN=
+
+# The compression used with the "tar" storage method can be configured
+# with these options. The command must be able to be used with
+# pipes (tested with gzip, pigz, bzip2, pbzip2). Defaults to "gzip -4".
+#BACKUP_COMPRESS_BIN=
+
+# The suffix added by the compression tool (needed for
+# decompression). Defaults to "gz".
+#BACKUP_COMPRESS_SUFFIX=
+
+# Path to the decompression program for backup using the "tar" storage
+# method, it must take the file to process as its first parameter,
+# work with pipes and be able output to stdout with -c. Defaults to
+# "gunzip".
+#BACKUP_UNCOMPRESS_BIN=
 
 ####################
 

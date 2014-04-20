@@ -13,6 +13,19 @@ Usage
   the backup fails. The new `PITRERY_EXIT_CODE` environment variable
   is set to the exit code of the backup.
 
+Configuration
+-------------
+
+The following new configuration variables may be used, here are their
+defaults:
+
+* `BACKUP_COMPRESS_BIN` (gzip -4). `BACKUP_UNCOMPRESS_BIN`
+  (gunzip). Commands to use when compressing and uncompressing backed
+  up files with tar.
+
+* `BACKUP_COMPRESS_SUFFIX` (gz). Suffix of the files produces by the
+  previous commands.
+
 
 Upgrade to 1.6
 ==============

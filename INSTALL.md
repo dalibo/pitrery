@@ -236,8 +236,11 @@ Depending on the version of PostgreSQL, restart the server if
 `wal_level` or `archive_mode` were changed, otherwise reload it.
 
 
-Tuning WAL files compression
-============================
+Tuning file compression
+=======================
+
+Archived WAL files
+------------------
 
 By default, `archive_xlog` uses `gzip -4` to compress the WAL files
 when configured to do so (`ARCHIVE_COMPRESS="yes"`). It is possible to
@@ -266,6 +269,27 @@ Or maximum, but slow, compression with the standard `bzip2`:
 
 These three parameters can be configured only inside the configuration
 file, not from the command line of `archive_xlog` and `restore_xlog`.
+
+
+Backups with tar
+----------------
+
+When using tar for storing backups, PGDATA and the tablespaces are
+compressed using `gzip`. This can be changed by configuring:
+
+* `BACKUP_COMPRESS_BIN` to specify the command line to use for
+  compression of the tar files. The output of `tar` is piped to this
+  command, then the result is redirected to the target file.
+
+* `BACKUP_COMPRESS_SUFFIX` must be used to tell pitrery what is
+  the suffix appended by the compression program used in
+  `BACKUP_COMPRESS_BIN`. This is mandatory for the restore.
+
+* `BACKUP_UNCOMPRESS_BIN` to specify the command line to uncompress
+  files produced by the previous command. It must work with pipes and
+  understand that a `-c` switch makes it output on stdout. Widely used
+  compression tools such as `gzip`, `bzip2`, `pigz`, `pbzip2`, `xz`
+  work this way.
 
 
 Using pitrery to manage backups
@@ -465,22 +489,24 @@ action, for example :
         backup_pitr [options] [hostname]
     
     Backup options:
-        -L              Perform a local backup
-        -b dir          Backup directory
-        -l label        Backup label, it will be suffixed with the date and time
-        -u username     Username for SSH login
-        -D dir          Path to $PGDATA
-        -s mode         Storage method, tar or rsync
+        -L                   Perform a local backup
+        -b dir               Backup base directory
+        -l label             Backup label
+        -u username          Username for SSH login
+        -D dir               Path to $PGDATA
+        -s mode              Storage method, tar or rsync
+        -c compress_bin      Compression command for tar method
+        -e compress_suffix   Suffix added by the compression program
     
     Connection options:
-        -P PSQL         path to the psql command
-        -h HOSTNAME     database server host or socket directory
-        -p PORT         database server port number
-        -U NAME         connect as specified database user
-        -d DATABASE     database to use for connection
+        -P PSQL              path to the psql command
+        -h HOSTNAME          database server host or socket directory
+        -p PORT              database server port number
+        -U NAME              connect as specified database user
+        -d DATABASE          database to use for connection
     
-        -?              Print help
-    
+        -?                   Print help
+
 
 The `-n` option of `pitrery` can be used to show the action script
 command line that would be runned, but without running it. It is
@@ -528,22 +554,24 @@ action is:
         backup_pitr [options] [hostname]
     
     Backup options:
-        -L              Perform a local backup
-        -b dir          Backup base directory
-        -l label        Backup label
-        -u username     Username for SSH login
-        -D dir          Path to $PGDATA
-        -s mode         Storage method, tar or rsync
+        -L                   Perform a local backup
+        -b dir               Backup base directory
+        -l label             Backup label
+        -u username          Username for SSH login
+        -D dir               Path to $PGDATA
+        -s mode              Storage method, tar or rsync
+        -c compress_bin      Compression command for tar method
+        -e compress_suffix   Suffix added by the compression program
     
     Connection options:
-        -P PSQL         path to the psql command
-        -h HOSTNAME     database server host or socket directory
-        -p PORT         database server port number
-        -U NAME         connect as specified database user
-        -d DATABASE     database to use for connection
+        -P PSQL              path to the psql command
+        -h HOSTNAME          database server host or socket directory
+        -p PORT              database server port number
+        -U NAME              connect as specified database user
+        -d DATABASE          database to use for connection
     
-        -?              Print help
-    
+        -?                   Print help   
+
 
 For example, the configuration file for our example production server
 is the following:
@@ -857,31 +885,32 @@ what would be done. The options of restore are:
         restore_pitr [options] [hostname]
     
     Restore options:
-        -L              Restore from local storage
-        -u username     Username for SSH login to the backup host
-        -b dir          Backup storage directory
-        -l label        Label used when backup was performed
-        -D dir          Path to target $PGDATA
-        -x dir          Path to the xlog directory (only if outside $PGDATA)
-        -d date         Restore until this date
-        -O user         If run by root, owner of the files
-        -t tblspc:dir   Change the target directory of tablespace "ts"
-                          this switch can be used many times
-        -n              Dry run: show restore information only
+        -L                   Restore from local storage
+        -u username          Username for SSH login to the backup host
+        -b dir               Backup storage directory
+        -l label             Label used when backup was performed
+        -D dir               Path to target $PGDATA
+        -x dir               Path to the xlog directory (only if outside $PGDATA)
+        -d date              Restore until this date
+        -O user              If run by root, owner of the files
+        -t tblspc:dir        Change the target directory of tablespace "ts"
+                               this switch can be used many times
+        -n                   Dry run: show restore information only
+        -c compress_bin      Uncompression command for tar method
+        -e compress_suffix   Suffix added by the compression program
     
     Archived WAL files options:
-        -A              Force the use of local archives
-        -h host         Host storing WAL files
-        -U username     Username for SSH login to WAL storage host
-        -X dir          Path to the archived xlog directory
-        -r cli          Command line to use in restore_command
-        -C              Do not uncompress WAL files
-        -S              Send messages to syslog
-        -f facility     Syslog facility
-        -i ident        Syslog ident
+        -A                   Force the use of local archives
+        -h host              Host storing WAL files
+        -U username          Username for SSH login to WAL storage host
+        -X dir               Path to the archived xlog directory
+        -r cli               Command line to use in restore_command
+        -C                   Do not uncompress WAL files
+        -S                   Send messages to syslog
+        -f facility          Syslog facility
+        -i ident             Syslog ident
     
-        -?              Print help
-    
+        -?                   Print help
 
 
 Removing old backups

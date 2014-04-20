@@ -1,6 +1,9 @@
 pitrery 1.7
 ===========
 
+  * Allow configuration of compression tools used when storing backup
+    contents using tar.
+
   * Remove the `pitr_mgr` symlink.
 
   * Have `archive_xlog` create the local target directory so that we don't
@@ -91,7 +94,6 @@ pitrery 1.3
   * Support for username on SSH connections
 
   * Better display of the list of backups
-
 
   * Add a summary of all information needed for a restore
 

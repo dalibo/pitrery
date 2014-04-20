@@ -137,7 +137,7 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lb:l:u:D:s:P:h:p:U:d:?" arg 2>/dev/null; do
+	while getopts "Lb:l:u:D:s:P:h:p:U:d:c:e:?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		b) BACKUP_DIR=$OPTARG;;
@@ -150,6 +150,9 @@ case $action in
 		p) PGPORT=$OPTARG;;
 		U) PGUSER=$OPTARG;;
 		d) PGDATABASE=$OPTARG;;
+		c) BACKUP_COMPRESS_BIN="$OPTARG";;
+		e) BACKUP_COMPRESS_SUFFIX=$OPTARG;;
+
 		'?') $cmd -?; exit $?;;
 	    esac
 	done
@@ -166,14 +169,15 @@ case $action in
 	[ -n "$PGPORT" ] && opts="$opts -p $PGPORT"
 	[ -n "$PGUSER" ] && opts="$opts -U $PGUSER"
 	[ -n "$PGDATABASE" ] && opts="$opts -d $PGDATABASE"
+	[ -n "$BACKUP_COMPRESS_SUFFIX" ] && opts="$opts -e $BACKUP_COMPRESS_SUFFIX"
 
 	# Take care of the destination host
 	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then
-	    host=${@:$OPTIND:1}
-	    if [ -n "$host" ]; then
-		opts="$opts $host"
+	    h=${@:$OPTIND:1}
+	    if [ -n "$h" ]; then
+		host=$h
 	    elif [ -n "$BACKUP_HOST" ]; then
-		opts="$opts $BACKUP_HOST"
+		host=$BACKUP_HOST
 	    else
 		error "missing target host"
 	    fi
@@ -183,8 +187,15 @@ case $action in
 	[ -n "$PRE_BACKUP_COMMAND" ] && export PRE_BACKUP_COMMAND
 	[ -n "$POST_BACKUP_COMMAND" ] && export POST_BACKUP_COMMAND
 
-	# Run the command
-	$dry_run $cmd $opts
+	# Run the command. The backup compression command may have
+	# spaces, make it difficult for bash to pass the argument
+	# correctly.
+	if [ -n "$BACKUP_COMPRESS_BIN" ]; then
+	    $dry_run $cmd $opts -c "$BACKUP_COMPRESS_BIN" $host
+	else
+	    $dry_run $cmd $opts $host
+	fi
+
 	exit $?
 	;;
 
@@ -196,7 +207,7 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lu:b:l:D:x:d:O:t:nAh:U:X:r:CSf:i:?" arg 2>/dev/null; do
+	while getopts "Lu:b:l:D:x:d:O:t:nc:e:Ah:U:X:r:CSf:i:?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		u) BACKUP_USER=$OPTARG;;
@@ -208,6 +219,9 @@ case $action in
 		O) PGOWNER=$OPTARG;;
 		t) TBLSPC_RELOC="$TBLSPC_RELOC -t $OPTARG";;
 		n) DRY_RUN="yes";;
+		c) BACKUP_UNCOMPRESS_BIN="$OPTARG";;
+		e) BACKUP_COMPRESS_SUFFIX=$OPTARG;;
+
 		A) ARCHIVE_LOCAL="yes";;
 		h) ARCHIVE_HOST=$OPTARG;;
 		U) ARCHIVE_USER=$OPTARG;;
@@ -232,6 +246,7 @@ case $action in
 	[ -n "$PGOWNER" ] && opts="$opts -O $PGOWNER"
 	[ -n "$TBLSPC_RELOC" ] && opts="$opts $TBLSPC_RELOC"
 	[ "$DRY_RUN" = "yes" ] && opts="$opts -n"
+	[ -n "$BACKUP_COMPRESS_SUFFIX" ] && opts="$opts -e $BACKUP_COMPRESS_SUFFIX"
 	[ "$ARCHIVE_LOCAL" = "yes" ] && opts="$opts -A"
 	[ -n "$ARCHIVE_HOST" ] && opts="$opts -h $ARCHIVE_HOST"
 	[ -n "$ARCHIVE_USER" ] && opts="$opts -U $ARCHIVE_USER"
@@ -251,24 +266,40 @@ case $action in
 	    elif [ -n "$BACKUP_HOST" ]; then
 		host=$BACKUP_HOST
 	    else
-		error "missing target host"
+		error "missing backup host"
 	    fi
 	fi
 
 	# The target date has spaces, making this difficult for bash
 	# to get the arguments passed properly. Same goes for the
-	# restore command.
+	# restore command and uncompress command.
 	if [ -n "$TARGET_DATE" ]; then
 	    if [ -n "$RESTORE_COMMAND" ]; then
-		$dry_run $cmd $opts -d "$TARGET_DATE" -r "$RESTORE_COMMAND" $host
+		if [ -n "$BACKUP_UNCOMPRESS_BIN" ]; then
+		    $dry_run $cmd $opts -d "$TARGET_DATE" -r "$RESTORE_COMMAND" -c "$BACKUP_UNCOMPRESS_BIN" $host
+		else
+		    $dry_run $cmd $opts -d "$TARGET_DATE" -r "$RESTORE_COMMAND" $host
+		fi
 	    else
-		$dry_run $cmd $opts -d "$TARGET_DATE" $host
+		if [ -n "$BACKUP_UNCOMPRESS_BIN" ]; then
+		    $dry_run $cmd $opts -d "$TARGET_DATE" -c "$BACKUP_UNCOMPRESS_BIN" $host
+		else
+		    $dry_run $cmd $opts -d "$TARGET_DATE" $host
+		fi
 	    fi
 	else
 	    if [ -n "$RESTORE_COMMAND" ]; then
-		$dry_run $cmd $opts -r "$RESTORE_COMMAND" $host
+		if [ -n "$BACKUP_UNCOMPRESS_BIN" ]; then
+		    $dry_run $cmd $opts -r "$RESTORE_COMMAND" -c "$BACKUP_UNCOMPRESS_BIN" $host
+		else
+		    $dry_run $cmd $opts -r "$RESTORE_COMMAND" $host
+		fi
 	    else
-		$dry_run $cmd $opts $host
+		if [ -n "$BACKUP_UNCOMPRESS_BIN" ]; then
+		    $dry_run $cmd $opts -c "$BACKUP_UNCOMPRESS_BIN" $host
+		else
+		    $dry_run $cmd $opts $host
+		fi
 	    fi
 	fi
 	exit $?

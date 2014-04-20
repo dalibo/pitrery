@@ -31,21 +31,23 @@ usage() {
     echo "    `basename $0` [options] [hostname]"
     echo
     echo "Backup options:"
-    echo "    -L              Perform a local backup"
-    echo "    -b dir          Backup base directory"
-    echo "    -l label        Backup label"
-    echo "    -u username     Username for SSH login"
-    echo "    -D dir          Path to \$PGDATA"
-    echo "    -s mode         Storage method, tar or rsync"
+    echo "    -L                   Perform a local backup"
+    echo "    -b dir               Backup base directory"
+    echo "    -l label             Backup label"
+    echo "    -u username          Username for SSH login"
+    echo "    -D dir               Path to \$PGDATA"
+    echo "    -s mode              Storage method, tar or rsync"
+    echo "    -c compress_bin      Compression command for tar method"
+    echo "    -e compress_suffix   Suffix added by the compression program"
     echo
     echo "Connection options:"
-    echo "    -P PSQL         path to the psql command"
-    echo "    -h HOSTNAME     database server host or socket directory"
-    echo "    -p PORT         database server port number"
-    echo "    -U NAME         connect as specified database user"
-    echo "    -d DATABASE     database to use for connection"
+    echo "    -P PSQL              path to the psql command"
+    echo "    -h HOSTNAME          database server host or socket directory"
+    echo "    -p PORT              database server port number"
+    echo "    -U NAME              connect as specified database user"
+    echo "    -d DATABASE          database to use for connection"
     echo
-    echo "    -?              Print help"
+    echo "    -?                   Print help"
     echo
     exit $1
 }
@@ -87,37 +89,35 @@ label_prefix="pitr"
 pgdata=/var/lib/pgsql/data
 storage="tar"
 rsync_opts="-q --whole-file" # Remote only
+compress_bin="gzip -4"
+compress_suffix="gz"
+
 
 # CLI options
-args=`getopt "Lb:l:u:D:s:P:h:p:U:d:?" $*`
-if [ $? -ne 0 ]
-then
-    usage 2
-fi
+while getopts "Lb:l:u:D:s:c:e:P:h:p:U:d:?" opt; do
+    case "$opt" in
+        L) local_backup="yes";;
+	b) backup_root=$OPTARG;;
+	l) label_prefix=$OPTARG;;
+	u) ssh_user=$OPTARG;;
+	D) pgdata=$OPTARG;;
+	s) storage=$OPTARG;;
+	c) compress_bin="$OPTARG";;
+	e) compress_suffix=$OPTARG;;
 
-set -- $args
-for i in $*
-do
-    case "$i" in
-        -L) local_backup="yes"; shift;;
-	-b) backup_root=$2; shift 2;;
-	-l) label_prefix=$2; shift 2;;
-	-u) ssh_user=$2; shift 2;;
-	-D) pgdata=$2; shift 2;;
-	-s) storage=$2; shift 2;;
+	P) psql_command=$OPTARG;;
+	h) dbhost=$OPTARG;;
+	p) dbport=$OPTARG;;
+	U) dbuser=$OPTARG;;
+	d) dbname=$OPTARG;;
 
-	-P) psql_command=$2; shift 2;;
-	-h) dbhost=$2; shift 2;;
-	-p) dbport=$2; shift 2;;
-	-U) dbuser=$2; shift 2;;
-	-d) dbname=$2; shift 2;;
-
-        -\?) usage 1;;
-        --) shift; break;;
+        "?") usage 1;;
+	*) error "Unknown error while processing options";;
     esac
 done
 
-target=$1
+target=${@:$OPTIND:1}
+
 # Destination host is mandatory unless the backup is local
 if [ -z "$target" ] && [ $local_backup != "yes" ]; then
     echo "ERROR: missing target host" 1>&2
@@ -339,20 +339,20 @@ case $storage in
 
 	info "archiving $pgdata"
 	if [ $local_backup = "yes" ]; then
-	    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip > $backup_dir/pgdata.tar.gz
+	    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | $compress_bin > $backup_dir/pgdata.tar.$compress_suffix
 	    rc=(${PIPESTATUS[*]})
 	    tar_rc=${rc[0]}
-	    gzip_rc=${rc[1]}
-	    if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
+	    compress_rc=${rc[1]}
+	    if [ $tar_rc = 2 ] || [ $compress_rc != 0 ]; then
 		error_and_hook "could not tar PGDATA"
 	    fi
 	else
-	    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | gzip | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/pgdata.tar.gz" 2>/dev/null
+	    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' * 2>/dev/null | $compress_bin | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/pgdata.tar.$compress_suffix" 2>/dev/null
 	    rc=(${PIPESTATUS[*]})
 	    tar_rc=${rc[0]}
-	    gzip_rc=${rc[1]}
+	    compress_rc=${rc[1]}
 	    ssh_rc=${rc[2]}
-	    if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
+	    if [ $tar_rc = 2 ] || [ $compress_rc != 0 ] || [ $ssh_rc != 0 ]; then
 		error_and_hook "could not tar PGDATA"
 	    fi
 	fi
@@ -382,20 +382,20 @@ case $storage in
             # unique.
 	    info "archiving $location"
 	    if [ $local_backup = "yes" ]; then
-		tar -cpf - --ignore-failed-read * 2>/dev/null | gzip > $backup_dir/tblspc/${_name}.tar.gz
+		tar -cpf - --ignore-failed-read * 2>/dev/null | $compress_bin > $backup_dir/tblspc/${_name}.tar.$compress_suffix
 		rc=(${PIPESTATUS[*]})
 		tar_rc=${rc[0]}
-		gzip_rc=${rc[1]}
-		if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ]; then
+		compress_rc=${rc[1]}
+		if [ $tar_rc = 2 ] || [ $compress_rc != 0 ]; then
 		    error_and_hook "could not tar tablespace \"$name\""
 		fi
 	    else
-		tar -cpf - --ignore-failed-read * 2>/dev/null | gzip | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/tblspc/${_name}.tar.gz" 2>/dev/null
+		tar -cpf - --ignore-failed-read * 2>/dev/null | $compress_bin | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/tblspc/${_name}.tar.$compress_suffix" 2>/dev/null
 		rc=(${PIPESTATUS[*]})
 		tar_rc=${rc[0]}
-		gzip_rc=${rc[1]}
+		compress_rc=${rc[1]}
 		ssh_rc=${rc[2]}
-		if [ $tar_rc = 2 ] || [ $gzip_rc != 0 ] || [ $ssh_rc != 0 ]; then
+		if [ $tar_rc = 2 ] || [ $compress_rc != 0 ] || [ $ssh_rc != 0 ]; then
 		    error_and_hook "could not tar tablespace \"$name\""
 		fi
 	    fi

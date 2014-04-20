@@ -33,6 +33,8 @@ owner=`id -un`
 archive_dir=/var/lib/pgsql/archived_xlog
 dry_run="no"
 rsync_opts="-q --whole-file" # Remote only
+uncompress_bin="gunzip"
+compress_suffix="gz"
 
 usage() {
     echo "`basename $0` performs a PITR restore"
@@ -41,30 +43,32 @@ usage() {
     echo "    `basename $0` [options] [hostname]"
     echo
     echo "Restore options:"
-    echo "    -L              Restore from local storage"
-    echo "    -u username     Username for SSH login to the backup host"
-    echo "    -b dir          Backup storage directory"
-    echo "    -l label        Label used when backup was performed"
-    echo "    -D dir          Path to target \$PGDATA"
-    echo "    -x dir          Path to the xlog directory (only if outside \$PGDATA)"
-    echo "    -d date         Restore until this date"
-    echo "    -O user         If run by root, owner of the files"
-    echo "    -t tblspc:dir   Change the target directory of tablespace \"ts\""
-    echo "                      this switch can be used many times"
-    echo "    -n              Dry run: show restore information only"
+    echo "    -L                   Restore from local storage"
+    echo "    -u username          Username for SSH login to the backup host"
+    echo "    -b dir               Backup storage directory"
+    echo "    -l label             Label used when backup was performed"
+    echo "    -D dir               Path to target \$PGDATA"
+    echo "    -x dir               Path to the xlog directory (only if outside \$PGDATA)"
+    echo "    -d date              Restore until this date"
+    echo "    -O user              If run by root, owner of the files"
+    echo "    -t tblspc:dir        Change the target directory of tablespace \"ts\""
+    echo "                           this switch can be used many times"
+    echo "    -n                   Dry run: show restore information only"
+    echo "    -c compress_bin      Uncompression command for tar method"
+    echo "    -e compress_suffix   Suffix added by the compression program"
     echo
     echo "Archived WAL files options:"
-    echo "    -A              Force the use of local archives"
-    echo "    -h host         Host storing WAL files"
-    echo "    -U username     Username for SSH login to WAL storage host"
-    echo "    -X dir          Path to the archived xlog directory"
-    echo "    -r cli          Command line to use in restore_command"
-    echo "    -C              Do not uncompress WAL files"
-    echo "    -S              Send messages to syslog"
-    echo "    -f facility     Syslog facility"
-    echo "    -i ident        Syslog ident"
+    echo "    -A                   Force the use of local archives"
+    echo "    -h host              Host storing WAL files"
+    echo "    -U username          Username for SSH login to WAL storage host"
+    echo "    -X dir               Path to the archived xlog directory"
+    echo "    -r cli               Command line to use in restore_command"
+    echo "    -C                   Do not uncompress WAL files"
+    echo "    -S                   Send messages to syslog"
+    echo "    -f facility          Syslog facility"
+    echo "    -i ident             Syslog ident"
     echo
-    echo "    -?              Print help"
+    echo "    -?                   Print help"
     echo
     exit $1
 }
@@ -121,7 +125,6 @@ check_and_fix_directory() {
 	fi
 
 	if [ $content != 0 ]; then
-	    # XXX add a switch to force
 	    error "$dir is not empty. Contents won't be overridden"
 	fi
     fi
@@ -160,7 +163,7 @@ check_and_fix_directory() {
 
 
 # Process CLI Options
-while getopts "Lu:b:l:D:x:d:O:t:nAh:U:X:r:CSf:i:?" opt; do
+while getopts "Lu:b:l:D:x:d:O:t:nc:e:Ah:U:X:r:CSf:i:?" opt; do
     case "$opt" in
 	L) local_backup="yes";;
 	u) ssh_user=$OPTARG;;
@@ -172,6 +175,8 @@ while getopts "Lu:b:l:D:x:d:O:t:nAh:U:X:r:CSf:i:?" opt; do
 	O) owner=$OPTARG;;
 	t) tsmv_list="$tsmv_list $OPTARG";;
 	n) dry_run="yes";;
+	c) uncompress_bin="$OPTARG";;
+	e) compress_suffix=$OPTARG;;
 
 	A) archive_local="yes";;
 	h) archive_host=$OPTARG;;
@@ -457,15 +462,15 @@ fi
 # stored as a gzip'ed tarball, the method is tar, if it is a
 # directory, then backup_pitr used rsync to put files there.
 if [ $local_backup = "yes" ]; then
-    if [ -f "$backup_dir/pgdata.tar.gz" ]; then
+    if [ -f "$backup_dir/pgdata.tar.$compress_suffix" ]; then
 	storage="tar"
     elif [ -d "$backup_dir/pgdata" ]; then
 	storage="rsync"
     else
-	error "could not find out what storage method is used in $backup_dir"
+	error "could not find out what storage method or compression is used in $backup_dir"
     fi
 else
-    ssh ${ssh_user:+$ssh_user@}$source "test -f $backup_dir/pgdata.tar.gz" 2>/dev/null
+    ssh ${ssh_user:+$ssh_user@}$source "test -f $backup_dir/pgdata.tar.$compress_suffix" 2>/dev/null
     if [ $? = 0 ]; then
 	storage="tar"
     else
@@ -473,7 +478,7 @@ else
 	if [ $? = 0 ]; then
 	    storage="rsync"
 	else
-	    error "could not find out what storage method is used in $source:$backup_dir"
+	    error "could not find out what storage method or compression is used in $source:$backup_dir"
 	fi
     fi
 fi
@@ -486,19 +491,23 @@ case $storage in
 	was=`pwd`
 	cd $pgdata
 	if [ $local_backup = "yes" ]; then
-	    tar xzf $backup_dir/pgdata.tar.gz
-	    if [ $? != 0 ]; then
-		echo "ERROR: could extract $backup_dir/pgdata.tar.gz to $pgdata" 1>&2
+	    $uncompress_bin -c $backup_dir/pgdata.tar.$compress_suffix | tar xf -
+	    rc=(${PIPESTATUS[*]})
+	    uncompress_rc=${rc[0]}
+	    tar_rc=${rc[1]}
+	    if [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
+		echo "ERROR: could extract $backup_dir/pgdata.tar.$compress_suffix to $pgdata" 1>&2
 		cd $was
 		exit 1
 	    fi
 	else
-	    ssh ${ssh_user:+$ssh_user@}$source "cat $backup_dir/pgdata.tar.gz" 2>/dev/null | tar xzf - 2>/dev/null
+	    ssh ${ssh_user:+$ssh_user@}$source "cat $backup_dir/pgdata.tar.$compress_suffix" 2>/dev/null | $uncompress_bin | tar xf - 2>/dev/null
 	    rc=(${PIPESTATUS[*]})
 	    ssh_rc=${rc[0]}
-	    tar_rc=${rc[1]}
-	    if [ $ssh_rc != 0 ] || [ $tar_rc != 0 ]; then
-		echo "ERROR: could extract $source:$backup_dir/pgdata.tar.gz to $pgdata" 1>&2
+	    uncompress_rc=${rc[1]}
+	    tar_rc=${rc[2]}
+	    if [ $ssh_rc != 0 ] || [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
+		echo "ERROR: could extract $source:$backup_dir/pgdata.tar.$compress_suffix to $pgdata" 1>&2
 		cd $was
 		exit 1
 	    fi
@@ -593,18 +602,22 @@ if [ -f "$tblspc_reloc" ]; then
 		was=`pwd`
 		cd $tbldir
 		if [ $local_backup = "yes" ]; then
-		    tar xzf $backup_dir/tblspc/${_name}.tar.gz
-		    if [ $? != 0 ]; then
+		    $uncompress_bin -c $backup_dir/tblspc/${_name}.tar.$compress_suffix | tar xf -
+		    rc=(${PIPESTATUS[*]})
+		    uncompress_rc=${rc[0]}
+		    tar_rc=${rc[1]}
+		    if [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
 			echo "ERROR: could not extract tablespace $name to $tbldir" 1>&2
 			cd $was
 			exit 1
 		    fi
 		else
-		    ssh -n ${ssh_user:+$ssh_user@}$source "cat $backup_dir/tblspc/${_name}.tar.gz" 2>/dev/null | tar xzf - 2>/dev/null
+		    ssh -n ${ssh_user:+$ssh_user@}$source "cat $backup_dir/tblspc/${_name}.tar.$compress_suffix" 2>/dev/null | $uncompress_bin | tar xf - 2>/dev/null
 		    rc=(${PIPESTATUS[*]})
 		    ssh_rc=${rc[0]}
-		    tar_rc=${rc[1]}
-		    if [ $ssh_rc != 0 ] || [ $tar_rc != 0 ]; then
+		    uncompress_rc=${rc[1]}
+		    tar_rc=${rc[2]}
+		    if [ $ssh_rc != 0 ] || [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
 			echo "ERROR: could not extract tablespace $name to $tbldir" 1>&2
 			cd $was
 			exit 1
