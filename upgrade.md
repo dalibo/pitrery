@@ -3,6 +3,35 @@ layout: default
 title: pitrery - Upgrade
 ---
 
+Upgrade to 1.7
+==============
+
+Usage
+-----
+
+* Calling `pitrery` by using `pitr_mgr` is no longer possible. The
+  symloink has been removed after keeping backward compatibility for
+  two versions.
+
+* The post backup hook script, configurable using
+  `PRE_BACKUP_COMMAND`, is now run after the pre backup hook, even if
+  the backup fails. The new `PITRERY_EXIT_CODE` environment variable
+  is set to the exit code of the backup.
+
+Configuration
+-------------
+
+The following new configuration variables may be used, here are their
+defaults:
+
+* `BACKUP_COMPRESS_BIN` (gzip -4). `BACKUP_UNCOMPRESS_BIN`
+  (gunzip). Commands to use when compressing and uncompressing backed
+  up files with tar.
+
+* `BACKUP_COMPRESS_SUFFIX` (gz). Suffix of the files produces by the
+  previous commands.
+
+
 Upgrade to 1.6
 ==============
 
