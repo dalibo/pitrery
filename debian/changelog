@@ -1,3 +1,15 @@
+pitrery (1.7-1) unstable; urgency=low
+
+  * New upstream release
+  * Show the storage method and compression suffix when listing
+  * Allow configuration of compression tools used for tar storage method
+  * Remove the `pitr_mgr` symlink.
+  * Have `archive_xlog` create the local target directory
+  * Run backup hook command even if the backup fails
+  * Bugfix on sed -E vs sed -r, use the later for older GNU sed.
+
+ -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Sun, 20 Apr 2014 18:34:15 +0200
+
 pitrery (1.6-1) unstable; urgency=low
 
   * New upstream release
