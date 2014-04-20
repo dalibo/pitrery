@@ -691,6 +691,7 @@ for each tablespace:
     Directory:
       /home/pgsql/postgresql-9.3.2/pitr/pitr15/2014.01.21_17.05.04
       space used: 19M
+      storage: tar with gz compression
     Minimum recovery target time:
       2014-01-21 17:05:04 CET
     PGDATA:
@@ -702,6 +703,7 @@ for each tablespace:
     Directory:
       /home/pgsql/postgresql-9.3.2/pitr/pitr15/2014.01.21_17.20.30
       space used: 365M
+      storage: rsync
     Minimum recovery target time:
       2014-01-21 17:20:30 CET
     PGDATA:

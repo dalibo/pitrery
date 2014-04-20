@@ -1,6 +1,9 @@
 pitrery 1.7
 ===========
 
+  * Show the storage method and compression suffix when listing
+    backups in verbose mode.
+
   * Allow configuration of compression tools used when storing backup
     contents using tar.
 

@@ -109,6 +109,17 @@ for dir in $list; do
 	    echo -ne "$backup_size\t"
 	fi
 
+	# Find the storage method of the backup, with compression suffix for tar
+	if [ -n "$verbose" ]; then
+	    if [ -d "$dir/pgdata" ]; then
+		echo "  storage: rsync"
+	    else
+		suffix=`ls $dir/pgdata.tar.* 2>/dev/null | sed -r -e 's/.*\.tar\.(.+)$/\1/'`
+		[ -z "$suffix" ] && suffix="unknown"
+		echo "  storage: tar with $suffix compression"
+	    fi
+	fi
+
 	# Print the minimum recovery target time with this backup
 	if [ -f $dir/backup_label ]; then
 	    [ -n "$verbose" ] && echo "Minimum recovery target time:"
@@ -158,6 +169,18 @@ for dir in $list; do
 	else
 	    echo "ERROR: could not find size of $backup_dir" 1>&2
 	    st=1
+	fi
+
+	# Storage method with compression suffix for tar
+	if [ -n "$verbose" ]; then
+	    ssh ${ssh_user:+$ssh_user@}$host "test -d $dir/pgdata" 2>/dev/null
+	    if [ $? = 0 ]; then
+		echo "  storage: rsync"
+	    else
+		suffix=`ssh ${ssh_user:+$ssh_user@}$host "ls $dir/pgdata.tar.*" 2>/dev/null | sed -r -e 's/.*\.tar\.(.+)$/\1/'`
+		[ -z "$suffix" ] && suffix="unknown"
+		echo "  storage: tar with $suffix compression"
+	    fi
 	fi
 
 	# Minimum recovery target time
