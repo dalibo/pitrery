@@ -56,6 +56,18 @@ a:hover small {
   margin:0 auto;
 }
 
+.wrapper header h1 {
+  width: 136px;
+height: 41px;
+display: block;
+background-position: 0 0;
+text-indent: -999999em;
+background-image: url('../imgs/pitrery_logo.png');
+background-repeat: no-repeat;
+overflow: hidden;
+
+}
+
 blockquote {
   border-left:1px solid #e5e5e5;
   margin:0;
