@@ -415,8 +415,11 @@ case $storage in
 		# Check if pgdata is a directory, this checks if the
 		# storage method is rsync or tar.
 		if [ -d $prev_backup/pgdata ]; then
+		    # pax needs the target directory to exist
+		    mkdir -p $backup_dir/pgdata
+
 		    info "preparing hardlinks from previous backup"
-		    cp -rl $prev_backup/pgdata $backup_dir/pgdata
+		    (cd $prev_backup/pgdata && pax -rwl . $backup_dir/pgdata)
 		    if [ $? != 0 ]; then
 			error_and_hook "could not hardlink previous backup"
 		    fi
@@ -424,10 +427,13 @@ case $storage in
 	    else
 		ssh ${ssh_user:+$ssh_user@}$target "test -d $prev_backup/pgdata" 2>/dev/null
 		if [ $? = 0 ]; then
+		    # pax needs the target directory to exist
+		    ssh ${ssh_user:+$ssh_user@}$target "mkdir -p $backup_dir/pgdata" 2>/dev/null
+
 		    info "preparing hardlinks from previous backup"
-		    ssh ${ssh_user:+$ssh_user@}$target "cp -rl $prev_backup/pgdata $backup_dir/pgdata" 2>/dev/null
+		    ssh ${ssh_user:+$ssh_user@}$target "cd $prev_backup/pgdata && pax -rwl . $backup_dir/pgdata" 2>/dev/null
 		    if [ $? != 0 ]; then
-			error_and_hook "could not hardlink previous backup"
+			error_and_hook "could not hardlink previous backup. Missing pax?"
 		    fi
 		fi
 	    fi
@@ -465,8 +471,11 @@ case $storage in
 	    	# Link previous backup of the tablespace
 	    	if [ $local_backup = "yes" ]; then
 	    	    if [ -d $prev_backup/tblspc/$_name ]; then
+			# pax needs the target directory to exist
+			mkdir -p $backup_dir/tblspc/$_name
+
 	    		info "preparing hardlinks from previous backup"
-	    		cp -rl $prev_backup/tblspc/$_name $backup_dir/tblspc/$_name
+	    		(cd $prev_backup/tblspc/$_name && pax -rwl . $backup_dir/tblspc/$_name)
 	    		if [ $? != 0 ]; then
 	    		    error_and_hook "could not hardlink previous backup"
 	    		fi
@@ -474,10 +483,13 @@ case $storage in
 	    	else
 	    	    ssh -n ${ssh_user:+$ssh_user@}$target "test -d $prev_backup/tblspc/$_name" 2>/dev/null
 	    	    if [ $? = 0 ]; then
+			# pax needs the target directory to exist
+			ssh ${ssh_user:+$ssh_user@}$target "mkdir -p $backup_dir/tblspc/$_name" 2>/dev/null
+
 	    		info "preparing hardlinks from previous backup"
-	    		ssh -n ${ssh_user:+$ssh_user@}$target "cp -rl $prev_backup/tblspc/$_name $backup_dir/tblspc/$_name" 2>/dev/null
+	    		ssh -n ${ssh_user:+$ssh_user@}$target "cd $prev_backup/tblspc/$_name && pax -rwl . $backup_dir/tblspc/$_name" 2>/dev/null
 	    		if [ $? != 0 ]; then
-	    		    error_and_hook "could not hardlink previous backup"
+	    		    error_and_hook "could not hardlink previous backup. Missing pax?"
 	    		fi
 	    	    fi
 	    	fi

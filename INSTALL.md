@@ -124,6 +124,8 @@ standard tools found on any Linux server are needed: `grep`, `sed`, `awk`,
 
 `rsync` is needed to archive WAL files over the network on *both* hosts.
 
+When making backups using `rsync`, `pax` is required on target host.
+
 GNU make is also needed to install from the source tarball.
 
 

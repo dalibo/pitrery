@@ -1,3 +1,18 @@
+Upgrade to 1.8
+==============
+
+Backup
+------
+
+When using the "rsync" storage method, the directory tree of the
+previous backup is duplicated using hardlinks for files, before
+rsync'ing over the new tree. The duplication is no longer done using
+`cp -rl` but with `pax -rwl`. This make pitrery more portable on
+non-GNU systems.
+
+When using this method over SSH, `pax` is required on the target host.
+
+
 Upgrade to 1.7
 ==============
 
@@ -5,7 +20,7 @@ Usage
 -----
 
 * Calling `pitrery` by using `pitr_mgr` is no longer possible. The
-  symloink has been removed after keeping backward compatibility for
+  symlink has been removed after keeping backward compatibility for
   two versions.
 
 * The post backup hook script, configurable using
