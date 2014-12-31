@@ -1,3 +1,11 @@
+pitrery (1.8-1) unstable; urgency=low
+
+  * Exclude temporary locations from backup
+  * Depend on pax to create hardlinks instead of GNU cp, for better
+    portability.
+
+ -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Wed, 31 Dec 2014 16:55:21 +0100
+
 pitrery (1.7-1) unstable; urgency=low
 
   * New upstream release

@@ -1,14 +1,15 @@
 Name:           pitrery
-Version:        1.7
+Version:        1.8
 Release:        1%{?dist}
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
 Group:          Applications/Databases
 URL:            https://github.com/dalibo/pitrery
-Source0:        pitrery-1.7.tar.gz
+Source0:        pitrery-%{version}.tar.gz
 Patch1:         pitrery.config.patch
 BuildArch:      noarch
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+Requires:       bash, rsync, pax
 
 %description
 pitrery is set of tools to ease to management of PITR backups and
@@ -46,6 +47,9 @@ make install DESTDIR=%{buildroot}
 %doc /usr/share/doc/pitrery/CHANGELOG
 
 %changelog
+* Wed Dec 31 2014 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.8-1
+- Update to 1.8
+
 * Sat Apr 19 2014 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.7-1
 - Update to 1.7
 - Upstream has removed /usr/bin/pitr_mgr
