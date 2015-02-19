@@ -33,6 +33,7 @@ usage() {
     echo "options:"
     echo "    -c file      Path to the configuration file"
     echo "    -n           Show the command instead of executing it"
+    echo "    -V           Display the version and exit"
     echo "    -?           Print help"
     echo
     echo "actions:"
@@ -53,10 +54,11 @@ info() {
     echo "INFO: $*"
 }
 
-while getopts "c:n?" opt; do
+while getopts "c:nV?" opt; do
     case "$opt" in
 	c) config=$OPTARG;;
 	n) dry_run="echo";;
+	V) echo "pitrery @VERSION@"; exit 0;;
 	'?') usage 1;;
 	*) error "error while processing options";;
     esac

@@ -19,7 +19,7 @@ CONFS = $(basename $(SRCCONFS))
 all: options $(BINS) $(LIBS) $(CONFS)
 
 options:
-	@echo ${NAME} install options:
+	@echo ${NAME} ${VERSION} install options:
 	@echo "PREFIX     = ${PREFIX}"
 	@echo "BINDIR     = ${BINDIR}"
 	@echo "LIBDIR     = ${LIBDIR}/${NAME}"
@@ -31,6 +31,7 @@ $(BINS) $(LIBS): $(SRCS)
 	@echo translating paths in bash scripts: $@
 	@sed -e "s%@BASH@%${BASH}%" \
 		-e "s%@HARDLINKER@%${HARDLINKER}%" \
+		-e "s%@VERSION@%${VERSION}%" \
 		-e "s%@BINDIR@%${BINDIR}%" \
 		-e "s%@SYSCONFDIR@%${SYSCONFDIR}%" \
 		-e "s%@LIBDIR@%${LIBDIR}/${NAME}%" $(addsuffix .bash,$@) > $@
