@@ -1,3 +1,9 @@
+pitrery (1.8-2) unstable; urgency=low
+
+  * Removing dependency on pax, GNU cp being the default and pax optional
+
+ -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Thu, 19 Feb 2015 15:25:40 +0100
+
 pitrery (1.8-1) unstable; urgency=low
 
   * Exclude temporary locations from backup

@@ -30,6 +30,7 @@ options:
 $(BINS) $(LIBS): $(SRCS)
 	@echo translating paths in bash scripts: $@
 	@sed -e "s%@BASH@%${BASH}%" \
+		-e "s%@HARDLINKER@%${HARDLINKER}%" \
 		-e "s%@BINDIR@%${BINDIR}%" \
 		-e "s%@SYSCONFDIR@%${SYSCONFDIR}%" \
 		-e "s%@LIBDIR@%${LIBDIR}/${NAME}%" $(addsuffix .bash,$@) > $@

@@ -1,6 +1,6 @@
 Name:           pitrery
 Version:        1.8
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
 Group:          Applications/Databases
@@ -9,7 +9,7 @@ Source0:        pitrery-%{version}.tar.gz
 Patch1:         pitrery.config.patch
 BuildArch:      noarch
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Requires:       bash, rsync, pax
+Requires:       bash, rsync
 
 %description
 pitrery is set of tools to ease to management of PITR backups and
@@ -47,6 +47,9 @@ make install DESTDIR=%{buildroot}
 %doc /usr/share/doc/pitrery/CHANGELOG
 
 %changelog
+* Thu Feb 19 2015 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.8-2
+- Do not depend on pax, it is no longer the default
+
 * Wed Dec 31 2014 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.8-1
 - Update to 1.8
 

@@ -6,11 +6,12 @@ Backup
 
 When using the "rsync" storage method, the directory tree of the
 previous backup is duplicated using hardlinks for files, before
-rsync'ing over the new tree. The duplication is no longer done using
-`cp -rl` but with `pax -rwl`. This make pitrery more portable on
-non-GNU systems.
+rsync'ing over the new tree. The duplication can be done using `cp
+-rl` or `pax -rwl`. This make pitrery more portable on non-GNU
+systems. The tool can be chosen at build time, GNU cp staying the
+default.
 
-When using this method over SSH, `pax` is required on the target host.
+When using this method over SSH, `pax` may be required on the target host.
 
 
 Upgrade to 1.7

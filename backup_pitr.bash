@@ -92,7 +92,6 @@ rsync_opts="-q --whole-file" # Remote only
 compress_bin="gzip -4"
 compress_suffix="gz"
 
-
 # CLI options
 while getopts "Lb:l:u:D:s:c:e:P:h:p:U:d:?" opt; do
     case "$opt" in
@@ -419,7 +418,7 @@ case $storage in
 		    mkdir -p $backup_dir/pgdata
 
 		    info "preparing hardlinks from previous backup"
-		    (cd $prev_backup/pgdata && pax -rwl . $backup_dir/pgdata)
+		    (cd $prev_backup/pgdata && @HARDLINKER@ . $backup_dir/pgdata)
 		    if [ $? != 0 ]; then
 			error_and_hook "could not hardlink previous backup"
 		    fi
@@ -431,7 +430,7 @@ case $storage in
 		    ssh ${ssh_user:+$ssh_user@}$target "mkdir -p $backup_dir/pgdata" 2>/dev/null
 
 		    info "preparing hardlinks from previous backup"
-		    ssh ${ssh_user:+$ssh_user@}$target "cd $prev_backup/pgdata && pax -rwl . $backup_dir/pgdata" 2>/dev/null
+		    ssh ${ssh_user:+$ssh_user@}$target "cd $prev_backup/pgdata && @HARDLINKER@ . $backup_dir/pgdata" 2>/dev/null
 		    if [ $? != 0 ]; then
 			error_and_hook "could not hardlink previous backup. Missing pax?"
 		    fi
@@ -475,7 +474,7 @@ case $storage in
 			mkdir -p $backup_dir/tblspc/$_name
 
 	    		info "preparing hardlinks from previous backup"
-	    		(cd $prev_backup/tblspc/$_name && pax -rwl . $backup_dir/tblspc/$_name)
+	    		(cd $prev_backup/tblspc/$_name && @HARDLINKER@ . $backup_dir/tblspc/$_name)
 	    		if [ $? != 0 ]; then
 	    		    error_and_hook "could not hardlink previous backup"
 	    		fi
@@ -487,7 +486,7 @@ case $storage in
 			ssh ${ssh_user:+$ssh_user@}$target "mkdir -p $backup_dir/tblspc/$_name" 2>/dev/null
 
 	    		info "preparing hardlinks from previous backup"
-	    		ssh -n ${ssh_user:+$ssh_user@}$target "cd $prev_backup/tblspc/$_name && pax -rwl . $backup_dir/tblspc/$_name" 2>/dev/null
+	    		ssh -n ${ssh_user:+$ssh_user@}$target "cd $prev_backup/tblspc/$_name && @HARDLINKER@ . $backup_dir/tblspc/$_name" 2>/dev/null
 	    		if [ $? != 0 ]; then
 	    		    error_and_hook "could not hardlink previous backup. Missing pax?"
 	    		fi
