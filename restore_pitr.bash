@@ -32,9 +32,10 @@ pgdata=/var/lib/pgsql/data
 owner=`id -un`
 archive_dir=/var/lib/pgsql/archived_xlog
 dry_run="no"
-rsync_opts="-q --whole-file" # Remote only
+rsync_opts="-q" # Remote only
 uncompress_bin="gunzip"
 compress_suffix="gz"
+overwrite="no"
 
 usage() {
     echo "`basename $0` performs a PITR restore"
@@ -54,6 +55,7 @@ usage() {
     echo "    -t tblspc:dir        Change the target directory of tablespace \"ts\""
     echo "                           this switch can be used many times"
     echo "    -n                   Dry run: show restore information only"
+    echo "    -R                   Overwrite destination directories"
     echo "    -c compress_bin      Uncompression command for tar method"
     echo "    -e compress_suffix   Suffix added by the compression program"
     echo
@@ -125,7 +127,28 @@ check_and_fix_directory() {
 	fi
 
 	if [ $content != 0 ]; then
-	    error "$dir is not empty. Contents won't be overridden"
+	    if [ $overwrite = "yes" ]; then
+		# Cancel in case there may be a postmaster running.
+		if [ -e $dir/postmaster.pid ]; then
+		    error "Found $dir/postmaster.pid. A postmaster may be running. Aborting."
+		fi
+
+		info "$dir is not empty, its contents will be overwritten"
+		# This is called after we know the storage
+		# method. When using "tar", we must clean the target
+		# directory. When using "rsync", we just let it do its
+		# diffs.
+		if [ $storage = "tar" ]; then
+		    info "Removing contents of $dir"
+		    rm -rf $dir/*
+		fi
+	    else
+		error "$dir is not empty. Contents won't be overwritten"
+	    fi
+	else
+	    # make rsync copy the whole files because target
+	    # directories are empty
+	    rsync_opts="$rsync_opts --whole-file"
 	fi
     fi
     
@@ -163,7 +186,7 @@ check_and_fix_directory() {
 
 
 # Process CLI Options
-while getopts "Lu:b:l:D:x:d:O:t:nc:e:Ah:U:X:r:CSf:i:?" opt; do
+while getopts "Lu:b:l:D:x:d:O:t:nRc:e:Ah:U:X:r:CSf:i:?" opt; do
     case "$opt" in
 	L) local_backup="yes";;
 	u) ssh_user=$OPTARG;;
@@ -175,6 +198,7 @@ while getopts "Lu:b:l:D:x:d:O:t:nc:e:Ah:U:X:r:CSf:i:?" opt; do
 	O) owner=$OPTARG;;
 	t) tsmv_list="$tsmv_list $OPTARG";;
 	n) dry_run="yes";;
+	R) overwrite="yes";;
 	c) uncompress_bin="$OPTARG";;
 	e) compress_suffix=$OPTARG;;
 
@@ -428,6 +452,32 @@ fi
 
 # Real work starts here
 
+# Find out what storage method is used in the backup. If the PGDATA is
+# stored as a gzip'ed tarball, the method is tar, if it is a
+# directory, then backup_pitr used rsync to put files there.
+if [ $local_backup = "yes" ]; then
+    if [ -f "$backup_dir/pgdata.tar.$compress_suffix" ]; then
+	storage="tar"
+    elif [ -d "$backup_dir/pgdata" ]; then
+	storage="rsync"
+    else
+	error "could not find out what storage method or compression is used in $backup_dir"
+    fi
+else
+    ssh ${ssh_user:+$ssh_user@}$source "test -f $backup_dir/pgdata.tar.$compress_suffix" 2>/dev/null
+    if [ $? = 0 ]; then
+	storage="tar"
+    else
+	ssh ${ssh_user:+$ssh_user@}$source "test -d $backup_dir/pgdata" 2>/dev/null
+	if [ $? = 0 ]; then
+	    storage="rsync"
+	else
+	    error "could not find out what storage method or compression is used in $source:$backup_dir"
+	fi
+    fi
+fi
+
+
 # Check target directories
 check_and_fix_directory $pgdata
 
@@ -458,30 +508,6 @@ if [ -f "$tblspc_reloc" ]; then
     done < $tblspc_reloc
 fi
 
-# Find out what storage method is used in the backup. If the PGDATA is
-# stored as a gzip'ed tarball, the method is tar, if it is a
-# directory, then backup_pitr used rsync to put files there.
-if [ $local_backup = "yes" ]; then
-    if [ -f "$backup_dir/pgdata.tar.$compress_suffix" ]; then
-	storage="tar"
-    elif [ -d "$backup_dir/pgdata" ]; then
-	storage="rsync"
-    else
-	error "could not find out what storage method or compression is used in $backup_dir"
-    fi
-else
-    ssh ${ssh_user:+$ssh_user@}$source "test -f $backup_dir/pgdata.tar.$compress_suffix" 2>/dev/null
-    if [ $? = 0 ]; then
-	storage="tar"
-    else
-	ssh ${ssh_user:+$ssh_user@}$source "test -d $backup_dir/pgdata" 2>/dev/null
-	if [ $? = 0 ]; then
-	    storage="rsync"
-	else
-	    error "could not find out what storage method or compression is used in $source:$backup_dir"
-	fi
-    fi
-fi
 
 # Extract everything
 case $storage in

@@ -209,7 +209,7 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lu:b:l:D:x:d:O:t:nc:e:Ah:U:X:r:CSf:i:?" arg 2>/dev/null; do
+	while getopts "Lu:b:l:D:x:d:O:t:nRc:e:Ah:U:X:r:CSf:i:?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		u) BACKUP_USER=$OPTARG;;
@@ -221,6 +221,7 @@ case $action in
 		O) PGOWNER=$OPTARG;;
 		t) TBLSPC_RELOC="$TBLSPC_RELOC -t $OPTARG";;
 		n) DRY_RUN="yes";;
+		R) OVERWRITE="yes";;
 		c) BACKUP_UNCOMPRESS_BIN="$OPTARG";;
 		e) BACKUP_COMPRESS_SUFFIX=$OPTARG;;
 
@@ -248,6 +249,7 @@ case $action in
 	[ -n "$PGOWNER" ] && opts="$opts -O $PGOWNER"
 	[ -n "$TBLSPC_RELOC" ] && opts="$opts $TBLSPC_RELOC"
 	[ "$DRY_RUN" = "yes" ] && opts="$opts -n"
+	[ -n "$OVERWRITE" ] && opts="$opts -R"
 	[ -n "$BACKUP_COMPRESS_SUFFIX" ] && opts="$opts -e $BACKUP_COMPRESS_SUFFIX"
 	[ "$ARCHIVE_LOCAL" = "yes" ] && opts="$opts -A"
 	[ -n "$ARCHIVE_HOST" ] && opts="$opts -h $ARCHIVE_HOST"

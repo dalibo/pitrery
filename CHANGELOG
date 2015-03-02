@@ -8,6 +8,9 @@ pitrery 1.8
 
   * Add a -V switch to the pitrery wrapper script to show the version.
 
+  * Add an option (-R) to overwrite target directory on restore.
+
+
 pitrery 1.7
 ===========
 

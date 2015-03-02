@@ -752,13 +752,15 @@ This action perform the following steps:
   `PGDATA/restored_config_files` if they were outside PGDATA at the time
   of the backup.
 
-* Optinally, create a script to update the catalog when paths to
+* Optionally, create a script to update the catalog when paths to
   tablespaces have changed, for PostgreSQL <= 9.1.
 
 The restore will only work if the target destination directory (PGDATA
 in the configuration file of pitrery) and the directories used by
 tablespaces exist or can be created, are writable and empty. It is
-important to prepare those directories before running the restore.
+important to prepare those directories before running the restore. As
+of version 1.8, it is possible to overwrite contents of target
+directories with the `-R` option.
 
 When specifiying a target date, it will be used in the
 `$PGDATA/recovery.conf` file as value for the `recovery_target_time`
@@ -880,7 +882,9 @@ as of 9.2). This script must be run as a superuser role on the
 restored cluster after the recovery.
 
 Again, if unsure, run the restore action with the `-n` switch to display
-what would be done. The options of restore are:
+what would be done.
+
+The options of restore are:
 
     $ pitrery restore -?
     restore_pitr performs a PITR restore
@@ -900,6 +904,7 @@ what would be done. The options of restore are:
         -t tblspc:dir        Change the target directory of tablespace "ts"
                                this switch can be used many times
         -n                   Dry run: show restore information only
+        -R                   Overwrite destination directories
         -c compress_bin      Uncompression command for tar method
         -e compress_suffix   Suffix added by the compression program
     
