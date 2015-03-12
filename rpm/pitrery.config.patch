@@ -1,7 +1,8 @@
---- config.mk.orig	2013-07-15 20:50:10.586291939 +0200
-+++ config.mk	2013-07-15 20:50:44.590291433 +0200
-@@ -7,8 +7,8 @@
- BASH = /bin/bash
+Setup the installation paths
+--- config.mk
++++ config.mk
+@@ -15,8 +15,8 @@
+ #HARDLINKER = pax -rwl
  
  # paths
 -PREFIX = /usr/local
