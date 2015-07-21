@@ -302,6 +302,10 @@ for wal in $wal_list; do
 		i=$(($i + 1))
 	    fi
 	fi
+    else
+	# Since ls sorts files in alphabetical order, there are no
+	# more wal files to purge if this block is reached
+	break
     fi
 done
 
