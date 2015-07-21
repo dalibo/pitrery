@@ -522,7 +522,7 @@ case $storage in
 	    uncompress_rc=${rc[0]}
 	    tar_rc=${rc[1]}
 	    if [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
-		echo "ERROR: could extract $backup_dir/pgdata.tar.$compress_suffix to $pgdata" 1>&2
+		echo "ERROR: could not extract $backup_dir/pgdata.tar.$compress_suffix to $pgdata" 1>&2
 		cd $was
 		exit 1
 	    fi
@@ -533,7 +533,7 @@ case $storage in
 	    uncompress_rc=${rc[1]}
 	    tar_rc=${rc[2]}
 	    if [ $ssh_rc != 0 ] || [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
-		echo "ERROR: could extract $source:$backup_dir/pgdata.tar.$compress_suffix to $pgdata" 1>&2
+		echo "ERROR: could not extract $source:$backup_dir/pgdata.tar.$compress_suffix to $pgdata" 1>&2
 		cd $was
 		exit 1
 	    fi
