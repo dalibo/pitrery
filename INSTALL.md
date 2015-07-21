@@ -122,9 +122,8 @@ pitrery is a set of bash scripts, so bash is needed. Apart from bash,
 standard tools found on any Linux server are needed: `grep`, `sed`, `awk`,
 `tar`, `gzip`, `ssh`, `scp`...
 
-`rsync` is needed to archive WAL files over the network on *both* hosts.
-
-When making backups using `rsync`, `pax` is required on target host.
+`rsync` is needed to archive WAL files over the network on *both* hosts, and
+for backups using the rsync storage method.
 
 GNU make is also needed to install from the source tarball.
 

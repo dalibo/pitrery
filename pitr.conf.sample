@@ -75,8 +75,7 @@ POST_BACKUP_COMMAND=
 # and each tablespace and try to optimize data transfer by hardlinking
 # the previous backup (provided it was done with the "rsync"
 # method). Use "tar" if space for the backup matters more than speed,
-# use "rsync" if speed is more important. The pax archiving tool is
-# required for "rsync".
+# use "rsync" if speed is more important.
 STORAGE="tar"
 
 ####################
