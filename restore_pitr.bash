@@ -36,6 +36,7 @@ rsync_opts="-q" # Remote only
 uncompress_bin="gunzip"
 compress_suffix="gz"
 overwrite="no"
+log_timestamp="no"
 
 usage() {
     echo "`basename $0` performs a PITR restore"
@@ -70,13 +71,18 @@ usage() {
     echo "    -f facility          Syslog facility"
     echo "    -i ident             Syslog ident"
     echo
+    echo "    -T                   Timestamp log messages"
     echo "    -?                   Print help"
     echo
     exit $1
 }
 
+now() {
+    [ $log_timestamp = "yes" ] && echo -e "$(date "+%F %T %Z ")"
+}
+
 error() {
-    echo "ERROR: $*" 1>&2
+    echo "$(now)ERROR: $*" 1>&2
 
     # Clean tmp dir
     if [ -n "$tmp_dir" ]; then
@@ -86,11 +92,11 @@ error() {
 }
 
 warn() {
-    echo "WARNING: $*" 1>&2
+    echo "$(now)WARNING: $*" 1>&2
 }
 
 info() {
-    echo "INFO: $*"
+    echo "$(now)INFO: $*"
 }
 
 check_and_fix_directory() {
@@ -186,7 +192,7 @@ check_and_fix_directory() {
 
 
 # Process CLI Options
-while getopts "Lu:b:l:D:x:d:O:t:nRc:e:Ah:U:X:r:CSf:i:?" opt; do
+while getopts "Lu:b:l:D:x:d:O:t:nRc:e:Ah:U:X:r:CSf:i:T?" opt; do
     case "$opt" in
 	L) local_backup="yes";;
 	u) ssh_user=$OPTARG;;
@@ -212,7 +218,7 @@ while getopts "Lu:b:l:D:x:d:O:t:nRc:e:Ah:U:X:r:CSf:i:?" opt; do
 	f) syslog_facility=$OPTARG;;
 	i) syslog_ident=$OPTARG;;
 
-
+	T) log_timestamp="yes";;
 	"?") usage 1;;
 	*) error "Unknown error while processing options";;
     esac

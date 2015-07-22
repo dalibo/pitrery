@@ -30,6 +30,7 @@ backup_root=/var/lib/pgsql/backups
 label_prefix="pitr"
 local_xlog="no"
 xlog_dir=/var/lib/pgsql/archived_xlog
+log_timestamp="no"
 
 usage() {
     echo "`basename $0` cleans old PITR backups"
@@ -46,17 +47,22 @@ usage() {
     echo "    -m count     Keep this number of backups"
     echo "    -d days      Purge backups older than this number of days"
     echo
+    echo "    -T           Timestamp log messages"
     echo "    -?           Print help"
     echo
     exit $1
 }
 
+now() {
+    [ $log_timestamp = "yes" ] && echo -e "$(date "+%F %T %Z ")"
+}
+
 info() {
-    echo "INFO: $*"
+    echo "$(now)INFO: $*"
 }
 
 error() {
-    echo "ERROR: $*" 1>&2
+    echo "$(now)ERROR: $*" 1>&2
     if [ -n "$tmp_dir" ]; then
 	[ -d "$tmp_dir" ] && rm -rf $tmp_dir
     fi
@@ -64,11 +70,11 @@ error() {
 }
 
 warn() {
-    echo "WARNING: $*" 1>&2
+    echo "$(now)WARNING: $*" 1>&2
 }
 
 # CLI options
-args=`getopt "Ll:b:u:n:U:X:m:d:?" $*`
+args=`getopt "Ll:b:u:n:U:X:m:d:T?" $*`
 if [ $? -ne 0 ]
 then
     usage 2
@@ -87,6 +93,7 @@ do
 	-X) xlog_dir=$2; shift 2;;
 	-m) max_count=$2; shift 2;;
 	-d) max_days=$2; shift 2;;
+	-T) log_timestamp="yes"; shift;;
 
         -\?) usage 1;;
         --) shift; break;;

@@ -394,6 +394,9 @@ through pitrery :
   `RESTORE_COMMAND` is empty. They define the location (either local or
   through SSH) where the WAL files are stored.
 
+* `LOG_TIMESTAMP` can be set to yes to prefix the messages with the
+  date for backup, restore and purge actions.
+
 
 Hooks
 -----
@@ -506,6 +509,7 @@ action, for example :
         -U NAME              connect as specified database user
         -d DATABASE          database to use for connection
     
+        -T                   Timestamp log messages
         -?                   Print help
 
 
@@ -571,6 +575,7 @@ action is:
         -U NAME              connect as specified database user
         -d DATABASE          database to use for connection
     
+        -T                   Timestamp log messages
         -?                   Print help   
 
 
@@ -918,6 +923,7 @@ The options of restore are:
         -f facility          Syslog facility
         -i ident             Syslog ident
     
+        -T                   Timestamp log messages
         -?                   Print help
 
 
@@ -949,3 +955,26 @@ one, while `PURGE_KEEP_COUNT=2`:
 
 Note that if there are no backups but archived WAL files, the purge
 action will not remove those WAL files.
+
+The options of purge are:
+
+    $ pitrery purge -?
+    purge_pitr cleans old PITR backups
+    usage: purge_pitr [options] [hostname]
+    options:
+        -L           Purge a local store
+        -l label     Label to process
+        -b dir       Backup directory
+        -u username  Username for SSH login to the backup host
+        -n host      Host storing archived WALs
+        -U username  Username for SSH login to WAL storage host
+        -X dir       Archived WALs directory
+    
+        -m count     Keep this number of backups
+        -d days      Purge backups older than this number of days
+    
+        -T           Timestamp log messages
+        -?           Print help
+    
+
+

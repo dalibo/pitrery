@@ -47,9 +47,14 @@ usage() {
     echo "    -U NAME              connect as specified database user"
     echo "    -d DATABASE          database to use for connection"
     echo
+    echo "    -T                   Timestamp log messages"
     echo "    -?                   Print help"
     echo
     exit $1
+}
+
+now() {
+    [ $log_timestamp = "yes" ] && echo -e "$(date "+%F %T %Z ")"
 }
 
 cleanup() {
@@ -68,18 +73,18 @@ cleanup() {
 }
 
 error() {
-    echo "ERROR: $*" 1>&2
+    echo "$(now)ERROR: $*" 1>&2
     cleanup
     exit 1
 }
 
 
 warn() {
-    echo "WARNING: $*" 1>&2
+    echo "$(now)WARNING: $*" 1>&2
 }
 
 info() {
-    echo "INFO: $*"
+    echo "$(now)INFO: $*"
 }
 
 # Hard coded configuration
@@ -91,9 +96,11 @@ storage="tar"
 rsync_opts="-q --whole-file" # Remote only
 compress_bin="gzip -4"
 compress_suffix="gz"
+log_timestamp="no"
+
 
 # CLI options
-while getopts "Lb:l:u:D:s:c:e:P:h:p:U:d:?" opt; do
+while getopts "Lb:l:u:D:s:c:e:P:h:p:U:d:T?" opt; do
     case "$opt" in
         L) local_backup="yes";;
 	b) backup_root=$OPTARG;;
@@ -110,6 +117,7 @@ while getopts "Lb:l:u:D:s:c:e:P:h:p:U:d:?" opt; do
 	U) dbuser=$OPTARG;;
 	d) dbname=$OPTARG;;
 
+	T) log_timestamp="yes";;
         "?") usage 1;;
 	*) error "Unknown error while processing options";;
     esac

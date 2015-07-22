@@ -139,7 +139,7 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lb:l:u:D:s:P:h:p:U:d:c:e:?" arg 2>/dev/null; do
+	while getopts "Lb:l:u:D:s:P:h:p:U:d:c:e:T?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		b) BACKUP_DIR=$OPTARG;;
@@ -154,6 +154,7 @@ case $action in
 		d) PGDATABASE=$OPTARG;;
 		c) BACKUP_COMPRESS_BIN="$OPTARG";;
 		e) BACKUP_COMPRESS_SUFFIX=$OPTARG;;
+		T) LOG_TIMESTAMP="yes";;
 
 		'?') $cmd -?; exit $?;;
 	    esac
@@ -172,6 +173,7 @@ case $action in
 	[ -n "$PGUSER" ] && opts="$opts -U $PGUSER"
 	[ -n "$PGDATABASE" ] && opts="$opts -d $PGDATABASE"
 	[ -n "$BACKUP_COMPRESS_SUFFIX" ] && opts="$opts -e $BACKUP_COMPRESS_SUFFIX"
+	[ "$LOG_TIMESTAMP" = "yes" ] && opts="$opts -T"
 
 	# Take care of the destination host
 	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then
@@ -209,7 +211,7 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lu:b:l:D:x:d:O:t:nRc:e:Ah:U:X:r:CSf:i:?" arg 2>/dev/null; do
+	while getopts "Lu:b:l:D:x:d:O:t:nRc:e:Ah:U:X:r:CSf:i:T?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		u) BACKUP_USER=$OPTARG;;
@@ -234,6 +236,7 @@ case $action in
 		S) SYSLOG="yes";;
 		f) SYSLOG_FACILITY=$OPTARG;;
 		i) SYSLOG_IDENT=$OPTARG;;
+		T) LOG_TIMESTAMP="yes";;
 
 		"?") $cmd -?; exit $?;;
 	    esac
@@ -261,6 +264,7 @@ case $action in
 	    [ -n "$SYSLOG_FACILITY" ] && opts="$opts -f $SYSLOG_FACILITY"
 	    [ -n "$SYSLOG_IDENT" ] && opts="$opts -i $SYSLOG_IDENT"
 	fi
+	[ "$LOG_TIMESTAMP" = "yes" ] && opts="$opts -T"
 
 	# Take care of the source host
 	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then
@@ -317,7 +321,7 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Ll:b:u:n:U:X:m:d:?" arg 2>/dev/null; do
+	while getopts "Ll:b:u:n:U:X:m:d:T?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		l) BACKUP_LABEL=$OPTARG;;
@@ -328,6 +332,8 @@ case $action in
 		X) ARCHIVE_DIR=$OPTARG;;
 		m) PURGE_KEEP_COUNT=$OPTARG;;
 		d) PURGE_OLDER_THAN=$OPTARG;;
+		T) LOG_TIMESTAMP="yes";;
+
 		"?") $cmd -?; exit $?;;
 	    esac
 	done
@@ -342,6 +348,7 @@ case $action in
 	[ -n "$ARCHIVE_DIR" ] && opts="$opts -X $ARCHIVE_DIR"
 	[ -n "$PURGE_KEEP_COUNT" ] && opts="$opts -m $PURGE_KEEP_COUNT"
 	[ -n "$PURGE_OLDER_THAN" ] && opts="$opts -d $PURGE_OLDER_THAN"
+	[ "$LOG_TIMESTAMP" = "yes" ] && opts="$opts -T"
 
 	# Take care of the destination host
 	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then

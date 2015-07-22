@@ -78,6 +78,9 @@ POST_BACKUP_COMMAND=
 # use "rsync" if speed is more important.
 STORAGE="tar"
 
+# Timestamp the messages.
+LOG_TIMESTAMP="no"
+
 ####################
 # WAL archiving
 ####################

@@ -3,6 +3,10 @@ pitrery 1.9
 
   * Improve the speed of the purge of archives WAL files.
 
+  * Add the -T switch along with the LOG_TIMESTAMP option to prefix
+    messages of backup, restore and purge with the date and time.
+
+
 pitrery 1.8
 ===========
 
