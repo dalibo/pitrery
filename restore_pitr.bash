@@ -53,7 +53,7 @@ usage() {
     echo "    -x dir               Path to the xlog directory (only if outside \$PGDATA)"
     echo "    -d date              Restore until this date"
     echo "    -O user              If run by root, owner of the files"
-    echo "    -t tblspc:dir        Change the target directory of tablespace \"ts\""
+    echo "    -t tblspc:dir        Change the target directory of tablespace \"tblspc\""
     echo "                           this switch can be used many times"
     echo "    -n                   Dry run: show restore information only"
     echo "    -R                   Overwrite destination directories"
