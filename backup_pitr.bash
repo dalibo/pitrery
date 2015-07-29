@@ -212,13 +212,9 @@ if [ $pg_version -ge 90000 ]; then
 	error "could not check if the server is in recovery"
     fi
 
-    # When the server is in recovery, exit without any error and print
-    # a warning. This way, the backup cronjobs can be active on
-    # standby servers
     if [ "$standby" = "t" ]; then
-	# Output a warning message only when run interactively
-	[ -t 0 ] && warn "unable to perform a base backup on a server in recovery mode. Aborting"
-	exit 0
+	error "unable to perform a base backup on a server in recovery mode. Aborting"
+	exit 1
     fi
 fi
 
