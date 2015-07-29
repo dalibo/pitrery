@@ -454,7 +454,7 @@ case $storage in
 		error_and_hook "rsync of PGDATA failed with exit code $rc"
 	    fi
 	else
-	    rsync $rsync_opts -e "ssh -c blowfish-cbc -o Compression=no" -a --delete-before --exclude pgsql_tmp --exclude pg_xlog --exclude 'postmaster.*' $pgdata/ ${ssh_user:+$ssh_user@}${target}:$backup_dir/pgdata/
+	    rsync $rsync_opts -e "ssh -o Compression=no" -a --delete-before --exclude pgsql_tmp --exclude pg_xlog --exclude 'postmaster.*' $pgdata/ ${ssh_user:+$ssh_user@}${target}:$backup_dir/pgdata/
 	    rc=$?
 	    if [ $rc != 0 -a $rc != 24 ]; then
 		error_and_hook "rsync of PGDATA failed with exit code $rc"
@@ -511,7 +511,7 @@ case $storage in
 	    	    error_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 	    	fi
 	    else
-	    	rsync $rsync_opts -e "ssh -c blowfish-cbc -o Compression=no" -a --delete-before --exclude pgsql_tmp $location/ ${ssh_user:+$ssh_user@}${target}:$backup_dir/tblspc/$_name/
+	    	rsync $rsync_opts -e "ssh -o Compression=no" -a --delete-before --exclude pgsql_tmp $location/ ${ssh_user:+$ssh_user@}${target}:$backup_dir/tblspc/$_name/
 	    	rc=$?
 	    	if [ $rc != 0 -a $rc != 24 ]; then
 	    	    error_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
