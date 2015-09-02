@@ -92,12 +92,12 @@ ARCHIVE_LOCAL="no"
 # archives from the local machine
 ARCHIVE_HOST=
 
-# The user for login to ARCHIVE_HOST through SSH. If blank, target
-# owner is used
+# The user for login to ARCHIVE_HOST through SSH. If blank, PostgreSQL
+# server process owner is used
 ARCHIVE_USER=
 
 # The directory where to look for archived WAL files on BACKUP_HOST.
-ARCHIVE_DIR="/var/lib/pgsql/archived_xlog"
+ARCHIVE_DIR="$BACKUP_DIR/$BACKUP_LABEL/archived_xlog"
 
 # Compress the WAL segment
 ARCHIVE_COMPRESS="yes"
@@ -105,7 +105,7 @@ ARCHIVE_COMPRESS="yes"
 # Logging options.  When SYSLOG is no, messages are written to stderr,
 # to allow the logging collector or redirection to catch them. These
 # parameters are intended to match their counterparts in
-# postgresql.conf
+# postgresql.conf. This only applies to WAL archiving.
 SYSLOG="no"
 SYSLOG_FACILITY="local0"
 SYSLOG_IDENT="postgres"
