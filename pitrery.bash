@@ -73,10 +73,11 @@ fi
 action=${@:$OPTIND:1}
 OPTIND=$(( $OPTIND + 1 ))
 
-# check if the config option is a path or in the current directory
-# otherwise prepend the configuration deirectory and .conf
+# Check if the config option is a path or just a name in the
+# configuration directory.  Prepend the configuration directory and
+# .conf when needed.
 echo $config | grep -q '\/' 
-if [ $? != 0 ] && [ ! -f $config ]; then
+if [ $? != 0 ]; then
     config="$config_dir/`basename $config .conf`.conf"
 fi
 

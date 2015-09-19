@@ -87,10 +87,11 @@ for i in $*; do
     esac
 done
 
-# check if the config option is a path or in the current directory
-# otherwise prepend the configuration directory and .conf
+# Check if the config option is a path or just a name in the
+# configuration directory.  Prepend the configuration directory and
+# .conf when needed.
 echo $CONFIG | grep -q '\/'
-if [ $? != 0 ] && [ ! -f $CONFIG ]; then
+if [ $? != 0 ]; then
     CONFIG="$CONFIG_DIR/`basename $CONFIG .conf`.conf"
 fi
 
