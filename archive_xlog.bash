@@ -29,6 +29,10 @@ error() {
     echo "ERROR: $1" 1>&2
 }
 
+warn() {
+    echo "WARNING: $1" 1>&2
+}
+
 # Script help
 usage() {
     echo "usage: `basename $0` [options] XLOGFILE"
@@ -57,8 +61,8 @@ SYSLOG="no"
 ARCHIVE_COMPRESS="yes"
 
 # Internal configuration
-COMPRESS_BIN="gzip -f -4"
-COMPRESS_SUFFIX="gz"
+ARCHIVE_COMPRESS_BIN="gzip -f -4"
+ARCHIVE_COMPRESS_SUFFIX="gz"
 
 # Command line options
 args=`getopt "LC:u:d:h:XSf:t:?" "$@"`
@@ -103,6 +107,16 @@ fi
 # Load configuration file
 if [ -f "$CONFIG" ]; then
     . $CONFIG
+
+    # Check for renamed parameters between versions
+    if [ -n "$COMPRESS_BIN" ]; then
+	ARCHIVE_COMPRESS_BIN=$COMPRESS_BIN
+	warn "archive_xlog: COMPRESS_BIN is deprecated. please use ARCHIVE_COMPRESS_BIN."
+    fi
+    if [ -n "$COMPRESS_SUFFIX" ]; then
+	ARCHIVE_COMPRESS_SUFFIX=$COMPRESS_SUFFIX
+	warn "archive_xlog: COMPRESS_SUFFIX is deprecated. please use ARCHIVE_COMPRESS_SUFFIX."
+    fi
 fi
 
 # Overwrite configuration with cli options
@@ -161,7 +175,7 @@ if [ $ARCHIVE_LOCAL = "yes" ]; then
 
     if [ $ARCHIVE_COMPRESS = "yes" ]; then
 	dest_path=$ARCHIVE_DIR/`basename $xlog`
-	$COMPRESS_BIN $dest_path
+	$ARCHIVE_COMPRESS_BIN $dest_path
 	rc=$?
 	if [ $rc != 0 ]; then
 	    error "Unable to compress $dest_path"
@@ -174,11 +188,11 @@ else
     echo $ARCHIVE_HOST | grep -q ':' && ARCHIVE_HOST="[${ARCHIVE_HOST}]" # Dummy test for IPv6
 
     if [ $ARCHIVE_COMPRESS = "yes" ]; then
-	file=/tmp/`basename $xlog`.$COMPRESS_SUFFIX
+	file=/tmp/`basename $xlog`.$ARCHIVE_COMPRESS_SUFFIX
 	# We take no risk, pipe the content to the compression program
 	# and save output elsewhere: the compression program never
 	# touches the input file
-	$COMPRESS_BIN -c < $xlog > $file
+	$ARCHIVE_COMPRESS_BIN -c < $xlog > $file
 	rc=$?
 	if [ $rc != 0 ]; then
 	    error "Compression to $file failed"

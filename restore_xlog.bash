@@ -30,6 +30,10 @@ error() {
     exit 1
 }
 
+warn() {
+    echo "WARNING: $1" 1>&2
+}
+
 # Script help
 usage() {
     echo "usage: `basename $0` [options] xlogfile destination"
@@ -58,8 +62,8 @@ SYSLOG="no"
 ARCHIVE_COMPRESS="yes"
 
 # Internal configuration
-UNCOMPRESS_BIN=gunzip
-COMPRESS_SUFFIX=gz
+ARCHIVE_UNCOMPRESS_BIN=gunzip
+ARCHIVE_COMPRESS_SUFFIX=gz
 
 # CLI processing
 args=`getopt "LC:u:h:d:XSf:t:?" "$@"`
@@ -93,6 +97,16 @@ fi
 # Load configuration file
 if [ -f "$CONFIG" ]; then
     . $CONFIG
+
+    # Check for renamed parameters between versions
+    if [ -n "$UNCOMPRESS_BIN" ]; then
+	ARCHIVE_UNCOMPRESS_BIN=$UNCOMPRESS_BIN
+	warn "restore_xlog: UNCOMPRESS_BIN is deprecated. please use ARCHIVE_UNCOMPRESS_BIN."
+    fi
+    if [ -n "$COMPRESS_SUFFIX" ]; then
+	ARCHIVE_COMPRESS_SUFFIX=$COMPRESS_SUFFIX
+	warn "restore_xlog: COMPRESS_SUFFIX is deprecated. please use ARCHIVE_COMPRESS_SUFFIX."
+    fi
 fi
 
 # Override configuration with cli options
@@ -132,8 +146,8 @@ fi
 
 # the filename to retrieve depends on compression
 if [ $ARCHIVE_COMPRESS = "yes" ]; then
-    xlog_file=${xlog}.$COMPRESS_SUFFIX
-    target_file=${target_path}.$COMPRESS_SUFFIX
+    xlog_file=${xlog}.$ARCHIVE_COMPRESS_SUFFIX
+    target_file=${target_path}.$ARCHIVE_COMPRESS_SUFFIX
 else
     xlog_file=$xlog
     target_file=$target_path
@@ -161,7 +175,7 @@ fi
 
 # Uncompress the file if needed
 if [ $ARCHIVE_COMPRESS = "yes" ]; then
-    $UNCOMPRESS_BIN $target_file
+    $ARCHIVE_UNCOMPRESS_BIN $target_file
     if [ $? != 0 ]; then
 	error "could not uncompress $target_file"
     fi

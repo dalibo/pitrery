@@ -1,2 +1,6 @@
 TODO / Roadmap
 
+- Check if all archives are available
+
+- Include all commented variables inside recovery.conf according to the version of PostgreSQL
+

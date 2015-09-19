@@ -10,6 +10,12 @@ pitrery 1.9
   * Add the -T switch along with the LOG_TIMESTAMP option to prefix
     messages of backup, restore and purge with the date and time.
 
+  * Rename the compression configuration parameters for WAL files to
+    avoid confusion :
+    * `COMPRESS_BIN` -> `ARCHIVE_COMPRESS_BIN`
+    * `COMPRESS_SUFFIX` -> `ARCHIVE_COMPRESS_SUFFIX`
+    * `UNCOMPRESS_BIN` -> `ARCHIVE_UNCOMPRESS_BIN`
+
 
 pitrery 1.8
 ===========
