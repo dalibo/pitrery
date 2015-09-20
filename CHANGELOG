@@ -16,6 +16,10 @@ pitrery 1.9
     * `COMPRESS_SUFFIX` -> `ARCHIVE_COMPRESS_SUFFIX`
     * `UNCOMPRESS_BIN` -> `ARCHIVE_UNCOMPRESS_BIN`
 
+  * Add the -c and -s switch to archive_xlog and restore_xlog which
+    allow to give the (un)compression command and compressed file suffix
+    respectively.
+
 
 pitrery 1.8
 ===========

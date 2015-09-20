@@ -268,9 +268,6 @@ Or maximum, but slow, compression with the standard `bzip2`:
     ARCHIVE_COMPRESS_SUFFIX="bz2"
     ARCHIVE_UNCOMPRESS_BIN="bunzip"
 
-These three parameters can be configured only inside the configuration
-file, not from the command line of `archive_xlog` and `restore_xlog`.
-
 
 Backups with tar
 ----------------

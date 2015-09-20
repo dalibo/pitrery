@@ -44,6 +44,8 @@ usage() {
     echo "    -h hostname    hostname for SSH login"
     echo "    -d dir         directory containaing WALs on host"
     echo "    -X             do not uncompress"
+    echo "    -c command     uncompression command"
+    echo "    -s suffix      compressed file suffix (ex: gz)"
     echo "    -S             send messages to syslog"
     echo "    -f facility    syslog facility"
     echo "    -t ident       syslog ident"
@@ -60,30 +62,25 @@ ARCHIVE_DIR=/var/lib/pgsql/archived_xlog
 ARCHIVE_LOCAL="no"
 SYSLOG="no"
 ARCHIVE_COMPRESS="yes"
-
-# Internal configuration
 ARCHIVE_UNCOMPRESS_BIN=gunzip
 ARCHIVE_COMPRESS_SUFFIX=gz
 
 # CLI processing
-args=`getopt "LC:u:h:d:XSf:t:?" "$@"`
-if [ $? -ne 0 ]; then
-    usage 2
-fi
-set -- $args
-for i in $*; do
-    case "$i" in
-	-L) CLI_ARCHIVE_LOCAL="yes"; shift;;
-	-C) CONGIG=$2; shift 2;;
-	-u) CLI_SSH_USER=$2; shift 2;;
-	-h) CLI_SSH_HOST=$2; shift 2;;
-	-d) CLI_ARCHIVE_DIR=$2; shift 2;;
-	-X) CLI_ARCHIVE_COMPRESS="no"; shift;;
-	-S) CLI_SYSLOG="yes"; shift;;
-	-f) CLI_SYSLOG_FACILITY=$2; shift 2;;
-	-t) CLI_SYSLOG_IDENT=$2; shift 2;;
-	-\?) usage 1;;
-	--) shift; break;;
+while getopts "LC:u:h:d:Xc:s:Sf:t:?" opt; do
+    case "$opt" in
+	L) CLI_ARCHIVE_LOCAL="yes";;
+	C) CONFIG=$OPTARG;;
+	u) CLI_SSH_USER=$OPTARG;;
+	h) CLI_SSH_HOST=$OPTARG;;
+	d) CLI_ARCHIVE_DIR=$OPTARG;;
+	X) CLI_ARCHIVE_COMPRESS="no";;
+	c) CLI_ARCHIVE_UNCOMPRESS_BIN="$OPTARG";;
+	s) CLI_ARCHIVE_COMPRESS_SUFFIX=$OPTARG;;
+	S) CLI_SYSLOG="yes";;
+	f) CLI_SYSLOG_FACILITY=$OPTARG;;
+	t) CLI_SYSLOG_IDENT=$OPTARG;;
+	"?") usage 1;;
+	*) error "Unknown error while processing options";;
     esac
 done
 
@@ -100,11 +97,11 @@ if [ -f "$CONFIG" ]; then
     . $CONFIG
 
     # Check for renamed parameters between versions
-    if [ -n "$UNCOMPRESS_BIN" ]; then
+    if [ -n "$UNCOMPRESS_BIN" ] && [ -z "$CLI_ARCHIVE_UNCOMPRESS_BIN" ]; then
 	ARCHIVE_UNCOMPRESS_BIN=$UNCOMPRESS_BIN
 	warn "restore_xlog: UNCOMPRESS_BIN is deprecated. please use ARCHIVE_UNCOMPRESS_BIN."
     fi
-    if [ -n "$COMPRESS_SUFFIX" ]; then
+    if [ -n "$COMPRESS_SUFFIX" ] && [ -z "$CLI_ARCHIVE_COMPRESS_SUFFIX" ]; then
 	ARCHIVE_COMPRESS_SUFFIX=$COMPRESS_SUFFIX
 	warn "restore_xlog: COMPRESS_SUFFIX is deprecated. please use ARCHIVE_COMPRESS_SUFFIX."
     fi
@@ -121,6 +118,8 @@ fi
 [ -n "$CLI_ARCHIVE_LOCAL" ] && ARCHIVE_LOCAL=$CLI_ARCHIVE_LOCAL
 [ -n "$CLI_ARCHIVE_DIR" ] && ARCHIVE_DIR=$CLI_ARCHIVE_DIR
 [ -n "$CLI_ARCHIVE_COMPRESS" ] && ARCHIVE_COMPRESS=$CLI_ARCHIVE_COMPRESS
+[ -n "$CLI_ARCHIVE_UNCOMPRESS_BIN" ] && ARCHIVE_UNCOMPRESS_BIN=$CLI_ARCHIVE_UNCOMPRESS_BIN
+[ -n "$CLI_ARCHIVE_COMPRESS_SUFFIX" ] && ARCHIVE_COMPRESS_SUFFIX=$CLI_ARCHIVE_COMPRESS_SUFFIX
 [ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
 [ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
 [ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
@@ -136,9 +135,12 @@ fi
 
 # Check input: the name of the xlog file (%f) is needed as well has the target path (%p)
 # PostgreSQL gives those two when executing restore_command
-[ $# != 2 ] && error "missing xlog filename and target path. Please use %f and %p in restore_command"
-xlog=$1
-target_path=$2
+xlog=${@:$OPTIND:1}
+target_path=${@:$(($OPTIND+1)):1}
+
+if [ -z "$xlog" -o -z "$target_path" ]; then
+    error "missing xlog filename and/or target path. Please use %f and %p in restore_command"
+fi
 
 # Check if we have enough information on where to get the file
 if [ $ARCHIVE_LOCAL != "yes" -a -z "$SSH_HOST" ]; then

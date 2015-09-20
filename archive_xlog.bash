@@ -43,6 +43,8 @@ usage() {
     echo "    -h hostname    hostname for SSH login"
     echo "    -d dir         target directory"
     echo "    -X             do not compress"
+    echo "    -c command     compression command"
+    echo "    -s suffix      compressed file suffix (ex: gz)"
     echo "    -S             send messages to syslog"
     echo "    -f facility    syslog facility"
     echo "    -t ident       syslog ident"
@@ -59,43 +61,27 @@ ARCHIVE_DIR=/var/lib/pgsql/archived_xlog
 ARCHIVE_LOCAL="no"
 SYSLOG="no"
 ARCHIVE_COMPRESS="yes"
-
-# Internal configuration
 ARCHIVE_COMPRESS_BIN="gzip -f -4"
 ARCHIVE_COMPRESS_SUFFIX="gz"
 
 # Command line options
-args=`getopt "LC:u:d:h:XSf:t:?" "$@"`
-if [ $? -ne 0 ]
-then
-    usage 2
-fi
-
-set -- $args
-for i in $*
-do
-    case "$i" in
-        -L) CLI_ARCHIVE_LOCAL="yes"; shift;;
-	-C) CONFIG=$2; shift 2;;
-	-u) CLI_ARCHIVE_USER=$2; shift 2;;
-	-h) CLI_ARCHIVE_HOST=$2; shift 2;;
-	-d) CLI_ARCHIVE_DIR=$2; shift 2;;
-	-X) CLI_ARCHIVE_COMPRESS="no"; shift;;
-	-S) CLI_SYSLOG="yes"; shift;;
-	-f) CLI_SYSLOG_FACILITY=$2; shift 2;;
-	-t) CLI_SYSLOG_IDENT=$2; shift 2;;
-        -\?) usage 1;;
-        --) shift; break;;
+while getopts "LC:u:d:h:Xc:s:Sf:t:?"  opt; do
+    case "$opt" in
+	L) CLI_ARCHIVE_LOCAL="yes";;
+	C) CONFIG=$OPTARG;;
+	u) CLI_ARCHIVE_USER=$OPTARG;;
+	h) CLI_ARCHIVE_HOST=$OPTARG;;
+	d) CLI_ARCHIVE_DIR=$OPTARG;;
+	X) CLI_ARCHIVE_COMPRESS="no";;
+	c) CLI_ARCHIVE_COMPRESS_BIN="$OPTARG";;
+	s) CLI_ARCHIVE_COMPRESS_SUFFIX=$OPTARG;;
+	S) CLI_SYSLOG="yes";;
+	f) CLI_SYSLOG_FACILITY=$OPTARG;;
+	t) CLI_SYSLOG_IDENT=$OPTARG;;
+        "?") usage 1;;
+	*) error "Unknown error while processing options"; exit 1;;
     esac
-done
-
-# The first argument must be a WAL file
-if [ $# != 1 ]; then
-    error "missing xlog filename to archive. Please consider modifying archive_command, eg add %p"
-    exit 1
-fi
-
-xlog=$1
+done	
 
 # Check if the config option is a path or just a name in the
 # configuration directory.  Prepend the configuration directory and
@@ -110,11 +96,11 @@ if [ -f "$CONFIG" ]; then
     . $CONFIG
 
     # Check for renamed parameters between versions
-    if [ -n "$COMPRESS_BIN" ]; then
+    if [ -n "$COMPRESS_BIN" ] && [ -z "$CLI_ARCHIVE_COMPRESS_BIN" ]; then
 	ARCHIVE_COMPRESS_BIN=$COMPRESS_BIN
 	warn "archive_xlog: COMPRESS_BIN is deprecated. please use ARCHIVE_COMPRESS_BIN."
     fi
-    if [ -n "$COMPRESS_SUFFIX" ]; then
+    if [ -n "$COMPRESS_SUFFIX" ] && [ -z "$CLI_ARCHIVE_COMPRESS_SUFFIX" ]; then
 	ARCHIVE_COMPRESS_SUFFIX=$COMPRESS_SUFFIX
 	warn "archive_xlog: COMPRESS_SUFFIX is deprecated. please use ARCHIVE_COMPRESS_SUFFIX."
     fi
@@ -126,6 +112,8 @@ fi
 [ -n "$CLI_ARCHIVE_HOST" ] && ARCHIVE_HOST=$CLI_ARCHIVE_HOST
 [ -n "$CLI_ARCHIVE_DIR" ] && ARCHIVE_DIR=$CLI_ARCHIVE_DIR
 [ -n "$CLI_ARCHIVE_COMPRESS" ] && ARCHIVE_COMPRESS=$CLI_ARCHIVE_COMPRESS
+[ -n "$CLI_ARCHIVE_COMPRESS_BIN" ] && ARCHIVE_COMPRESS_BIN=$CLI_ARCHIVE_COMPRESS_BIN
+[ -n "$CLI_ARCHIVE_COMPRESS_SUFFIX" ] && ARCHIVE_COMPRESS_SUFFIX=$CLI_ARCHIVE_COMPRESS_SUFFIX
 [ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
 [ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
 [ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
@@ -139,6 +127,13 @@ if [ "$SYSLOG" = "yes" ]; then
     exec 2> >(logger -t ${SYSLOG_IDENT} -p ${SYSLOG_FACILITY}.err)
 fi
 
+# The first argument must be a WAL file
+xlog=${@:$OPTIND:1}
+if [ -z "$xlog"  ]; then
+    error "missing xlog filename to archive. Please consider modifying archive_command, eg add %p"
+    exit 1
+fi
+
 # Sanity check. We need at least to know if we want to perform a local
 # copy or have a hostname for an SSH copy
 if [ $ARCHIVE_LOCAL != "yes" -a -z "$ARCHIVE_HOST" ]; then
@@ -147,16 +142,10 @@ if [ $ARCHIVE_LOCAL != "yes" -a -z "$ARCHIVE_HOST" ]; then
 fi
 
 # Check if the source file exists
-if [ -z "$xlog" ]; then
-    error "Empty input filename"
+if [ ! -r "$xlog" ]; then
+    error "Input file '$xlog' does not exist or is not readable"
     exit 1
 fi
-
-if [ ! -r $xlog ]; then
-    error "Input file does not exist or is not readable"
-    exit 1
-fi
-    
 
 # Copy the wal locally
 if [ $ARCHIVE_LOCAL = "yes" ]; then
