@@ -212,7 +212,7 @@ case $action in
 	fi
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lu:b:l:D:x:d:O:t:nRc:e:Ah:U:X:r:CSf:i:T?" arg 2>/dev/null; do
+	while getopts "Lu:b:l:D:x:d:O:t:nRc:e:r:C:T?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		u) BACKUP_USER=$OPTARG;;
@@ -227,16 +227,8 @@ case $action in
 		R) OVERWRITE="yes";;
 		c) BACKUP_UNCOMPRESS_BIN="$OPTARG";;
 		e) BACKUP_COMPRESS_SUFFIX=$OPTARG;;
-
-		A) ARCHIVE_LOCAL="yes";;
-		h) ARCHIVE_HOST=$OPTARG;;
-		U) ARCHIVE_USER=$OPTARG;;
-		X) ARCHIVE_DIR=$OPTARG;;
 		r) RESTORE_COMMAND="$OPTARG";;
-		C) ARCHIVE_COMPRESS="no";;
-		S) SYSLOG="yes";;
-		f) SYSLOG_FACILITY=$OPTARG;;
-		i) SYSLOG_IDENT=$OPTARG;;
+		C) RESTORE_XLOG_CONFIG="$OPTARG";;
 		T) LOG_TIMESTAMP="yes";;
 
 		"?") $cmd -?; exit $?;;
@@ -255,17 +247,14 @@ case $action in
 	[ "$DRY_RUN" = "yes" ] && opts="$opts -n"
 	[ -n "$OVERWRITE" ] && opts="$opts -R"
 	[ -n "$BACKUP_COMPRESS_SUFFIX" ] && opts="$opts -e $BACKUP_COMPRESS_SUFFIX"
-	[ "$ARCHIVE_LOCAL" = "yes" ] && opts="$opts -A"
-	[ -n "$ARCHIVE_HOST" ] && opts="$opts -h $ARCHIVE_HOST"
-	[ -n "$ARCHIVE_USER" ] && opts="$opts -U $ARCHIVE_USER"
-	[ -n "$ARCHIVE_DIR" ] && opts="$opts -X $ARCHIVE_DIR"
-	[ "$ARCHIVE_COMPRESS" = "no" ] && opts="$opts -C"
-	if [ "$SYSLOG" = "yes" ]; then
-	    opts="$opts -S"
-	    [ -n "$SYSLOG_FACILITY" ] && opts="$opts -f $SYSLOG_FACILITY"
-	    [ -n "$SYSLOG_IDENT" ] && opts="$opts -i $SYSLOG_IDENT"
-	fi
 	[ "$LOG_TIMESTAMP" = "yes" ] && opts="$opts -T"
+
+	# Pass along the configuration file
+	if [ -n "$RESTORE_XLOG_CONFIG" ]; then
+	    opts="$opts -C $RESTORE_XLOG_CONFIG"
+	else
+	    [ "$config" != @SYSCONFDIR@/pitr.conf ] && opts="$opts -C $config"
+	fi
 
 	# Take care of the source host
 	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then

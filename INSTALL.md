@@ -481,34 +481,7 @@ example :
 
 This will use the file `/usr/local/etc/pitrery/prod.conf`. When adding
 the `-?` switch after the action name, pitrery outputs the help of the
-action, for example :
-
-    $ pitrery backup -?
-    backup_pitr performs a PITR base backup
-    
-    Usage:
-        backup_pitr [options] [hostname]
-    
-    Backup options:
-        -L                   Perform a local backup
-        -b dir               Backup base directory
-        -l label             Backup label
-        -u username          Username for SSH login
-        -D dir               Path to $PGDATA
-        -s mode              Storage method, tar or rsync
-        -c compress_bin      Compression command for tar method
-        -e compress_suffix   Suffix added by the compression program
-    
-    Connection options:
-        -P PSQL              path to the psql command
-        -h HOSTNAME          database server host or socket directory
-        -p PORT              database server port number
-        -U NAME              connect as specified database user
-        -d DATABASE          database to use for connection
-    
-        -T                   Timestamp log messages
-        -?                   Print help
-
+action.
 
 The `-n` option of `pitrery` can be used to show the action script
 command line that would be runned, but without running it. It is
@@ -776,8 +749,10 @@ controlled from its command line options, for example:
     restore_xlog -h HOST -d ARCHIVE_DIR %f %p
 
 The restore script uses options values from the configuration, which
-can be tweaked on the command line. Beware that some options have
-different names between `restore_xlog` and the restore action.
+can be passed by the restore action to restore_xlog, using the `-C`
+option, starting from 1.9. If options, different from the configuration,
+must be given to `restore_xlog`, the complete command must be provided
+to the restore action with `-r`.
 
 Let's say the target directories are ready for a restore run by the
 `postgres` user, the restore can be started with pitrery on an example
@@ -797,7 +772,7 @@ production server:
     INFO: 
     INFO: recovery configuration:
     INFO:   target owner of the restored files: postgres
-    INFO:   restore_command = '/usr/local/bin/restore_xlog -L -d /home/pgsql/postgresql-9.1.9/archives %f %p'
+    INFO:   restore_command = '/usr/local/bin/restore_xlog -C /usr/local/etc/pitrery/prod.conf %f %p'
     INFO:   recovery_target_time = '2013-06-01 13:00:00 +0200'
     INFO: 
     INFO: checking if /home/pgsql/postgresql-9.1.9/data is empty
@@ -854,7 +829,7 @@ One `-t` option apply to one tablespace. For example:
     INFO: 
     INFO: recovery configuration:
     INFO:   target owner of the restored files: orgrim
-    INFO:   restore_command = '/usr/local/bin/restore_xlog -L -d /home/pgsql/postgresql-9.1.9/archives %f %p'
+    INFO:   restore_command = '/usr/local/bin/restore_xlog -C /usr/local/etc/pitrery/prod.conf %f %p'
     INFO:   recovery_target_time = '2013-06-01 13:00:00 +0200'
     INFO: 
     INFO: creating /home/pgsql/postgresql-9.1.9/data_restore
@@ -910,15 +885,8 @@ The options of restore are:
         -e compress_suffix   Suffix added by the compression program
     
     Archived WAL files options:
-        -A                   Force the use of local archives
-        -h host              Host storing WAL files
-        -U username          Username for SSH login to WAL storage host
-        -X dir               Path to the archived xlog directory
-        -r cli               Command line to use in restore_command
-        -C                   Do not uncompress WAL files
-        -S                   Send messages to syslog
-        -f facility          Syslog facility
-        -i ident             Syslog ident
+        -r command           Command line to use in restore_command
+        -C config            Configuration file for restore_xlog in restore_command
     
         -T                   Timestamp log messages
         -?                   Print help

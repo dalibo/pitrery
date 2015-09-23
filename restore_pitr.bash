@@ -30,7 +30,6 @@ backup_root=/var/lib/pgsql/backups
 label_prefix="pitr"
 pgdata=/var/lib/pgsql/data
 owner=`id -un`
-archive_dir=/var/lib/pgsql/archived_xlog
 dry_run="no"
 rsync_opts="-q" # Remote only
 uncompress_bin="gunzip"
@@ -61,15 +60,8 @@ usage() {
     echo "    -e compress_suffix   Suffix added by the compression program"
     echo
     echo "Archived WAL files options:"
-    echo "    -A                   Force the use of local archives"
-    echo "    -h host              Host storing WAL files"
-    echo "    -U username          Username for SSH login to WAL storage host"
-    echo "    -X dir               Path to the archived xlog directory"
-    echo "    -r cli               Command line to use in restore_command"
-    echo "    -C                   Do not uncompress WAL files"
-    echo "    -S                   Send messages to syslog"
-    echo "    -f facility          Syslog facility"
-    echo "    -i ident             Syslog ident"
+    echo "    -r command           Command line to use in restore_command"
+    echo "    -C config            Configuration file for restore_xlog in restore_command"
     echo
     echo "    -T                   Timestamp log messages"
     echo "    -?                   Print help"
@@ -192,7 +184,7 @@ check_and_fix_directory() {
 
 
 # Process CLI Options
-while getopts "Lu:b:l:D:x:d:O:t:nRc:e:Ah:U:X:r:CSf:i:T?" opt; do
+while getopts "Lu:b:l:D:x:d:O:t:nRc:e:r:C:T?" opt; do
     case "$opt" in
 	L) local_backup="yes";;
 	u) ssh_user=$OPTARG;;
@@ -207,17 +199,8 @@ while getopts "Lu:b:l:D:x:d:O:t:nRc:e:Ah:U:X:r:CSf:i:T?" opt; do
 	R) overwrite="yes";;
 	c) uncompress_bin="$OPTARG";;
 	e) compress_suffix=$OPTARG;;
-
-	A) archive_local="yes";;
-	h) archive_host=$OPTARG;;
-	U) archive_ssh_user=$OPTARG;;
-	X) archive_dir=$OPTARG;;
 	r) restore_cli="$OPTARG";;
-	C) archive_compress="no";;
-	S) syslog="yes";;
-	f) syslog_facility=$OPTARG;;
-	i) syslog_ident=$OPTARG;;
-
+	C) restore_xlog_config=$OPTARG;;
 	T) log_timestamp="yes";;
 	"?") usage 1;;
 	*) error "Unknown error while processing options";;
@@ -256,33 +239,12 @@ fi
 
 # When no restore_command is given, build it using restore_xlog
 if [ -z "$restore_cli" ]; then
-    restore_command="@BINDIR@/restore_xlog"
-    if [ "$archive_local" = "yes" ]; then
-	restore_command="$restore_command -L"
-    else
-	if [ -n "$archive_host" ]; then
-	    restore_command="$restore_command -h $archive_host"
-	    [ -n "$archive_ssh_user" ] && restore_command="$restore_command -u $archive_ssh_user"
-	else
-	    # Prevent restore_xlog from failing afterwards when restore is
-	    # remote and no host is proveided
-	    echo "ERROR: not enough information for restoring archived WAL, use -A or -h host."
-	    usage 1
-	fi
-    fi
-    [ -n "$archive_dir" ] && restore_command="$restore_command -d $archive_dir"
-    [ "$archive_compress" = "no" ] && restore_command="$restore_command -X"
-    if [ "$syslog" = "yes" ]; then
-	restore_command="$restore_command -S"
-	[ -n "$syslog_facility" ] && restore_command="$restore_command -f $syslog_facility"
-	[ -n "$syslog_ident" ] && restore_command="$restore_command -t $syslog_ident"
-    fi
+    [ -n "$restore_xlog_config" ] && restore_xlog_opts="-C $restore_xlog_config"
 
-    restore_command="$restore_command %f %p"
+    restore_command="@BINDIR@/restore_xlog $restore_xlog_opts %f %p"
 else
     restore_command="$restore_cli"
 fi
-
 
 
 # Find the backup according to given date.  The target date converted

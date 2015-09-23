@@ -1,10 +1,7 @@
 TODO / Roadmap
 
-- Make restore_pitr simpler with the restore_command: only accept a
-  config file or a command (-r)
-
 - Check if all archives are available with a new action "check"
 
 - Include all commented variables inside recovery.conf according to the version of PostgreSQL
 
-- Improve messages of purge when there is no backups to purge
+- List config files with pitrery -l

@@ -18,6 +18,14 @@ The safest way to update the configuration file on a running system is to :
 - Remove the old parameters from the configuration file
 
 
+Restore
+-------
+
+When they differ from the configuration file, options to restore_xlog
+must be passed using a full custom restore command, with the `-r`
+option.
+
+
 Upgrade to 1.8
 ==============
 

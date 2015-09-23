@@ -20,6 +20,10 @@ pitrery 1.9
     allow to give the (un)compression command and compressed file suffix
     respectively.
 
+  * No longer use command line switch to configure restore_xlog for
+    restore_command in restore action. Give a configuration file or
+    the full command to use. Thus only -r and -C (changed to give the
+    configuration file) remains for archived WAL options.
 
 pitrery 1.8
 ===========
