@@ -461,6 +461,7 @@ The help for `pitrery` is available by running it with the `-h` option :
     options:
         -c file      Path to the configuration file
         -n           Show the command instead of executing it
+        -l           List configuration files in the default directory
         -?           Print help
     
     actions:
@@ -477,6 +478,14 @@ configuration directory, any file ending with `.conf` is then taken, for
 example :
 
     $ pitrery -c prod action
+
+The `-l` switch searches for configuration files in the default
+directory (`/usr/local/etc/pitrery`):
+
+    $ pitrery -l
+    INFO: listing configuration files in /usr/local/etc/pitrery
+    pitr
+    prod
 
 
 This will use the file `/usr/local/etc/pitrery/prod.conf`. When adding

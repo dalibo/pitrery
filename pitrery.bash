@@ -27,12 +27,14 @@
 config_dir="@SYSCONFDIR@"
 config=pitr.conf
 scripts_dir="@LIBDIR@"
+list_configs="no"
 
 usage() {
     echo "usage: `basename $0` [options] action [args]"
     echo "options:"
     echo "    -c file      Path to the configuration file"
     echo "    -n           Show the command instead of executing it"
+    echo "    -l           List configuration files in the default directory"
     echo "    -V           Display the version and exit"
     echo "    -?           Print help"
     echo
@@ -54,18 +56,27 @@ info() {
     echo "INFO: $*"
 }
 
-while getopts "c:nV?" opt; do
+while getopts "c:nlV?" opt; do
     case "$opt" in
 	c) config=$OPTARG;;
 	n) dry_run="echo";;
+	l) list_configs="yes";;
 	V) echo "pitrery @VERSION@"; exit 0;;
 	'?') usage 1;;
 	*) error "error while processing options";;
     esac
 done
 
+# List the configuration files and exit
+if [ $list_configs = "yes" ]; then
+    info "listing configuration files in $config_dir"
+    for x in `ls -1 $config_dir/*.conf 2>/dev/null`; do
+	basename $x .conf
+    done
+    exit 0
+fi
 
-if [ $# -lt 1 ]; then
+if [ $# -lt 1 -a $list_configs = "no" ]; then
     echo "ERROR: missing action" 1>&2
     usage 1
 fi

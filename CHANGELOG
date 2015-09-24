@@ -25,6 +25,10 @@ pitrery 1.9
     the full command to use. Thus only -r and -C (changed to give the
     configuration file) remains for archived WAL options.
 
+  * Add the -l switch to pitrery. It lists the configuration files
+    inside the default configuration directory.
+
+
 pitrery 1.8
 ===========
 
