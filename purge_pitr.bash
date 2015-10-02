@@ -247,7 +247,7 @@ max_tln=$((16#`echo $wal_file | cut -b 1-8`))
 max_log=$((16#`echo $wal_file | cut -b 9-16`))
 max_seg=$((16#`echo $wal_file | cut -b 17-24`))
 
-info "purging WAL files older than `basename $wal_file`"
+info "listing WAL files older than `basename $wal_file`"
 
 # List the WAL files and remove the old ones based on their name
 # which are ordered in time by their naming scheme
@@ -293,30 +293,45 @@ for wal in $wal_list; do
     seg=$((16#`echo $w | cut -b 17-24`))
 
     # when the wal file name is "lower", it is older. remove it.
-    if [ $tln -le $max_tln ] && [ $log -eq $max_log -a $seg -lt $max_seg -o $log -lt $max_log ]; then
-	if [ $local_xlog = "yes" ]; then
-	    rm $xlog_dir/$file
-	    if [ $? != 0 ]; then
-		warn "unable to remove $wal"
-	    else
+    wal_purge_list=$tmp_dir/wal_purge_list
+    if [ $tln -le $max_tln ]; then
+	if [ $log -lt $max_log ]; then
+	    echo "rm $xlog_dir/$file" >> $tmp_dir/wal_purge_list
+	    i=$(($i + 1))
+	elif [ $log -eq $max_log ]; then
+	    if [ $seg -lt $max_seg ]; then
+		echo "rm $xlog_dir/$file" >> $tmp_dir/wal_purge_list
 		i=$(($i + 1))
+	    else
+		# Since ls sorts files in alphabetical order, there are no
+		# more wal files to purge if this block is reached
+		break
 	    fi
 	else
-	    ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "rm $xlog_dir/$file" 2>/dev/null
-	    if [ $? != 0 ]; then
-		warn "unable to remove $file on $xlog_host"
-	    else
-		i=$(($i + 1))
-	    fi
+	    break
 	fi
     else
-	# Since ls sorts files in alphabetical order, there are no
-	# more wal files to purge if this block is reached
 	break
     fi
 done
 
-info "$i old WAL file(s) removed"
+info "$i old WAL file(s) to remove"
+info "purging"
+
+# Execute the script
+if [ -f $wal_purge_list ]; then
+    if [ $local_xlog = "yes" ]; then
+	sh $wal_purge_list
+	if [ $? != 0 ]; then
+	    warn "unable to remove wal files"
+	fi
+    else
+	cat $wal_purge_list | ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "cat | sh" 2>/dev/null
+	if [ $? != 0 ]; then
+	    warn "unable to remove wal files on $xlog_host"
+	fi
+    fi
+fi
 
 # Clean temporary directory
 if [ -d "$tmp_dir" ]; then
