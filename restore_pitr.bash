@@ -693,6 +693,13 @@ if [ ! -d $pgdata/pg_xlog/archive_status ]; then
     fi
 fi
 
+# Check PG_VERSION
+if [ -f $pgdata/PG_VERSION ]; then
+    pgvers=`cat $pgdata/PG_VERSION | sed -e 's/\./0/'`
+else
+    warn "PG_VERSION file is missing"
+fi
+
 # Create a recovery.conf file in $PGDATA
 info "preparing recovery.conf file"
 echo "restore_command = '$restore_command'" > $pgdata/recovery.conf
@@ -700,7 +707,51 @@ echo "restore_command = '$restore_command'" > $pgdata/recovery.conf
 # Put the given target date in recovery.conf
 if [ -n "$target_date" ]; then
     echo "recovery_target_time = '$target_date'" >> $pgdata/recovery.conf
+else
+    echo "#recovery_target_time = ''	# e.g. '2004-07-14 22:39:00 EST'" >> $pgdata/recovery.conf
 fi
+
+# Add all possible parameters for recovery, commented out.
+case $pgvers in
+    802|803)
+	echo "#recovery_target_xid = ''		# 'number'"
+	echo "#recovery_target_inclusive = 'true'		# 'true' or 'false'"
+	echo "#recovery_target_timeline = ''		# number or 'latest'"
+	;;
+    804)
+	echo "#recovery_end_command = ''"
+	echo "#recovery_target_xid = ''		# 'number'"
+	echo "#recovery_target_inclusive = 'true'		# 'true' or 'false'"
+	echo "#recovery_target_timeline = ''		# number or 'latest'"
+	;;
+    901|902|903)
+	echo "#recovery_end_command = ''"
+	echo "#recovery_target_name = ''  # e.g. 'daily backup 2011-01-26'"
+	echo "#recovery_target_xid = ''"
+	echo "#recovery_target_inclusive = true"
+	echo "#recovery_target_timeline = 'latest'"
+	echo "#pause_at_recovery_target = true"
+	;;
+    904)
+	echo "#recovery_end_command = ''"
+	echo "#recovery_target_name = ''	# e.g. 'daily backup 2011-01-26'"
+	echo "#recovery_target_xid = ''"
+	echo "#recovery_target_inclusive = true"
+	echo "#recovery_target = 'immediate'"
+	echo "#recovery_target_timeline = 'latest'"
+	echo "#pause_at_recovery_target = true"
+	;;
+    905)
+	echo "#recovery_end_command = ''"
+	echo "#recovery_target_name = ''	# e.g. 'daily backup 2011-01-26'"
+	echo "#recovery_target_xid = ''"
+	echo "#recovery_target_inclusive = true"
+	echo "#recovery_target = 'immediate'"
+	echo "#recovery_target_timeline = 'latest'"
+	echo "#recovery_target_action = 'pause'"
+	;;
+esac >> $pgdata/recovery.conf
+
 
 # Ensure recovery.conf as the correct owner so that PostgreSQL can
 # rename it at the end of the recovery
@@ -715,15 +766,7 @@ fi
 # locations have changed. It is only needed when using PostgreSQL <=9.1
 updsql=$pgdata/update_catalog_tablespaces.sql
 if [ -f "$tblspc_reloc" ]; then
-    # Check PG_VERSION
-    if [ -f $pgdata/PG_VERSION ]; then
-	pgvers=`cat $pgdata/PG_VERSION | sed -e 's/\./0/'`
-    else
-	warn "PG_VERSION file is missing"
-    fi
-
-    # Generate script
-    if [ "$pgvers" -le 901 ]; then
+    if [ -n "$pgvers" ] && [ "$pgvers" -le 901 ]; then
 	cat  $tblspc_reloc | grep 'yes$' | while read l; do
 	    name=`echo $l | cut -d '|' -f 1`
 	    tbldir=`echo $l | cut -d '|' -f 2`
@@ -732,10 +775,10 @@ if [ -f "$tblspc_reloc" ]; then
 	    echo "-- update location of $name to $tbldir" >> $updsql
 	    echo -e "UPDATE pg_catalog.pg_tablespace SET spclocation = '$tbldir' WHERE oid = $oid;\n" >> $updsql
 	done
-    fi
 
-    if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
-	chown ${owner}: $updsql 2>/dev/null
+	if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+	    chown ${owner}: $updsql 2>/dev/null
+	fi
     fi
 fi
 

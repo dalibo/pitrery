@@ -388,8 +388,10 @@ through pitrery :
   always leave at least `PURGE_KEEP_COUNT` backups.
 
 * `ARCHIVE_*` and `SYSLOG_*` are passed to `restore_xlog` when
-  `RESTORE_COMMAND` is empty. They define the location (either local or
-  through SSH) where the WAL files are stored.
+  `RESTORE_COMMAND` is empty. They define the location (either local
+  or through SSH) where the WAL files are stored. As of version 1.9,
+  only the path to the configuration file is passed to `restore_xlog`
+  when`RESTORE_COMMAND` is empty.
 
 * `LOG_TIMESTAMP` can be set to yes to prefix the messages with the
   date for backup, restore and purge actions.
@@ -668,7 +670,14 @@ one backups on each line:
     /home/pgsql/postgresql-9.3.2/pitr/pitr15/2014.01.21_17.20.30	365M	  2014-01-21 17:20:30 CET
 
 The `-v` switch display more information on each backups, like needed space
-for each tablespace:
+for each tablespace :
+
+* The "space used" value is the size of the backup,
+
+* The disk usage for PGDATA and Tablespaces is recorded at backup
+  time, it is the space one need to restore
+
+For example :
 
     $ pitrery -c pitr15_local93 list -v
     List of local backups

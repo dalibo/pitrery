@@ -1,7 +1,7 @@
 TODO / Roadmap
 
+1.10:
 - Check if all archives are available with a new action "check"
 
-- Include all commented variables inside recovery.conf according to the version of PostgreSQL
 
-- List config files with pitrery -l
+
