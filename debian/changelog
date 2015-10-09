@@ -1,3 +1,18 @@
+pitrery (1.9-1) unstable; urgency=low
+
+  * New upstream release
+  * Do not exit without error when the server is in recovery.
+  * Improve the speed of the purge of archives WAL
+  * Add the -T switch along with the LOG_TIMESTAMP option to prefix messages
+  * Rename the compression configuration parameters for WAL files
+  * Add the -c and -s switch to archive_xlog and restore_xlog
+  * No longer use command line switch to configure restore_xlog for
+    restore_command in restore action.
+  * Add the -l switch to pitrery. It lists the configuration files
+  * Include all recovery parameters commented out in the recovery.conf
+
+ -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Fri, 09 Oct 2015 21:15:36 +0200
+
 pitrery (1.8-2) unstable; urgency=low
 
   * Removing dependency on pax, GNU cp being the default and pax optional

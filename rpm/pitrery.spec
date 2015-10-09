@@ -1,6 +1,6 @@
 Name:           pitrery
-Version:        1.8
-Release:        2%{?dist}
+Version:        1.9
+Release:        1%{?dist}
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
 Group:          Applications/Databases
@@ -47,6 +47,9 @@ make install DESTDIR=%{buildroot}
 %doc /usr/share/doc/pitrery/CHANGELOG
 
 %changelog
+* Fri Oct  9 2015 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.9-1
+- Update to 1.9
+
 * Thu Feb 19 2015 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.8-2
 - Do not depend on pax, it is no longer the default
 
