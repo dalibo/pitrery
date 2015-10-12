@@ -3,6 +3,34 @@ layout: default
 title: pitrery - Upgrade
 ---
 
+Upgrade to 1.9
+==============
+
+WAL files archiving and restoring
+---------------------------------
+
+The following configuration parameters have been renamed :
+
+* `COMPRESS_BIN` -> `ARCHIVE_COMPRESS_BIN`
+* `COMPRESS_SUFFIX` -> `ARCHIVE_COMPRESS_SUFFIX`
+* `UNCOMPRESS_BIN` -> `ARCHIVE_UNCOMPRESS_BIN`
+
+The safest way to update the configuration file on a running system is to :
+
+- Add the renamed parameters in the configuration file without
+  touching the old ones
+- Perform the upgrade
+- Remove the old parameters from the configuration file
+
+
+Restore
+-------
+
+When they differ from the configuration file, options to restore_xlog
+must be passed using a full custom restore command, with the `-r`
+option.
+
+
 Upgrade to 1.8
 ==============
 

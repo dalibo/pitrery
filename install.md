@@ -254,27 +254,24 @@ compress more and/or faster by using other compression tools, like
 `bzip2`, `pigz`, the prerequisites are that the compression program
 must accept the `-c` option to output on stdout and the data to
 compress from stdin. The compression program can be configured by
-setting `COMPRESS_BIN` in the configuration file. The output filename
+setting `ARCHIVE_COMPRESS_BIN` in the configuration file. The output filename
 has a suffix depending on the program used (e.g. "gz" or "bz2", etc),
-it must be configured using `COMPRESS_SUFFIX` (without the leading dot),
+it must be configured using `ARCHIVE_COMPRESS_SUFFIX` (without the leading dot),
 this suffix is most of the time mandatory for decompression. The
-decompression program is then configured using `UNCOMPRESS_BIN`, this
+decompression program is then configured using `ARCHIVE_UNCOMPRESS_BIN`, this
 command must accept a compressed file as its first argument.
 
 For example, the fastest compression is achived with `pigz`, a
 multithreaded implementation of gzip:
 
-    COMPRESS_BIN="pigz"
-    UNCOMPRESS_BIN="pigz -d"
+    ARCHIVE_COMPRESS_BIN="pigz"
+    ARCHIVE_UNCOMPRESS_BIN="pigz -d"
 
 Or maximum, but slow, compression with the standard `bzip2`:
 
-    COMPRESS_BIN="bzip2 -9"
-    COMPRESS_SUFFIX="bz2"
-    UNCOMPRESS_BIN="bunzip"
-
-These three parameters can be configured only inside the configuration
-file, not from the command line of `archive_xlog` and `restore_xlog`.
+    ARCHIVE_COMPRESS_BIN="bzip2 -9"
+    ARCHIVE_COMPRESS_SUFFIX="bz2"
+    ARCHIVE_UNCOMPRESS_BIN="bunzip"
 
 
 Backups with tar
@@ -396,8 +393,13 @@ through pitrery :
   always leave at least `PURGE_KEEP_COUNT` backups.
 
 * `ARCHIVE_*` and `SYSLOG_*` are passed to `restore_xlog` when
-  `RESTORE_COMMAND` is empty. They define the location (either local or
-  through SSH) where the WAL files are stored.
+  `RESTORE_COMMAND` is empty. They define the location (either local
+  or through SSH) where the WAL files are stored. As of version 1.9,
+  only the path to the configuration file is passed to `restore_xlog`
+  when`RESTORE_COMMAND` is empty.
+
+* `LOG_TIMESTAMP` can be set to yes to prefix the messages with the
+  date for backup, restore and purge actions.
 
 
 Hooks
@@ -466,6 +468,7 @@ The help for `pitrery` is available by running it with the `-h` option :
     options:
         -c file      Path to the configuration file
         -n           Show the command instead of executing it
+        -l           List configuration files in the default directory
         -?           Print help
     
     actions:
@@ -483,36 +486,18 @@ example :
 
     $ pitrery -c prod action
 
+The `-l` switch searches for configuration files in the default
+directory (`/usr/local/etc/pitrery`):
+
+    $ pitrery -l
+    INFO: listing configuration files in /usr/local/etc/pitrery
+    pitr
+    prod
+
 
 This will use the file `/usr/local/etc/pitrery/prod.conf`. When adding
 the `-?` switch after the action name, pitrery outputs the help of the
-action, for example :
-
-    $ pitrery backup -?
-    backup_pitr performs a PITR base backup
-    
-    Usage:
-        backup_pitr [options] [hostname]
-    
-    Backup options:
-        -L                   Perform a local backup
-        -b dir               Backup base directory
-        -l label             Backup label
-        -u username          Username for SSH login
-        -D dir               Path to $PGDATA
-        -s mode              Storage method, tar or rsync
-        -c compress_bin      Compression command for tar method
-        -e compress_suffix   Suffix added by the compression program
-    
-    Connection options:
-        -P PSQL              path to the psql command
-        -h HOSTNAME          database server host or socket directory
-        -p PORT              database server port number
-        -U NAME              connect as specified database user
-        -d DATABASE          database to use for connection
-    
-        -?                   Print help
-
+action.
 
 The `-n` option of `pitrery` can be used to show the action script
 command line that would be runned, but without running it. It is
@@ -576,6 +561,7 @@ action is:
         -U NAME              connect as specified database user
         -d DATABASE          database to use for connection
     
+        -T                   Timestamp log messages
         -?                   Print help   
 
 
@@ -689,7 +675,14 @@ one backups on each line:
     /home/pgsql/postgresql-9.3.2/pitr/pitr15/2014.01.21_17.20.30	365M	  2014-01-21 17:20:30 CET
 
 The `-v` switch display more information on each backups, like needed space
-for each tablespace:
+for each tablespace :
+
+* The "space used" value is the size of the backup,
+
+* The disk usage for PGDATA and Tablespaces is recorded at backup
+  time, it is the space one need to restore
+
+For example :
 
     $ pitrery -c pitr15_local93 list -v
     List of local backups
@@ -779,8 +772,10 @@ controlled from its command line options, for example:
     restore_xlog -h HOST -d ARCHIVE_DIR %f %p
 
 The restore script uses options values from the configuration, which
-can be tweaked on the command line. Beware that some options have
-different names between `restore_xlog` and the restore action.
+can be passed by the restore action to restore_xlog, using the `-C`
+option, starting from 1.9. If options, different from the configuration,
+must be given to `restore_xlog`, the complete command must be provided
+to the restore action with `-r`.
 
 Let's say the target directories are ready for a restore run by the
 `postgres` user, the restore can be started with pitrery on an example
@@ -800,7 +795,7 @@ production server:
     INFO: 
     INFO: recovery configuration:
     INFO:   target owner of the restored files: postgres
-    INFO:   restore_command = '/usr/local/bin/restore_xlog -L -d /home/pgsql/postgresql-9.1.9/archives %f %p'
+    INFO:   restore_command = '/usr/local/bin/restore_xlog -C /usr/local/etc/pitrery/prod.conf %f %p'
     INFO:   recovery_target_time = '2013-06-01 13:00:00 +0200'
     INFO: 
     INFO: checking if /home/pgsql/postgresql-9.1.9/data is empty
@@ -857,7 +852,7 @@ One `-t` option apply to one tablespace. For example:
     INFO: 
     INFO: recovery configuration:
     INFO:   target owner of the restored files: orgrim
-    INFO:   restore_command = '/usr/local/bin/restore_xlog -L -d /home/pgsql/postgresql-9.1.9/archives %f %p'
+    INFO:   restore_command = '/usr/local/bin/restore_xlog -C /usr/local/etc/pitrery/prod.conf %f %p'
     INFO:   recovery_target_time = '2013-06-01 13:00:00 +0200'
     INFO: 
     INFO: creating /home/pgsql/postgresql-9.1.9/data_restore
@@ -913,16 +908,10 @@ The options of restore are:
         -e compress_suffix   Suffix added by the compression program
     
     Archived WAL files options:
-        -A                   Force the use of local archives
-        -h host              Host storing WAL files
-        -U username          Username for SSH login to WAL storage host
-        -X dir               Path to the archived xlog directory
-        -r cli               Command line to use in restore_command
-        -C                   Do not uncompress WAL files
-        -S                   Send messages to syslog
-        -f facility          Syslog facility
-        -i ident             Syslog ident
+        -r command           Command line to use in restore_command
+        -C config            Configuration file for restore_xlog in restore_command
     
+        -T                   Timestamp log messages
         -?                   Print help
 
 
@@ -954,3 +943,26 @@ one, while `PURGE_KEEP_COUNT=2`:
 
 Note that if there are no backups but archived WAL files, the purge
 action will not remove those WAL files.
+
+The options of purge are:
+
+    $ pitrery purge -?
+    purge_pitr cleans old PITR backups
+    usage: purge_pitr [options] [hostname]
+    options:
+        -L           Purge a local store
+        -l label     Label to process
+        -b dir       Backup directory
+        -u username  Username for SSH login to the backup host
+        -n host      Host storing archived WALs
+        -U username  Username for SSH login to WAL storage host
+        -X dir       Archived WALs directory
+    
+        -m count     Keep this number of backups
+        -d days      Purge backups older than this number of days
+    
+        -T           Timestamp log messages
+        -?           Print help
+    
+
+
