@@ -3,6 +3,12 @@ layout: default
 title: pitrery - Upgrade
 ---
 
+Upgrade to 1.10
+===============
+
+Nothing to do.
+
+
 Upgrade to 1.9
 ==============
 
