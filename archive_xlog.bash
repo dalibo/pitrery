@@ -177,6 +177,13 @@ else
     # Compress and copy with scp
     echo $ARCHIVE_HOST | grep -q ':' && ARCHIVE_HOST="[${ARCHIVE_HOST}]" # Dummy test for IPv6
 
+    ssh ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST} "mkdir -p $ARCHIVE_DIR"
+    rc=$?
+    if [ $rc != 0 ]; then
+	error "Unable to create target directory"
+	exit $rc
+    fi
+
     if [ $ARCHIVE_COMPRESS = "yes" ]; then
 	file=/tmp/`basename $xlog`.$ARCHIVE_COMPRESS_SUFFIX
 	# We take no risk, pipe the content to the compression program
