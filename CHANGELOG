@@ -1,3 +1,15 @@
+pitrery 1.10
+============
+
+  * Fix issue in restore_xlog not using SSH user and host found in the
+    configuration file, thus preventing restore to work out of the
+    box.
+
+  * Ensure archive_xlog create the target directory on remote hosts
+
+  * Only purge WAL files when there are some WAL files to remove
+
+
 pitrery 1.9
 ===========
 
