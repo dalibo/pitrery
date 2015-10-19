@@ -316,19 +316,21 @@ for wal in $wal_list; do
 done
 
 info "$i old WAL file(s) to remove"
-info "purging"
+if [ $i -gt 0 ]; then
+    info "purging old WAL files"
 
-# Execute the script
-if [ -f $wal_purge_list ]; then
-    if [ $local_xlog = "yes" ]; then
-	sh $wal_purge_list
-	if [ $? != 0 ]; then
-	    warn "unable to remove wal files"
-	fi
-    else
-	cat $wal_purge_list | ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "cat | sh" 2>/dev/null
-	if [ $? != 0 ]; then
-	    warn "unable to remove wal files on $xlog_host"
+    # Execute the script
+    if [ -f $wal_purge_list ]; then
+	if [ $local_xlog = "yes" ]; then
+	    sh $wal_purge_list
+	    if [ $? != 0 ]; then
+		warn "unable to remove wal files"
+	    fi
+	else
+	    cat $wal_purge_list | ssh ${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host "cat | sh" 2>/dev/null
+	    if [ $? != 0 ]; then
+		warn "unable to remove wal files on $xlog_host"
+	    fi
 	fi
     fi
 fi
