@@ -70,8 +70,8 @@ while getopts "LC:u:h:d:Xc:s:Sf:t:?" opt; do
     case "$opt" in
 	L) CLI_ARCHIVE_LOCAL="yes";;
 	C) CONFIG=$OPTARG;;
-	u) CLI_SSH_USER=$OPTARG;;
-	h) CLI_SSH_HOST=$OPTARG;;
+	u) CLI_ARCHIVE_USER=$OPTARG;;
+	h) CLI_ARCHIVE_HOST=$OPTARG;;
 	d) CLI_ARCHIVE_DIR=$OPTARG;;
 	X) CLI_ARCHIVE_COMPRESS="no";;
 	c) CLI_ARCHIVE_UNCOMPRESS_BIN="$OPTARG";;
@@ -108,9 +108,9 @@ if [ -f "$CONFIG" ]; then
 fi
 
 # Override configuration with cli options
-if [ -n "$CLI_SSH_HOST" ]; then
-    SSH_HOST=$CLI_SSH_HOST
-    [ -n "$CLI_SSH_USER" ] && SSH_USER=$CLI_SSH_USER
+if [ -n "$CLI_ARCHIVE_HOST" ]; then
+    ARCHIVE_HOST=$CLI_ARCHIVE_HOST
+    [ -n "$CLI_ARCHIVE_USER" ] && ARCHIVE_USER=$CLI_ARCHIVE_USER
     # When a host storing the archives is given for local to no, as it
     # can come from the configuration file
     ARCHIVE_LOCAL="no"
@@ -143,7 +143,7 @@ if [ -z "$xlog" -o -z "$target_path" ]; then
 fi
 
 # Check if we have enough information on where to get the file
-if [ $ARCHIVE_LOCAL != "yes" -a -z "$SSH_HOST" ]; then
+if [ $ARCHIVE_LOCAL != "yes" -a -z "$ARCHIVE_HOST" ]; then
     error "Could not find where to get the file from (local or ssh?)"
 fi
 
@@ -168,11 +168,11 @@ if [ $ARCHIVE_LOCAL = "yes" ]; then
     fi
 else
     # check if we have a IPv6, and put brackets for scp
-    echo $SSH_HOST | grep -q ':' && SSH_HOST="[${SSH_HOST}]"
+    echo $ARCHIVE_HOST | grep -q ':' && ARCHIVE_HOST="[${ARCHIVE_HOST}]"
 
-    scp ${SSH_USER:+$SSH_USER@}${SSH_HOST}:$ARCHIVE_DIR/$xlog_file $target_file >/dev/null
+    scp ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}:$ARCHIVE_DIR/$xlog_file $target_file >/dev/null
     if [ $? != 0 ]; then
-	error "could not copy ${SSH_HOST}:$ARCHIVE_DIR/$xlog_file to $target_file"
+	error "could not copy ${ARCHIVE_HOST}:$ARCHIVE_DIR/$xlog_file to $target_file"
     fi
 fi
 
