@@ -129,7 +129,7 @@ fi
 
 # The first argument must be a WAL file
 xlog=${@:$OPTIND:1}
-if [ -z "$xlog"  ]; then
+if [ -z "$xlog" ]; then
     error "missing xlog filename to archive. Please consider modifying archive_command, eg add %p"
     exit 1
 fi

@@ -422,9 +422,9 @@ or the current backup:
 
 * `PITRERY_BACKUP_DIR` is the full path to the directory of the backup
 
-* `PITRERY_BACKUP_LOCAL` can be used to know is SSH is required to access the backup directory
+* `PITRERY_BACKUP_LOCAL` can be used to know if SSH is required to access the backup directory
 
-* `PITRERY_SSH_TARGET` the user@host part needed to access to backup server
+* `PITRERY_SSH_TARGET` the user@host part needed to access the backup server
 
 * `PITRERY_EXIT_CODE` is the exit code of the backup. 0 for success, 1 for failure
 
@@ -895,7 +895,7 @@ The options of restore are:
         -x dir               Path to the xlog directory (only if outside $PGDATA)
         -d date              Restore until this date
         -O user              If run by root, owner of the files
-        -t tblspc:dir        Change the target directory of tablespace "ts"
+        -t tblspc:dir        Change the target directory of tablespace "tblspc"
                                this switch can be used many times
         -n                   Dry run: show restore information only
         -R                   Overwrite destination directories

@@ -55,7 +55,7 @@ BACKUP_USER=
 # After restoring from a backup, PostgreSQL will need a command to run
 # to get archived WAL segments that needed to be replayed on the
 # cluster files.  This can be any valid command or script for the
-# restore_command parameter of PostgreSQL (in recovry.conf).  The
+# restore_command parameter of PostgreSQL (in recovery.conf).  The
 # restore_xlog script is intended to be used here: leave empty to use it
 RESTORE_COMMAND=
 
@@ -85,11 +85,12 @@ LOG_TIMESTAMP="no"
 # WAL archiving
 ####################
 
-# Local copy
+# Archived WAL files are on the local machine.
 ARCHIVE_LOCAL="no"
 
-# The host storing the archiced WAL files. If left empty, use restore
-# archives from the local machine
+# The host storing the archived WAL files. Must not be set if ARCHIVE_LOCAL
+# is "yes", otherwise this must be set if using archive_xlog, restore_xlog,
+# or pitrery purge.
 ARCHIVE_HOST=
 
 # The user for login to ARCHIVE_HOST through SSH. If blank, PostgreSQL

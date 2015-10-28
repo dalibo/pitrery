@@ -511,7 +511,7 @@ case $storage in
 	;;
 
     "rsync")
-	info "transfering PGDATA to $pgdata with rsync"
+	info "transferring PGDATA to $pgdata with rsync"
 	if [ $local_backup = "yes" ]; then
 	    rsync -aq --delete-before $backup_dir/pgdata/ $pgdata/
 	    rc=$?
@@ -622,7 +622,7 @@ if [ -f "$tblspc_reloc" ]; then
 		;;
 
 	    "rsync")
-		info "transfering PGDATA to $pgdata with rsync"
+		info "transferring tablespace \"${name}\" to $tbldir with rsync"
 		if [ $local_backup = "yes" ]; then
 		    rsync -aq --delete-before $backup_dir/tblspc/${_name}/ $tbldir/
 		    rc=$?

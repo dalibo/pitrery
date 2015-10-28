@@ -218,7 +218,7 @@ if [ $pg_version -ge 90000 ]; then
     fi
 fi
 
-# Prepare target directoties
+# Prepare target directories
 info "preparing directories in ${target:+$target:}$backup_root/${label_prefix}"
 
 if [ $local_backup = "yes" ]; then
@@ -442,7 +442,7 @@ case $storage in
 	    fi
 	fi
 
-	info "transfering data from $pgdata"
+	info "transferring data from $pgdata"
 	if [ $local_backup = "yes" ]; then
 	    rsync -aq --delete-before --exclude pgsql_tmp --exclude pg_xlog --exclude 'postmaster.*' $pgdata/ $backup_dir/pgdata/
 	    rc=$?
@@ -499,7 +499,7 @@ case $storage in
 	    fi
 
 	    # rsync
-	    info "transfering data from $location"
+	    info "transferring data from $location"
 	    if [ $local_backup = "yes" ]; then
 	    	rsync -aq --delete-before --exclude pgsql_tmp $location/ $backup_dir/tblspc/$_name/
 	    	rc=$?

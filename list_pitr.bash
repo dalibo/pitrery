@@ -167,7 +167,7 @@ for dir in $list; do
 		echo -ne "$backup_size\t"
 	    fi
 	else
-	    echo "ERROR: could not find size of $backup_dir" 1>&2
+	    echo "ERROR: could not find size of $host:$dir" 1>&2
 	    st=1
 	fi
 

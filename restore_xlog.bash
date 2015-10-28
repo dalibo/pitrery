@@ -42,7 +42,7 @@ usage() {
     echo "    -C conf        configuration file"
     echo "    -u username    username for SSH login"
     echo "    -h hostname    hostname for SSH login"
-    echo "    -d dir         directory containaing WALs on host"
+    echo "    -d dir         directory containing WALs on host"
     echo "    -X             do not uncompress"
     echo "    -c command     uncompression command"
     echo "    -s suffix      compressed file suffix (ex: gz)"
