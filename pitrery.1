@@ -1,0 +1,871 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.\" First parameter, NAME, should be all caps
+.\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
+.\" other parameters are allowed: see man(7), man(1)
+.TH PITRERY 1 "October 11, 2015"
+.\" Please adjust this date whenever revising the manpage.
+.\"
+.\" Some roff macros, for reference:
+.\" .nh        disable hyphenation
+.\" .hy        enable hyphenation
+.\" .ad l      left justify
+.\" .ad b      justify to both left and right margins
+.\" .nf        disable filling
+.\" .fi        enable filling
+.\" .br        insert line break
+.\" .sp <n>    insert n+1 empty lines
+.\" for manpage-specific macros, see man(7)
+.SH NAME
+pitrery \- Manage point-in-time recovery for PostgreSQL
+
+.SH SYNOPSIS
+.B pitrery
+.RI [ options ]
+.I action
+.RI [ args ]
+
+
+.SH DESCRIPTION
+The purpose of \fBpitrery\fP is to make it easy to manage the archiving of
+PostgreSQL WAL segments and automate the tasks of taking base backups and
+preparing a point in time recovery operation if or when that is needed.
+
+The \fBpitrery\fP script itself is a front end for four archive maintenance
+actions,
+.BR backup ", " restore ", " purge ", and " list ,
+which create a new base backup, prepare the necessary files for initiating
+a recovery, clean up old base backup and WAL segments that are no longer
+wanted, and display the available base backups, respectively.  It is designed
+to be run on the same machine as the PostgreSQL cluster, but the base backups
+and WAL segments that it operates on can be archived either locally or on a
+remote server.
+
+The \fBpitrery\fP package also provides two helper scripts,
+\fBarchive_xlog\fP(1) and \fBrestore_xlog\fP(1), which can help with the
+task of managing the WAL segments that accumulate between base backups,
+allowing them to be compressed and/or stored on remote host away from the
+database server.  It is not required to use these two scripts to use
+\fBpitrery\fP, but similar functionality to copy WAL segments to an archive
+space and retrieve them on demand, will need to be provided by some other
+means if they are not.  They can also be called from other scripts if you
+require additional functionality that they don't provide.  The main advantage
+they offer is keeping all needed configuration for backup and restore tasks
+coherently in a single location.
+
+
+.SH OPTIONS
+The following options are available:
+
+.TP
+.BI "\-c " conf
+Use option settings from the specified configuration file instead of the
+default \fIpitr.conf\fP file.  This may be a full path to the file to use,
+or the name of a configuration file in the default \fBCONFIG_DIR\fP (which
+is selected at package build time and on Debian systems is
+\fI/etc/pitrery/\fP).
+
+.TP
+.B \-l
+List available configuration files in the default directory.
+
+.TP
+.B \-n
+Perform the selected action as a dry run, showing what it would do rather
+than actually executing it.
+
+.TP
+.B \-V
+Display the \fBpitrery\fP version and exit.
+
+.TP
+.B \-?
+Output the brief help summarising the above options.
+
+
+.SH ACTIONS
+Each of the actions also has its own individual set of options, which must
+be passed after the action name.
+
+
+.SS list
+The \fBlist\fP action is used to obtain information about the available base
+backups which can be used to begin a recovery operation.
+
+.TP 4
+.B SYNOPSIS
+.B pitrery
+.RI [ options ]
+.B list
+.RI [ list-options ]
+.RI [ hostname ]
+
+.TP 4
+.B LIST-OPTIONS
+The following options are available for the \fBlist\fP action:
+
+.RS
+
+.TP
+.B \-L
+List the base backups in a local archive directory.  This will override the
+\fBBACKUP_IS_LOCAL\fP option from the configuration file (forcing it to be
+"yes").
+
+.TP
+.BI "\-b " dir
+The directory on the (local or remote) host where base backups are stored.
+This will override the \fBBACKUP_DIR\fP option from the configuration file.
+
+.TP
+.BI "\-l " label
+The label used for the base backups to list.  This will override the
+\fBBACKUP_LABEL\fP option from the configuration file.
+
+.TP
+.BI "\-u " username
+The user name for \fBssh\fP(1) login to a remote archive.  This will override
+the \fBBACKUP_USER\fP option from the configuration file.
+
+.TP
+.B \-v
+Display verbose details about the listed base backups.
+
+.TP
+.B \-?
+Output the brief help summarising the \fBlist\fP options.
+
+.TP
+.I hostname
+The host name for \fBssh\fP(1) login to a remote archive.  This will override
+the \fBBACKUP_HOST\fP option from the configuration file.
+
+.RE
+
+
+.SS backup
+The \fBbackup\fP action is used to create a new base backup of the present
+state of a PostgreSQL cluster.  This provides a starting point which WAL
+segments can be replayed on top of, so that point in time recovery may be done
+for any time after the base backup was completed and for which there is a
+sequence of archived WAL segment files up to the desired recovery time.
+
+This must be run on the same machine as the cluster that is to be backed up,
+though the base backup may be pushed to a remote machine for storage.
+
+.TP 4
+.B SYNOPSIS
+.B pitrery
+.RI [ options ]
+.B backup
+.RI [ backup-options ]
+.RI [ hostname ]
+
+.TP 4
+.B BACKUP-OPTIONS
+The following options are available for the \fBbackup\fP action:
+
+.RS
+
+.TP
+.B \-L
+Save the base backup in a local archive directory.  This will override the
+\fBBACKUP_IS_LOCAL\fP option from the configuration file (forcing it to be
+"yes").
+
+.TP
+.BI "\-b " dir
+The directory on the (local or remote) host where the base backup is to be
+stored.  This will override the \fBBACKUP_DIR\fP option from the configuration
+file.
+
+.TP
+.BI "\-l " label
+The label to use for the base backup.  This will override the
+\fBBACKUP_LABEL\fP option from the configuration file.
+
+.TP
+.BI "\-u " username
+The user name for \fBssh\fP(1) login to a remote archive.  This will override
+the \fBBACKUP_USER\fP option from the configuration file.
+
+.TP
+.BI "\-D " dir
+The \fBPGDATA\fP path of the cluster to back up on the local machine.  This
+will override the \fBPGDATA\fP option from the configuration file.
+
+.TP
+.BI "\-s " mode
+The storage mode to use for the base backup.  The \fImode\fP may be \fBtar\fP
+or \fBrsync\fP.  This will override the \fBSTORAGE\fP option from the
+configuration file.
+
+Using \fBrsync\fP will attempt to hardlink any files that have not changed
+since the last base backup was taken.  Whether this will actually use less
+disk space than a compressed tarball will depend on the size of your cluster
+and its pattern of use.  It will only try to do this to the most recent base
+backup, so it will be equivalent to a plain copy of the \fBPGDATA\fP directory
+if the previous backup was not also taken with the rsync method.
+
+.TP
+.BI "\-c " compress_bin
+The command to use for compressing a base backup taken with the \fBtar\fP
+mode.  This will override the \fBBACKUP_COMPRESS_BIN\fP option from the
+configuration file.
+
+.TP
+.BI "\-e " compress_suffix
+The suffix to add to a compressed base backup taken with the \fBtar\fP
+mode.  This will override the \fBBACKUP_COMPRESS_SUFFIX\fP option from the
+configuration file.
+
+.TP
+.BI "\-P " psql
+The \fBpsql\fP(1) command to use to run SQL statements on the database cluster.
+This will override the \fBPGPSQL\fP option from the configuration file.
+
+You should avoid using this to pass extra options to \fBpsql\fP (and instead
+use the options below for that).  It is mostly for overriding the default
+\fBpsql\fP(1) that would otherwise be found in the system \fBPATH\fP.
+
+.TP
+.BI "\-h " host
+The host address to use to query the database cluster.  This may be an IP
+address for TCP connection or the path to a unix socket directory for a
+local peer connection.  It is passed as the \fB\-\-host\fP option to
+\fBpsql\fP(1).  This will override the \fBPGHOST\fP option from the
+configuration file.
+
+.TP
+.BI "\-p " port
+The port to use to query the database cluster.  It is passed as the
+\fB\-\-port\fP option to \fBpsql\fP(1).  This will override the \fBPGPORT\fP
+option from the configuration file.
+
+.TP
+.BI "\-U " name
+The user name to use to query the database cluster.  It is passed as the
+\fB\-\-username\fP option to \fBpsql\fP(1).  This will override the
+\fBPGUSER\fP option from the configuration file.  This must be a superuser
+with permission to execute \fBpg_start_backup\fP() on the cluster.
+
+.TP
+.BI "\-d " database
+The database to use when querying the cluster.  It is passed as the
+\fB\-\-dbname\fP option to \fBpsql\fP(1).  This will override the
+\fBPGDATABASE\fP option from the configuration file.  Note that this does not
+influence what is included in the base backup, point in time recovery is
+always for the entire cluster.
+
+.TP
+.B \-T
+Timestamp the log messages.  This will override the \fBLOG_TIMESTAMP\fP option
+from the configuration file (forcing it to be "yes").
+
+.TP
+.B \-?
+Output the brief help summarising the \fBbackup\fP options.
+
+.TP
+.I hostname
+The host name for \fBssh\fP(1) login to a remote archive.  This will override
+the \fBBACKUP_HOST\fP option from the configuration file.
+
+.RE
+
+
+.SS restore
+The \fBrestore\fP action is used to select and retrieve the files needed to
+begin recovery of a cluster to a particular state, either to the most recently
+archived state or a point in time between the oldest base backup and the most
+recent WAL segment that is available to be replayed.
+
+It will create a new \fBPGDATA\fP tree from the archived data with a minimal
+\fIrecovery.conf\fP ready to begin recovery operations.  It may also place a
+copy of the \fBpostgres\fP configuration files from the time that the base
+backup was made in \fIPGDATA/restored_config_files\fP if they did not exist in
+the \fBPGDATA\fP directory at that time.
+
+.TP 4
+.B SYNOPSIS
+.B pitrery
+.RI [ options ]
+.B restore
+.RI [ restore-options ]
+.RI [ hostname ]
+
+.TP 4
+.B RESTORE-OPTIONS
+The following options are available for the \fBrestore\fP action:
+
+.RS
+
+.TP
+.B \-L
+Restore from a base backup in a local archive directory.  This will override
+the \fBBACKUP_IS_LOCAL\fP option from the configuration file (forcing it to
+be "yes").
+
+.TP
+.BI "\-b " dir
+The directory on the (local or remote) host where the base backup to be
+restored from is stored.  This will override the \fBBACKUP_DIR\fP option from
+the configuration file.
+
+.TP
+.BI "\-l " label
+The label that was used when storing the base backup.  This will override the
+\fBBACKUP_LABEL\fP option from the configuration file.
+
+.TP
+.BI "\-u " username
+The user name for \fBssh\fP(1) login to a remote archive.  This will override
+the \fBBACKUP_USER\fP option from the configuration file.
+
+.TP
+.BI "\-D " dir
+The \fBPGDATA\fP path of the cluster on the local machine, that is to be
+repopulated ready for recovery.  This directory will be created if it does not
+already exist, but must be empty if it does (unless the \fB\-R\fP option is
+used to force overwriting it).  This will override the \fBPGDATA\fP option
+from the configuration file.
+
+.TP
+.BI "\-x " dir
+The directory where WAL segment files will be placed if you wish to keep those
+outside of the \fBPGDATA\fP tree.  If specified this will create
+\fIPGDATA/pg_xlog\fP as a symlink to \fIdir\fP rather than as a directory in
+its own right.  This will override the \fBPGXLOG\fP option from the
+configuration file.
+
+.TP
+.BI "\-d " date
+The initial \fIrecovery_target_time\fP to place in \fIrecovery.conf\fP which
+is the first point in time that replaying the WAL segment files will pause at.
+The \fIdate\fP is of the form:
+
+.nh
+.nf
+  \fIYYYY-MM-DD HH:MM:SS\fP [\fI(+|-)XXXX\fP]
+.fi
+.hy
+
+where \fIXXXX\fP is the optional timezone offset.  This cannot be earlier than
+the oldest archived base backup, and can only be restored to if all the WAL
+segment files from the nearest base backup to that time are available and
+uncorrupted.
+
+.TP
+.BI "\-O " user
+The user which should be set as the owner of the restored files if
+\fBpitrery\fP is run as root.  This will override the \fBPGOWNER\fP option
+from the configuration file.
+
+.TP
+.BI "\-t " tblspc:dir
+Change the target directory of tablespace \fItblspc\fP to \fIdir\fP.  This
+option may be used as many times as required if multiple tablespaces need to
+to relocated.
+
+.TP
+.B \-n
+Do a dry run of the restore, showing information about what it would do but
+stopping before actually making any changes to \fBPGDATA\fP.
+
+.TP
+.B \-R
+Overwrite destination directories.  By default the \fBrecovery\fP action will
+refuse to proceed if any of the destination directories are not empty.  Even
+with this option it will still refuse to proceed if a \fIpostmaster.pid\fP
+file is present, since attempting a restore into directory that a running
+\fBpostgres\fP instance is using is likely to Go Very Badly.
+
+.TP
+.BI "\-c " compress_bin
+The command to use for uncompressing a base backup taken with the \fBtar\fP
+mode.  This will override \fBBACKUP_UNCOMPRESS_BIN\fP option from the
+configuration file.
+
+.TP
+.BI "\-e " compress_suffix
+The file suffix to expect (e.g., gz, bz2, xz) for a compressed base backup
+taken with the \fBtar\fP mode.  This will override the
+\fBBACKUP_COMPRESS_SUFFIX\fP option from the configuration file.
+
+.TP
+.BI "\-r " command
+The command line to use in the \fIrestore_command\fP option of the generated
+\fIrecovery.conf\fP file.  This will override the \fBRESTORE_COMMAND\fP option
+from the configuration file.  The default is to use \fBrestore_xlog\fP(1).
+
+.TP
+.BI "\-C " config
+The configuration file to use for \fBrestore_xlog\fP(1) if
+\fBRESTORE_COMMAND\fP was not explicitly specified on either the command line
+or in the configuration file.
+
+.TP
+.B \-T
+Timestamp the log messages.  This will override the \fBLOG_TIMESTAMP\fP option
+from the configuration file (forcing it to be "yes").
+
+.TP
+.B \-?
+Output the brief help summarising the \fBrestore\fP options.
+
+.TP
+.I hostname
+The host name for \fBssh\fP(1) login to a remote archive.  This will override
+the \fBBACKUP_HOST\fP option from the configuration file.
+
+.RE
+
+
+.SS purge
+The \fBpurge\fP action is used to perform an orderly expiry of old archived
+data that you no longer wish to retain.  It will remove both base backups and
+any archived WAL segment files that would no longer be usable with just the
+base backups that remain.  (It will not remove any archived WAL segment files
+if there are no base backups at all though).
+
+Expiry of backups can be based on the maximum number of them that you wish to
+keep, the maximum age of them that you wish to keep, or a combination of both
+where they will only be removed if they exceed both the age limit and the
+limit on the number of backups to retain.  This can avoid accidentally removing
+all the existing backups if all of them are older than the maximum age.
+
+.TP 4
+.B SYNOPSIS
+.B pitrery
+.RI [ options ]
+.B purge
+.RI [ purge-options ]
+.RI [ hostname ]
+
+.TP 4
+.B PURGE-OPTIONS
+The following options are available for the \fBpurge\fP action:
+
+.RS
+
+.TP
+.B \-L
+Purge base backups from a local archive directory.  This will override the
+\fBBACKUP_IS_LOCAL\fP option from the configuration file (forcing it to be
+"yes").
+
+.TP
+.BI "\-b " dir
+The directory on the (local or remote) host where the base backups to be
+purged are stored.  This will override the \fBBACKUP_DIR\fP option from
+the configuration file.
+
+.TP
+.BI "\-l " label
+The label that was used when storing the base backups that are to be purged.
+This will override the \fBBACKUP_LABEL\fP option from the configuration file.
+
+.TP
+.BI "\-u " username
+The user name for \fBssh\fP(1) login to a remote archive of base backups.
+This will override the \fBBACKUP_USER\fP option from the configuration file.
+
+.TP
+.BI "\-n " host
+The host name for \fBssh\fP(1) login to a remote WAL archive.  This will
+override the \fBARCHIVE_HOST\fP option from the configuration file.  The
+default is to try to find WAL segment files on the base backup host if this
+is not explicitly specified on either the command line or in the configuration
+file.
+
+.TP
+.BI "\-U " username
+The user name for \fBssh\fP(1) login to a remote WAL archive.  This will
+override the \fBARCHIVE_USER\fP option from the configuration file.  The
+default is to use the same \fIusername\fP as for login to the base backup
+host if this is not explicitly specified on either the command line or in
+the configuration file.
+
+.TP
+.BI "\-X " dir
+The directory containing WAL segment files on the (local or remote) host.
+This will override the \fBARCHIVE_DIR\fP option from the configuration file.
+
+.TP
+.BI "\-m " count
+Keep (at least) this number of base backups.  The \fBpurge\fP action will
+never reduce the number of backups to less than this count, regardless of
+their age.  This will override the \fBPURGE_KEEP_COUNT\fP option from the
+configuration file.
+
+.TP
+.BI "\-d " days
+Keep all base backups dating back to (at least) this number of days.  The
+\fBpurge\fP action will never remove backups that are more recent than this,
+regardless of the number of them which remain.  This will override the
+\fBPURGE_OLDER_THAN\fP option from the configuration file.
+
+.TP
+.B \-T
+Timestamp the log messages.  This will override the \fBLOG_TIMESTAMP\fP option
+from the configuration file (forcing it to be "yes").
+
+.TP
+.B \-?
+Output the brief help summarising the \fBpurge\fP options.
+
+.TP
+.I hostname
+The host name for \fBssh\fP(1) login to a remote archive of base backups.
+This will override the \fBBACKUP_HOST\fP option from the configuration file.
+
+.RE
+
+
+.SH CONFIGURATION
+The following options may be configured persistently in one or more
+configuration files.  The configuration file will be sourced as a
+\fBbash\fP(1) shell snippet, so it must contain only valid shell syntax,
+though it should usually only contain assignments to the following variables:
+
+.SS Cluster configuration
+These variables specify the location and manner of accessing the PostgreSQL
+cluster for \fBbackup\fP and \fBrestore\fP operations.
+
+.TP
+.B PGDATA
+The path to the PostgreSQL cluster data directory.  This must be set (or
+passed on the command line) for \fBbackup\fP and \fBrestore\fP operations.
+
+.TP
+.B PGPSQL
+The \fBpsql\fP(1) program to use when querying the database for \fBbackup\fP
+operations.  If not set, then the \fBpsql\fP binary found in the system
+\fBPATH\fP will be used.
+
+You should avoid using this to pass extra options to \fBpsql\fP (and instead
+use the options below for that).  It is mostly for overriding the default
+\fBpsql\fP(1) that would otherwise be found in the system \fBPATH\fP.
+
+.TP
+.B PGHOST
+The host address to use to query the database cluster.  This may be an IP
+address for TCP connection or the path to a unix socket directory for a
+local peer connection.  It is passed as the \fB\-\-host\fP option to
+\fBpsql\fP(1) for \fBbackup\fP operations.  If not set the \fBpsql\fP default
+will be used.
+
+.TP
+.B PGPORT
+The port to use to query the database cluster.  It is passed as the
+\fB\-\-port\fP option to \fBpsql\fP(1) for \fBbackup\fP operations.
+If not set the \fBpsql\fP default will be used.
+
+.TP
+.B PGUSER
+The username to use when querying the database.  It is passed as the
+\fB\-\-username\fP option to \fBpsql\fP(1) for \fBbackup\fP operations.
+This must be a superuser with permission to execute \fBpg_start_backup\fP()
+on the cluster.  If not set the \fBpsql\fP default will be used.
+
+.TP
+.B PGDATABASE
+The database to use when querying the cluster.  It is passed as the
+\fB\-\-dbname\fP option to \fBpsql\fP(1) for \fBbackup\fP operations.
+Note that this does not influence what is included in the base backup,
+point in time recovery is always for the entire cluster.
+If not set the \fBpsql\fP default will be used.
+
+.TP
+.B PGOWNER
+The user which should be set as the owner of the restored files if
+\fBpitrery\ restore\fP is run as root.
+
+.TP
+.B PGXLOG
+The directory where WAL segment files will be placed if you wish to keep those
+outside of the \fBPGDATA\fP tree when a \fBrestore\fP operation is performed.
+If set this will create \fIPGDATA/pg_xlog\fP as a symlink to the specified
+path rather than as a directory in its own right.
+
+
+.SS Base backup configuration
+These variables specify the location and manner of accessing the base backup
+archive for all operations.
+
+.TP
+.B BACKUP_IS_LOCAL
+If set to "yes", the base backups are stored on the local machine.
+
+.TP
+.B BACKUP_DIR
+The directory on the (local or remote) host where base backups are stored.
+Each backup will have its own subdirectory under this, named with the timestamp
+of when the \fBbackup\fP operation completed.
+
+.TP
+.B BACKUP_LABEL
+Defines a name for this particular backup set.  Every backup will be stored in
+\fB$BACKUP_DIR/$BACKUP_LABEL\fP, which enables backups for multiple clusters to
+all be stored in the same place in an orderly manner.
+
+.TP
+.B BACKUP_HOST
+The target host where remote backups will be stored.  The user running
+\fBpitrery\fP must be able to \fBssh\fP(1) to this host and run commands in
+the remote shell.  Typically this means that either a passwordless \fBssh\fP
+key must be available, or an agent must be active to permit this access.
+This \fBmust not\fP be set if \fBBACKUP_IS_LOCAL\fP is set to "yes"
+(and \fBmust\fP be set or passed on the command line if it is not).
+
+.TP
+.B BACKUP_USER
+The username to use for \fBssh\fP(1) access to the remote backup storage.
+If not set, the \fBssh\fP default will be used (either taking the user from
+the \fBssh\fP configuration for the target host, or the user that is running
+the command).
+
+.TP
+.B STORAGE
+The base backup storage method to use.  The \fBtar\fP method creates one
+compressed tarball for \fBPGDATA\fP and each tablespace.  The \fBrsync\fP
+method will attempt to optimise the amount of data transferred and the amount
+of disk space used by doing a differential backup, hardlinking files that have
+not changed to the copies from the previous backup (which must also have been
+done with the rsync method for this to work).  The disk space used by a highly
+compressed tarball may still be less than what is saved by the hardlinks
+(depending on the size of your cluster and its use patterns), but rsync is
+likely to be able to complete the backup faster with less data transferred.
+
+.TP
+.B PRE_BACKUP_COMMAND
+An optional user defined command which may be run before a \fBbackup\fP
+operation begins.  See the \fBBACKUP\ HOOKS\fP section below for more
+details.
+
+.TP
+.B POST_BACKUP_COMMAND
+An optional user defined command which may be run after a \fBbackup\fP
+operation us completed.  See the \fBBACKUP\ HOOKS\fP section below for more
+details.
+
+
+.SS WAL archiving configuration
+These variables are used by the \fBarchive_xlog\fP(1) and
+\fBrestore_xlog\fP(1) scripts and by the \fBpurge\fP action when managing
+archived WAL segment files.
+
+.TP
+.B ARCHIVE_LOCAL
+If set to "yes", the WAL segment files are archived on the local machine.
+
+.TP
+.B ARCHIVE_HOST
+The host name for \fBssh\fP(1) login to a remote WAL archive.
+This \fBmust not\fP be set if \fBARCHIVE_LOCAL\fP is set to "yes"
+(and \fBmust\fP be set or passed on the command line if it is not).
+
+.TP
+.B ARCHIVE_USER
+The user name for \fBssh\fP(1) login to a remote WAL archive.
+If not set, the PostgreSQL server process owner is used for
+\fBarchive_xlog\fP(1) and \fBrestore_xlog\fP(1) operations and the
+\fBBACKUP_USER\fP is used during \fBpurge\fP operations.
+
+.TP
+.B ARCHIVE_DIR
+The directory where archived WAL segment files will be kept on the (local
+or remote) host.  If they are kept on the same machine as the \fBBACKUP_HOST\fP
+they can be stored near the base backups by setting this to something like:
+
+.nh
+.nf
+  ARCHIVE_DIR="$BACKUP_DIR/$BACKUP_LABEL/archived_xlog"
+.fi
+.hy
+
+
+.SS Compression configuration
+These variables are used to configure the compression of the archived WAL
+segment files and base backups which use the \fBtar\fP \fBSTORAGE\fP mode.
+
+.TP
+.B ARCHIVE_COMPRESS
+If set to "yes", compress the archived WAL segment files with
+.BR ARCHIVE_COMPRESS_BIN.
+
+.TP
+.B ARCHIVE_COMPRESS_BIN
+The command line to use to compress archived WAL segment files.
+The program used here must support a \fB\-c\fP option to send output to
+\fIstdout\fP and read input from \fIstdin\fP (such as
+.BR gzip (1),
+.BR pigz (1),
+.BR bzip2 (1),
+.BR pbzip2 (1),
+.BR xz (1)
+).  If not set, the default is to use "gzip \-4".
+
+.TP
+.B ARCHIVE_COMPRESS_SUFFIX
+The suffix to use for files compressed by \fBARCHIVE_COMPRESS_BIN\fP.
+If not set the default is to use "gz".
+
+.TP
+.B ARCHIVE_UNCOMPRESS_BIN
+The command line to use to decompress archived WAL segment files.
+It must take the file to process as its first parameter.  If not set, the
+default is to use
+.BR gunzip (1).
+
+.TP
+.B BACKUP_COMPRESS_BIN
+The command to use for compressing a base backup taken with the \fBtar\fP
+\fBSTORAGE\fP mode.  It must be able to take input piped to \fIstdin\fP
+and send its output to \fIstdout\fP (such as
+.BR gzip (1),
+.BR pigz (1),
+.BR bzip2 (1),
+.BR pbzip2 (1),
+.BR xz (1)
+).  If not set, the default is to use "gzip \-4".
+
+.TP
+.B BACKUP_COMPRESS_SUFFIX
+The suffix to add to a compressed base backup taken with the \fBtar\fP
+\fBSTORAGE\fP mode.  If not set the default is to use "gz".
+
+.TP
+.B BACKUP_UNCOMPRESS_BIN
+The command to use for uncompressing a base backup taken with the \fBtar\fP
+\fBSTORAGE\fP mode.  It must be able to take the file to process as its first
+parameter or input piped to \fIstdin\fP, and support a \fB\-c\fP option to
+send output to \fIstdout\fP.  If not set, the default is to use
+.BR gunzip (1).
+
+
+.SS Restore configuration
+These variables are used to configure the \fBrestore\fP action operation.
+
+.TP
+.B RESTORE_COMMAND
+The command line to use in the \fIrestore_command\fP option of the
+\fIrecovery.conf\fP file that is generated by the \fBrestore\fP action.
+This is the command that PostgreSQL will use to attempt to retrieve archived
+WAL segment files needed during recovery.
+If not set, the default is to use \fBrestore_xlog\fP(1).
+
+
+.SS Purge configuration
+These variables are used to configure the \fBpurge\fP action operation.
+
+.TP
+.B PURGE_KEEP_COUNT
+Keep (at least) this number of base backups.  The \fBpurge\fP action will
+never reduce the number of backups to less than this count, regardless of
+their age.
+
+.TP
+.B PURGE_OLDER_THAN
+Keep all base backups dating back to (at least) this number of days.  The
+\fBpurge\fP action will never remove backups that are more recent than this,
+regardless of the number of them which remain.
+
+
+.SS Logging configuration
+These variables are used to configure the logging output of \fBpitrery\fP
+actions.
+
+.TP
+.B LOG_TIMESTAMP
+Timestamp the warning and error messages that may be output when \fBpitrery\fP
+actions are performed.
+
+.TP
+.B SYSLOG
+If set to "yes", then messages output by \fBarchive_xlog\fP(1) and
+\fBrestore_xlog\fP(1) will be written to the \fBsyslog\fP(3) instead of to
+the \fBstdio\fP(3) streams.  This should be coordinated with the configuration
+used in \fIpostgresql.conf\fP, in particular whether the logging collector is
+being used to capture the \fBstdio\fP streams.  When logging to \fBsyslog\fP,
+messages sent to \fIstdout\fP will be logged with \fBLOG_INFO\fP priority,
+while messages to \fIstderr\fP will be logged with \fBLOG_ERR\fP priority.
+
+.TP
+.B SYSLOG_FACILITY
+Specify the syslog facility to use.  If not set, the default is to use
+\fBlocal0\fP.  See \fBlogger\fP(1) for details of the valid facility strings
+that can be used here.
+
+.TP
+.B SYSLOG_IDENT
+An identifier to prefix \fBsyslog\fP output with.  If not set, the default is
+to use the string "postgres".
+
+
+.SH BACKUP HOOKS
+When the \fBbackup\fP operation is performed, user defined commands may be run
+before the backup starts and after it is completed to perform any additional
+actions that you might require.
+
+The \fBPRE_BACKUP_COMMAND\fP is run before the backup is started.
+
+The \fBPOST_BACKUP_COMMAND\fP is run after the backup is finished.
+This command is run even if the backup fails, but not if the backup fails
+because of the \fBPRE_BACKUP_COMMAND\fP or earlier (i.e. the sequence of
+"pre\ command"\ ->\ "base\ backup"\ ->\ "post\ command" execution is ensured).
+
+The following environment variables are available to the hook commands, to
+access the PostgreSQL cluster or the current backup:
+
+.TP
+.B PITRERY_HOOK
+Contains the name of the hook that is being run, either \fIpre_backup\fP or
+\fIpost_backup\fP (so that the same command may be used to perform actions
+before and after the backup runs).
+
+.TP
+.B PITRERY_PSQL
+Contains the \fBpsql\fP(1) command line needed to run SQL statements on the
+saved PostgreSQL cluster.
+
+.TP
+.B PITRERY_DATABASE
+Contains the name of the database used for \fBpsql\fP(1) connections.
+
+.TP
+.B PITRERY_BACKUP_DIR
+Contains the full path to the directory used for the base backup.
+
+.TP
+.B PITRERY_BACKUP_LOCAL
+Will contain "yes" if base backups are being stored on the local machine
+(and so can be used to know if \fBssh\fP(1) is required to access the backup
+directory).
+
+.TP
+.B PITRERY_SSH_TARGET
+Contains the \fIuser@host\fP part needed to access the backup server.
+
+.TP
+.B PITRERY_EXIT_CODE
+Contains the exit code of the \fBbackup\fP operation when the
+\fBPOST_BACKUP_COMMAND\fP is run so it can know if there was a problem.
+Will be 0 for success, 1 for failure.
+
+
+.SH FILES
+.TP
+.I /etc/pitrery/pitr.conf
+The default \fBpitrery\fP configuration file if not explicitly specified.
+
+
+.SH SEE ALSO
+.BR archive_xlog (1),
+.BR restore_xlog (1).
+
+
+.SH AUTHOR
+.B pitrery
+was written by Nicolas Thauvin <nicolas.thauvin@dalibo.com>.
+This man page was written by Ron <ron@debian.org>.
+

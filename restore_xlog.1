@@ -1,0 +1,127 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.\" First parameter, NAME, should be all caps
+.\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
+.\" other parameters are allowed: see man(7), man(1)
+.TH RESTORE_XLOG 1 "October 11, 2015"
+.\" Please adjust this date whenever revising the manpage.
+.\"
+.\" Some roff macros, for reference:
+.\" .nh        disable hyphenation
+.\" .hy        enable hyphenation
+.\" .ad l      left justify
+.\" .ad b      justify to both left and right margins
+.\" .nf        disable filling
+.\" .fi        enable filling
+.\" .br        insert line break
+.\" .sp <n>    insert n+1 empty lines
+.\" for manpage-specific macros, see man(7)
+.SH NAME
+restore_xlog \- retrieve WAL segment files during database recovery
+
+.SH SYNOPSIS
+.B restore_xlog
+.RI [ options ]
+.I xlogfile destination
+
+
+.SH DESCRIPTION
+The \fBrestore_xlog\fP script is the default action that is used for the
+\fBpostgres\fP(1) \fIrestore_command\fP in \fIrecovery.conf\fP by
+\fBpitrery\ restore\fP.  It is responsible for retrieving the archived WAL
+segments that are needed during the recovery operation.
+
+
+.SH OPTIONS
+The following options are available:
+
+.TP
+.BI "\-C " conf
+Use option settings from the specified configuration file instead of the
+default \fIpitr.conf\fP file.  This may be a full path to the file to use,
+or the name of a configuration file in the default \fBCONFIG_DIR\fP (which
+on Debian systems is \fI/etc/pitrery/\fP).
+
+.TP
+.B \-L
+Restore from local archives.  This will override the \fBARCHIVE_LOCAL\fP
+option from the configuration file (forcing it to be "yes").
+
+.TP
+.BI "\-u " username
+The user name for \fBssh\fP(1) login to a remote WAL archive.  This will
+override the \fBARCHIVE_USER\fP option from the configuration file.
+
+.TP
+.BI "\-h " hostname
+The host name for \fBssh\fP(1) login to a remote WAL archive.  This will
+override the \fBARCHIVE_HOST\fP option from the configuration file.
+
+.TP
+.BI "\-d " dir
+The directory containing WAL segment files on the (local or remote) host.
+This will override the \fBARCHIVE_DIR\fP option from the configuration file.
+
+.TP
+.B \-X
+Retrieve WAL segment files that are not compressed.  This will override the
+\fBARCHIVE_COMPRESS\fP option from the configuration file (forcing it to be
+"no").
+
+.TP
+.BI "\-c " command
+The command to use for uncompressing WAL segment files.  This will override
+the \fBARCHIVE_UNCOMPRESS_BIN\fP option from the configuration file.
+
+.TP
+.BI "\-s " suffix
+The compressed file suffix to expect (e.g., gz, bz2, xz).  This will override
+the \fBARCHIVE_COMPRESS_SUFFIX\fP option from the configuration file.
+
+.TP
+.B \-S
+Send messages to the \fBsyslog\fP(3) instead of \fBstdio\fP(3).  This will
+override the \fBSYSLOG\fP option from the configuration file (forcing it to
+be "yes").  Messages sent to \fIstdout\fP will be logged with \fBLOG_INFO\fP
+priority, while messages to \fIstderr\fP will be logged with \fBLOG_ERR\fP
+priority.
+
+.TP
+.BI "\-f " facility
+Specify the \fBsyslog\fP facility to use.  This will override the
+\fBSYSLOG_FACILITY\fP option from the configuration file.  Defaults to use
+\fBlocal0\fP if not otherwise explicitly set.  See \fBlogger\fP(1) for details
+of the valid facility strings that can be used here.
+
+.TP
+.BI "\-t " ident
+An identifier to prefix \fBsyslog\fP output with.  This will override the
+\fBSYSLOG_IDENT\fP option from the configuration file.  Defaults to use the
+string "postgres" if not otherwise explicitly set.
+
+.TP
+.B \-?
+Output the brief help summarising the above options.
+
+
+.SH FILES
+.TP
+.I /etc/pitrery/pitr.conf
+The default \fBrestore_xlog\fP configuration file if not explicitly specified.
+
+.TP
+.I recovery.conf
+The file created in the \fBPGDATA\fP directory by \fBpitrery\ restore\fP which
+configures if and/or how to use \fBrestore_xlog\fP to retrieve any needed WAL
+segment files during database recovery.
+
+
+.SH SEE ALSO
+.BR archive_xlog (1),
+.BR pitrery (1).
+
+
+.SH AUTHOR
+.B restore_xlog
+was written by Nicolas Thauvin <nicolas.thauvin@dalibo.com>.
+This man page was written by Ron <ron@debian.org>.
+

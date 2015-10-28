@@ -20,3 +20,4 @@ BINDIR = ${PREFIX}/bin
 LIBDIR = ${PREFIX}/lib
 SYSCONFDIR = ${PREFIX}/etc/${NAME}
 DOCDIR = ${PREFIX}/share/doc/${NAME}
+MANDIR = ${PREFIX}/share/man

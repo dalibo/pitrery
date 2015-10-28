@@ -45,6 +45,9 @@ make install DESTDIR=%{buildroot}
 %doc /usr/share/doc/pitrery/UPGRADE.md
 %doc /usr/share/doc/pitrery/pitr.conf
 %doc /usr/share/doc/pitrery/CHANGELOG
+%doc %{_mandir}/man1/pitrery.1
+%doc %{_mandir}/man1/archive_xlog.1
+%doc %{_mandir}/man1/restore_xlog.1
 
 %changelog
 * Mon Oct 19 2015 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.10-1

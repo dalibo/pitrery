@@ -1,7 +1,7 @@
 Setup the installation paths
 --- a/config.mk
 +++ b/config.mk
-@@ -15,8 +15,8 @@
+@@ -15,9 +15,9 @@
  #HARDLINKER = pax -rwl
  
  # paths
@@ -12,3 +12,4 @@ Setup the installation paths
 -SYSCONFDIR = ${PREFIX}/etc/${NAME}
 +SYSCONFDIR = /etc/${NAME}
  DOCDIR = ${PREFIX}/share/doc/${NAME}
+ MANDIR = ${PREFIX}/share/man
