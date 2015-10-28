@@ -9,7 +9,32 @@
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
+# Ensure we have a sane shell, so we can use brace expansion.
+SHELL = /bin/bash
+
 %:
 	dh $@ 
 
 override_dh_auto_configure:
+
+# We have a bit of a dance to do here to avoid being shot in the foot by
+# too much dh automagic.  The upstream Makefile will install CHANGELOG,
+# and then dh_installchangelogs will try to install it again, but this time
+# renaming it to 'changelog', at which point we end up with two copies of it
+# that lintian will quite rightly complain about.  Patching the upstream
+# Makefile to not install it seems silly (though that could reasonably be
+# split into separate install-bin and install-doc targets, but we'd still
+# need the override here to use them), and we can't tell dh_installchangelogs
+# (since compat 7) to not try to be so 'clever' without similar hackery to
+# this, so just remove it here after the upstream install runs so we only get
+# the one copy in the final package.
+#
+# We have a similar issue with COPYRIGHT, where the upstream Makefile will
+# install it, but we already got a copy of it from the debian/copyright file.
+#
+# And since we've had to do all this already, remove the pitr.conf example
+# file too, since we already install a copy of it to /etc/pitrery.
+override_dh_auto_install:
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/pitrery
+	$(RM) debian/pitrery/usr/share/doc/pitrery/{CHANGELOG,COPYRIGHT,pitr.conf}
+

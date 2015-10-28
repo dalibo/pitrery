@@ -1,14 +1,15 @@
 Source: pitrery
-Section: main
-Priority: extra
+Section: database
+Priority: optional
 Maintainer: Nicolas Thauvin <nicolas.thauvin@dalibo.com>
 Build-Depends: debhelper (>= 7.0.15)
-Standards-Version: 3.9.2
+Standards-Version: 3.9.6.1
 Homepage: https://github.com/dalibo/pitrery
 
 Package: pitrery
 Architecture: all
-Depends: ${misc:Depends}, rsync (>= 3.0.7), bash, openssh-client
+Depends: ${misc:Depends}
+Recommends: rsync (>= 3.0.7), openssh-client
 Description: Point-In-Time Recovery tools for PostgreSQL
  pitrery is a set of Bash scripts to manage Point In Time Recovery (PITR)
  backups for PostgreSQL.
