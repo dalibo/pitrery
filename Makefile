@@ -27,7 +27,7 @@ options:
 	@echo "DOCDIR     = ${DOCDIR}"
 	@echo
 
-$(BINS) $(LIBS): $(SRCS)
+$(BINS) $(LIBS): $(SRCS) $(HELPERS)
 	@echo translating paths in bash scripts: $@
 	@sed -e "s%@BASH@%${BASH}%" \
 		-e "s%@HARDLINKER@%${HARDLINKER}%" \
