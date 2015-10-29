@@ -24,6 +24,20 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+# Apply an extra level of shell quoting to each of the arguments passed.
+# This is necessary for remote-side arguments of ssh (including commands that
+# are executed by the remote shell and remote paths for scp and rsync via ssh)
+# since they will strip an extra level of quoting off on the remote side.
+# This makes it safe for them to include spaces or other special characters
+# which should not be interpreted or cause word-splitting on the remote side.
+qw() {
+    while (( $# > 1 )); do
+	printf "%q " "$1"
+	shift
+    done
+    (( $# == 1 )) && printf "%q" "$1"
+}
+
 # Message functions
 error() {
     echo "ERROR: $1" 1>&2
