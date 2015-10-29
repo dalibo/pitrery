@@ -89,11 +89,6 @@ now() {
 
 error() {
     echo "$(now)ERROR: $*" 1>&2
-
-    # Clean tmp dir
-    if [ -n "$tmp_dir" ]; then
-	rm -rf $tmp_dir
-    fi
     exit 1
 }
 
@@ -208,7 +203,7 @@ while getopts "Lu:b:l:D:x:d:O:t:nRc:e:r:C:T?" opt; do
 	x) pgxlog=$OPTARG;;
 	d) target_date=$OPTARG;;
 	O) owner=$OPTARG;;
-	t) tsmv_list="$tsmv_list $OPTARG";;
+	t) tsmv_list+=( "$OPTARG" );;
 	n) dry_run="yes";;
 	R) overwrite="yes";;
 	c) uncompress_bin="$OPTARG";;
@@ -229,21 +224,10 @@ if [ -z "$source" ] && [ $local_backup != "yes" ]; then
     usage 1
 fi
 
-if [ -n "$target_date" ]; then
-    # Check input date. The format is 'YYYY-MM-DD HH:MM:SS [(+|-)XXXX]'
-    # with XXXX the timezone offset on 4 digits Having the timezone on 4
-    # digits let us use date to convert it to a timestamp for comparison
-    echo $target_date | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}( *[+-][0-9]{4})?$'
-    if [ $? != 0 ]; then
-	error "bad target date format. Use 'YYYY-MM-DD HH:MM:SS [(+|-)TZTZ]' with an optional 4 digit (hours and minutes) timezone offset"
-    fi
+ssh_target=${ssh_user:+$ssh_user@}$source
 
-    target_timestamp=`date -d "$target_date" -u +%s`
-fi
-
-if [ $? != 0 ]; then
-    error "could not get timestamp from target date. Check your date command"
-fi
+# Ensure failed globs will be empty, not left containing the literal glob pattern
+shopt -s nullglob
 
 # An unprivileged target owner is mandatory as PostgreSQL cannot run
 # as root.
@@ -265,128 +249,108 @@ fi
 # to a timestamp is compared to the timestamp of the stop time of the
 # backup. Only after the stop time a backup is sure to be consistent.
 info "searching backup directory"
-if [ -n "$target_date" ]; then
 
-    # search the store
-    if [ $local_backup = "yes" ]; then
-	list=`ls $backup_root/$label_prefix/*/backup_timestamp 2>/dev/null`
-	if [ $? != 0 ]; then
-	    error "could not list the content of $backup_root/$label_prefix/"
-	fi
-    else
-	list=`ssh ${ssh_user:+$ssh_user@}$source "ls -d $backup_root/$label_prefix/*/backup_timestamp" 2>/dev/null`
-	if [ $? != 0 ]; then
-	    error "could not list the content of $backup_root/$label_prefix/ on $source"
-	fi
-    fi
+# search the store
+if [ "$local_backup" = "yes" ]; then
+    list=( "$backup_root/$label_prefix/"[0-9]*/backup_timestamp )
+    (( ${#list[@]} > 0 )) ||
+	error "Could not find any backup_timestamp files in $backup_root/$label_prefix/*"
+else
+    list=()
+    while read -r -d '' d; do
+	list+=("$d")
+    done < <(
+	# We could 'optimise' this slightly for the case where we only want the latest,
+	# by adding a `| cut -d '' -f1` after the sort, to only return the first one,
+	# but the amount of extra data transferred here is tiny compared to the rest of
+	# the backup, so it is probably better to just reuse this for both cases than to
+	# duplicate the logic needed just for that.
+	ssh -n -- "$ssh_target" "find $(qw "$backup_root/$label_prefix") -path $(qw "$backup_root/$label_prefix/[0-9]*/backup_timestamp") -type f -print0 | sort -z"
+    )
+
+    (( ${#list[@]} > 0 )) ||
+	error "Could not find any backup_timestamp files in $backup_root/$label_prefix/* on $source"
+fi
+
+if [ -n "$target_date" ]; then
+    # Target recovery time in seconds since the epoch, for easy archive searching.
+    target_timestamp=$(date -d "$target_date" '+%s') || error "invalid target date '$target_date'"
+
+    # Target recovery time in a format suitable for use in recovery.conf
+    recovery_target_time=$(date -d "$target_date" '+%F %T %z') || error "invalid target date '$target_date'"
+
+    # The timestamp must be a string of (only) digits, we do arithmetic with it below.
+    # This shouldn't ever fail, but better to catch it here than let odd things happen later.
+    [[ $target_timestamp =~ ^[[:digit:]]+$ ]] || error "invalid target_timestamp '$target_timestamp'"
 
     # find the latest backup
-    for t in $list; do
-	d=`dirname $t`
-	
+    for t in "${list[@]}"; do
 	# get the timestamp of the end of the backup
 	if [ $local_backup = "yes" ]; then
-	    backup_timestamp=`cat $t`
-	    if [ $? != 0 ]; then
-		warn "could not get the ending timestamp of $t"
-		continue
-	    fi
+	    backup_timestamp=$(< "$t")
 	else
-	    backup_timestamp=`ssh ${ssh_user:+$ssh_user@}$source cat $t 2>/dev/null`
-	    if [ $? != 0 ]; then
-		warn "could not get the ending timestamp of $t"
-		continue
-	    fi
+	    backup_timestamp=$(ssh -n -- "$ssh_target" "cat -- $(qw "$t")")
 	fi
 
-	if [ $backup_timestamp -ge $target_timestamp ]; then
-	    break;
+	if [[ $backup_timestamp =~ ^[[:digit:]]+$ ]]; then
+	    (( $backup_timestamp < $target_timestamp )) || break;
+	    backup_dir=$(dirname -- "$t")
 	else
-	    backup_date=`basename $d`
+	    warn "could not get the ending timestamp of $t"
 	fi
     done
-
-    if [ -z "$backup_date" ]; then
-	error "Could not find a backup at given date $target_date"
-    fi
-
 else
     # get the latest
-    if [ $local_backup = "yes" ]; then
-	backup_list_date=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null | tail -1`
-	if [ $? != 0 ]; then
-	    error "could not list the content of $backup_root/$label_prefix/"
-	fi
-    else
-	backup_list_date=`ssh ${ssh_user:+$ssh_user@}$source "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
-	if [ $? != 0 ]; then
-	    error "could not list the content of $backup_root/$label_prefix/ on $source"
-	fi
-	backup_list_date=`echo $backup_list_date | tr ' ' '\n' | tail -1`
-	if [ $? != 0 ]; then
-	    error "could not find a backup from $backup_root/$label_prefix/ on $source"
-	fi
-    fi
-
-    if [ -z "$backup_list_date" ]; then
-	error "Could not find a backup"
-    else
-	backup_date=`basename $backup_list_date`
-	if [ -z "$backup_date" ]; then
-	    error "Could not find a backup"
-	fi
-    fi
+    # The test for list being empty here is just belt and braces,
+    # we should have already failed with an error above if it is.
+    (( ${#list[@]} > 0 )) && backup_dir=$(dirname -- "${list[-1]}")
 fi
 
-backup_dir=$backup_root/$label_prefix/$backup_date
+[ -n "$backup_dir" ] || error "Could not find a backup${recovery_target_time:+ for $recovery_target_time}"
 
-# we need a temporary directory for some files
-tmp_dir=`mktemp -d -t pitrery.XXXXXXXXXX`
-if [ $? != 0 ]; then
-    error "could not create temporary directory"
-fi
 
 # get the tablespace list and check the directories
 info "searching for tablespaces information"
 if [ $local_backup = "yes" ]; then
     if [ -f $backup_dir/tblspc_list ]; then
-	tblspc_list=$backup_dir/tblspc_list
+	tblspc_list=$(< "$backup_dir/tblspc_list") || error "Failed to read $backup_dir/tblspc_list"
     fi
 else
-    ssh ${ssh_user:+$ssh_user@}$source "test -f $backup_dir/tblspc_list" 2>/dev/null
-    if [ $? = 0 ]; then
-	scp ${ssh_user:+$ssh_user@}$source:$backup_dir/tblspc_list $tmp_dir >/dev/null 2>&1
-	if [ $? != 0 ]; then
-	    error "could not copy the list of tablespaces from backup store"
-	fi
-	tblspc_list=$tmp_dir/tblspc_list
-    fi
+    tfile=$(qw "$backup_dir/tblspc_list")
+    tblspc_list=$(ssh -n -- "$ssh_target" "[ ! -f $tfile ] || cat -- $tfile") ||
+	error "Failed to read $source:$backup_dir/tblspc_list"
 fi
 
 # Prepare a temporary file with the final list of tablespace directories
-tblspc_reloc=$tmp_dir/tblspc_reloc
-if [ -f "$tblspc_list" ]; then
-    while read l; do
-	name=`echo $l | cut -d '|' -f 1`
-	tbldir=`echo $l | cut -d '|' -f 2`
-	oid=`echo $l | cut -d '|' -f 3`
-	reloc="no"
+if [ -n "$tblspc_list" ]; then
+    while read -r l; do
+	tdir=$(cut -d '|' -f 2 <<< "$l")
 
 	# skip pg_default and pg_global, they are located inside PGDATA
-	[ -z "$tbldir" ] && continue
+	[ -z "$tdir" ] && continue
 
-	for t in $tsmv_list; do
-	    tname="`echo $t | cut -d ':' -f 1`"
+	i=${#tspc_name[@]}
+	tspc_name[$i]=$(cut -d '|' -f 1 <<< "$l")
+	tspc_dir[$i]=$tdir
+	tspc_oid[$i]=$(cut -d '|' -f 3 <<< "$l")
+	tspc_reloc[$i]="no"
+
+	for t in "${tsmv_list[@]}"; do
+	    tname=$(cut -d ':' -f 1 <<< "$t")
 	    # relocation can be done using the name or the oid of the tablespace
-	    if [ "$tname" = "$name" -o $tname = $oid ]; then
-		[ "$tbldir" != "`echo $t | cut -d ':' -f 2`" ] && reloc="yes"
-		tbldir="`echo $t | cut -d ':' -f 2`"
+	    if [ "$tname" = "${tspc_name[$i]}" ] || [ "$tname" = "${tspc_oid[$i]}" ]; then
+		tdir=$(cut -d ':' -f 2 <<< "$t")
+		if [ "${tspc_dir[$i]}" != "$tdir" ]; then
+		    tspc_dir[$i]=$tdir
+		    tspc_reloc[$i]="yes"
+		fi
 		break
 	    fi
 	done
-	echo "${name}|$tbldir|$oid|$reloc" >> $tblspc_reloc
-    done < $tblspc_list
+    done <<< "$tblspc_list"
 fi
+
+tspc_count=${#tspc_name[@]}
 
 
 # Display some info on the restore
@@ -399,36 +363,28 @@ info "  PGDATA -> $pgdata"
 
 [ -n "$pgxlog" ] && info "  PGDATA/pg_xlog -> $pgxlog"
 
-if [ -f "$tblspc_reloc" ]; then
-    while read l; do
-	name=`echo $l | cut -d '|' -f 1`
-	tbldir=`echo $l | cut -d '|' -f 2`
-	oid=`echo $l | cut -d '|' -f 3`
-	reloc=`echo $l | cut -d '|' -f 4`
+# Populate an associative array with the tablespace directory names.
+# We'll use this to check if any of them appear more than once after relocations are applied.
+declare -A tspc_dedup
 
-	info "  tablespace \"$name\" ($oid) -> $tbldir (relocated: $reloc)"
-    done < $tblspc_reloc
-fi
+for (( i=0; i<$tspc_count; ++i )); do
+    info "  tablespace \"${tspc_name[$i]}\" (${tspc_oid[$i]}) -> ${tspc_dir[$i]} (relocated: ${tspc_reloc[$i]})"
+    tspc_dedup[${tspc_dir[$i]}]=1
+done
 
 info
 info "recovery configuration:"
 info "  target owner of the restored files: $owner"
 info "  restore_command = '$restore_command'"
-[ -n "$target_date" ] && info "  recovery_target_time = '$target_date'"
+[ -n "$recovery_target_time" ] && info "  recovery_target_time = '$recovery_target_time'"
 info 
 
 # Check if tablespace relocation list have duplicates
-if [ -f "$tblspc_reloc" ]; then
-    tscount=`cat $tblspc_reloc | wc -l`
-    tsucount=`cat $tblspc_reloc | awk -F'|' '{ print $2 }' | sort -u | wc -l`
-    [ $tsucount -lt $tscount ] && error "found duplicates in tablespace relocations. Check options and the list of tablespaces of the backup"
+if (( ${#tspc_dedup[@]} < $tspc_count )); then
+    error "found duplicates in tablespace relocations. Check options and the list of tablespaces of the backup"
 fi
 
 if [ "$dry_run" = "yes" ]; then
-    # Cleanup and exit without error 
-    if [ -n "$tmp_dir" ]; then
-	rm -rf $tmp_dir
-    fi
     exit 0
 fi
 
@@ -443,21 +399,18 @@ if [ $local_backup = "yes" ]; then
     elif [ -d "$backup_dir/pgdata" ]; then
 	storage="rsync"
     else
-	error "could not find out what storage method or compression is used in $backup_dir"
+	# Check if we have a tarball with different compression to what we are expecting.
+	storage=$(find "$backup_dir" -maxdepth 1 -name 'pgdata.tar.*' -type f -printf '%f' -quit)
     fi
 else
-    ssh ${ssh_user:+$ssh_user@}$source "test -f $backup_dir/pgdata.tar.$compress_suffix" 2>/dev/null
-    if [ $? = 0 ]; then
-	storage="tar"
-    else
-	ssh ${ssh_user:+$ssh_user@}$source "test -d $backup_dir/pgdata" 2>/dev/null
-	if [ $? = 0 ]; then
-	    storage="rsync"
-	else
-	    error "could not find out what storage method or compression is used in $source:$backup_dir"
-	fi
-    fi
+    storage=$(ssh -n -- "$ssh_target" "if [ -f $(qw "$backup_dir/pgdata.tar.$compress_suffix") ]; then echo 'tar'; elif [ -d $(qw "$backup_dir/pgdata") ]; then echo 'rsync'; else find $(qw "$backup_dir") -maxdepth 1 -name 'pgdata.tar.*' -type f -printf '%f' -quit; fi")
 fi
+
+[ -n "$storage" ] ||
+    error "could not find what storage method is used in ${source:+$source:}$backup_dir"
+
+[[ $storage =~ ^pgdata\.tar\. ]] &&
+    error "expecting '$compress_suffix' compression, but found ${source:+$source:}$backup_dir/$storage"
 
 
 # Check target directories
@@ -477,18 +430,9 @@ if [ -n "$pgxlog" ]; then
 fi
 
 # Check the tablespaces directory and create them if possible
-if [ -f "$tblspc_reloc" ]; then
-    while read l; do
-	name=`echo $l | cut -d '|' -f 1`
-	tbldir=`echo $l | cut -d '|' -f 2`
-
-	check_and_fix_directory $tbldir
-	if [ $? != 0 ]; then
-	    warn "bad tablespace location path \"$tbldir\" for $name. Check $tblspc_list and -t switches"
-	    continue
-	fi
-    done < $tblspc_reloc
-fi
+for d in "${tspc_dir[@]}"; do
+    check_and_fix_directory "$d"
+done
 
 
 # Extract everything
@@ -579,28 +523,26 @@ if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
     fi
 fi
 
+# Enable the extended pattern matching operators.
+# We use them here for replacing whitespace in the tablespace tarball names.
+shopt -s extglob
+
 # tablespaces
-if [ -f "$tblspc_reloc" ]; then
-    while read l; do
-	name=`echo $l | cut -d '|' -f 1`
-	_name=`echo $name | sed -re 's/\s+/_/g'` # No space version, we want paths without spaces
-	tbldir=`echo $l | cut -d '|' -f 2`
-	oid=`echo $l | cut -d '|' -f 3`
-	reloc=`echo $l | cut -d '|' -f 4`
+for (( i=0; i<$tspc_count; ++i )); do
+	name=${tspc_name[$i]}
+	_name=${name//+([[:space:]])/_} # No space version, we want paths without spaces
+	tbldir=${tspc_dir[$i]}
+	oid=${tspc_oid[$i]}
 
 	# Change the symlink in pg_tblspc when the tablespace directory changes
-	if [ "$reloc" = "yes" ]; then
-	    was=`pwd`
-	    cd $pgdata/pg_tblspc
-	    rm $oid || error "could not remove symbolic link $pgdata/pg_tblspc/$oid"
-	    ln -s $tbldir $oid || error "could not update the symbolic of tablespace $name ($oid) to $tbldir"
+	if [ "${tspc_reloc[$i]}" = "yes" ]; then
+	    ln -sf "$tbldir" "$pgdata/pg_tblspc/$oid" || error "could not update the symbolic of tablespace $name ($oid) to $tbldir"
 
 	    # Ensure the new link has the correct owner, the chown -R
 	    # issued after extraction will not do it
 	    if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
-		chown -h ${owner}: $oid
+		chown -h -- "$owner:" "$pgdata/pg_tblspc/$oid"
 	    fi
-	    cd $was
 	fi
 
 	# Get the data in place
@@ -666,8 +608,7 @@ if [ -f "$tblspc_reloc" ]; then
 		error "could not change owner of tablespace \"$name\" to $owner"
 	    fi
 	fi
-    done < $tblspc_reloc
-fi
+done
 
 # Create or symlink pg_xlog directory if needed
 if [ -d "$pgxlog" ]; then
@@ -719,8 +660,8 @@ info "preparing recovery.conf file"
 echo "restore_command = '$restore_command'" > $pgdata/recovery.conf
 
 # Put the given target date in recovery.conf
-if [ -n "$target_date" ]; then
-    echo "recovery_target_time = '$target_date'" >> $pgdata/recovery.conf
+if [ -n "$recovery_target_time" ]; then
+    echo "recovery_target_time = '$recovery_target_time'" >> "$pgdata/recovery.conf"
 else
     echo "#recovery_target_time = ''	# e.g. '2004-07-14 22:39:00 EST'" >> $pgdata/recovery.conf
 fi
@@ -779,29 +720,20 @@ fi
 # Generate a SQL file in PGDATA to update the catalog when tablespace
 # locations have changed. It is only needed when using PostgreSQL <=9.1
 updsql=$pgdata/update_catalog_tablespaces.sql
-if [ -f "$tblspc_reloc" ]; then
-    if [ -n "$pgvers" ] && [ "$pgvers" -le 901 ]; then
-	cat  $tblspc_reloc | grep 'yes$' | while read l; do
-	    name=`echo $l | cut -d '|' -f 1`
-	    tbldir=`echo $l | cut -d '|' -f 2`
-	    oid=`echo $l | cut -d '|' -f 3`
-
-	    echo "-- update location of $name to $tbldir" >> $updsql
-	    echo -e "UPDATE pg_catalog.pg_tablespace SET spclocation = '$tbldir' WHERE oid = $oid;\n" >> $updsql
-	done
-
-	if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
-	    chown ${owner}: $updsql 2>/dev/null
+rm -f -- "$updsql"
+if (( $tspc_count > 0 )) && [ -n "$pgvers" ] && (( 10#$pgvers <= 901 )); then
+    for (( i=0; i<$tspc_count; ++i )); do
+	if [ "${tspc_reloc[$i]}" = "yes" ]; then
+	    echo "-- update location of ${tspc_name[$i]} to ${tspc_dir[$i]}" >> "$updsql"
+	    printf "UPDATE pg_catalog.pg_tablespace SET spclocation = '%s' WHERE oid = %s;\n" "${tspc_dir[$i]}" "${tspc_oid[$i]}" >> "$updsql"
 	fi
+    done
+
+    if [ `id -u` = 0 ] && [ "`id -un`" != "$owner" ]; then
+	chown -- "$owner:" "$updsql" 2>/dev/null
     fi
 fi
 
-
-
-# Cleanup
-if [ -n "$tmp_dir" ]; then
-    rm -rf $tmp_dir
-fi
 
 info "done"
 info

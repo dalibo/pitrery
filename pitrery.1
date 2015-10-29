@@ -341,7 +341,7 @@ configuration file.
 .BI "\-d " date
 The initial \fIrecovery_target_time\fP to place in \fIrecovery.conf\fP which
 is the first point in time that replaying the WAL segment files will pause at.
-The \fIdate\fP is of the form:
+The canonical form of the \fIdate\fP string is:
 
 .nh
 .nf
@@ -349,10 +349,14 @@ The \fIdate\fP is of the form:
 .fi
 .hy
 
-where \fIXXXX\fP is the optional timezone offset.  This cannot be earlier than
-the oldest archived base backup, and can only be restored to if all the WAL
-segment files from the nearest base backup to that time are available and
-uncorrupted.
+where \fIXXXX\fP is the optional timezone offset, however the \fIdate\fP may be
+specified here in any form that \fBdate\fP(1) on your system will recognise,
+including the relative date strings such as '1\ hour\ ago' which GNU \fBdate\fP
+accepts.
+
+This cannot be earlier than the oldest archived base backup, and can only be
+restored to if all the WAL segment files from the nearest base backup to that
+time are available and uncorrupted.
 
 .TP
 .BI "\-O " user
