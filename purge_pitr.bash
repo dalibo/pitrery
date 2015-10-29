@@ -88,33 +88,26 @@ warn() {
 }
 
 # CLI options
-args=`getopt "Ll:b:u:n:U:X:m:d:T?" $*`
-if [ $? -ne 0 ]
-then
-    usage 2
-fi
+while getopts "Ll:b:u:n:U:X:m:d:T?" opt; do
+    case $opt in
+	L) local_backup="yes";;
+	l) label_prefix=$OPTARG;;
+	b) backup_root=$OPTARG;;
+	u) ssh_user=$OPTARG;;
+	n) xlog_host=$OPTARG;;
+	U) xlog_ssh_user=$OPTARG;;
+	X) xlog_dir=$OPTARG;;
+	m) max_count=$OPTARG;;
+	d) max_days=$OPTARG;;
+	T) log_timestamp="yes";;
 
-set -- $args
-for i in $*
-do
-    case "$i" in
-        -L) local_backup="yes"; shift;;
-	-l) label_prefix=$2; shift 2;;
-	-b) backup_root=$2; shift 2;;
-	-u) ssh_user=$2; shift 2;;
-	-n) xlog_host=$2; shift 2;;
-	-U) xlog_ssh_user=$2; shift 2;;
-	-X) xlog_dir=$2; shift 2;;
-	-m) max_count=$2; shift 2;;
-	-d) max_days=$2; shift 2;;
-	-T) log_timestamp="yes"; shift;;
-
-        -\?) usage 1;;
-        --) shift; break;;
+        "?") usage 1;;
+	*) error "Unknown error while processing options";;
     esac
 done
 
-target=$1
+target=${@:$OPTIND:1}
+
 # Destination host is mandatory unless the backup is local
 if [ -z "$target" ] && [ $local_backup != "yes" ]; then
     echo "ERROR: missing target host" 1>&2
