@@ -258,7 +258,7 @@ case $action in
 	select_cmd "purge_pitr"
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Ll:b:u:n:U:X:m:d:T?" arg 2>/dev/null; do
+	while getopts "Ll:b:u:n:U:X:m:d:NT?" arg 2>/dev/null; do
 	    case "$arg" in
 		L) BACKUP_IS_LOCAL="yes";;
 		l) BACKUP_LABEL=$OPTARG;;
@@ -269,6 +269,7 @@ case $action in
 		X) ARCHIVE_DIR=$OPTARG;;
 		m) PURGE_KEEP_COUNT=$OPTARG;;
 		d) PURGE_OLDER_THAN=$OPTARG;;
+		N) DRY_RUN="yes";;
 		T) LOG_TIMESTAMP="yes";;
 
 		"?") $cmd -?; exit $?;;
@@ -285,6 +286,7 @@ case $action in
 	[ -n "$ARCHIVE_DIR" ]		&& opts+=( "-X" "$ARCHIVE_DIR" )
 	[ -n "$PURGE_KEEP_COUNT" ]	&& opts+=( "-m" "$PURGE_KEEP_COUNT" )
 	[ -n "$PURGE_OLDER_THAN" ]	&& opts+=( "-d" "$PURGE_OLDER_THAN" )
+	[ "$DRY_RUN" = "yes" ]		&& opts+=( "-N" )
 	[ "$LOG_TIMESTAMP" = "yes" ]	&& opts+=( "-T" )
 
 	run_cmd "${@:$OPTIND:1}"
