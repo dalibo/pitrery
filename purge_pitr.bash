@@ -129,7 +129,7 @@ fi
 
 # When the host storing the WAL files is not given, use the host of the backups
 if [ -z "$xlog_host" ]; then
-    local_xlog="yes"
+    local_xlog=$local_backup
     xlog_host=$target
 fi
 [ -z "$xlog_ssh_user" ] && xlog_ssh_user=$ssh_user
