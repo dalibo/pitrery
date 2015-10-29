@@ -39,12 +39,16 @@ qw() {
 }
 
 # Message functions
+now() {
+    [ "$LOG_TIMESTAMP" = "yes" ] && echo "$(date "+%F %T %Z ")"
+}
+
 error() {
-    echo "ERROR: $1" 1>&2
+    echo "$(now)ERROR: $*" 1>&2
 }
 
 warn() {
-    echo "WARNING: $1" 1>&2
+    echo "$(now)WARNING: $*" 1>&2
 }
 
 # Script help
@@ -64,6 +68,7 @@ usage() {
     echo "    -f facility    syslog facility"
     echo "    -t ident       syslog ident"
     echo
+    echo "    -T             Timestamp log messages"
     echo "    -?             print help"
     echo
     exit $1
@@ -95,6 +100,7 @@ while getopts "LC:u:d:h:XOc:s:Sf:t:?"  opt; do
 	S) CLI_SYSLOG="yes";;
 	f) CLI_SYSLOG_FACILITY=$OPTARG;;
 	t) CLI_SYSLOG_IDENT=$OPTARG;;
+	T) CLI_LOG_TIMESTAMP="yes";;
         "?") usage 1;;
 	*) error "Unknown error while processing options"; exit 1;;
     esac
@@ -135,6 +141,7 @@ fi
 [ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
 [ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
 [ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
+[ -n "$CLI_LOG_TIMESTAMP" ] && LOG_TIMESTAMP=$CLI_LOG_TIMESTAMP
 
 # Redirect output to syslog if configured
 if [ "$SYSLOG" = "yes" ]; then
