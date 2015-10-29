@@ -99,13 +99,36 @@ else
     error "cannot access configuration file: $config"
 fi
 
+
+select_cmd() {
+    # Find the command to run
+    cmd=${scripts_dir:-.}/$1
+    if [ ! -f "$cmd" ] || [ ! -x "$cmd" ]; then
+	error "command '$cmd' is unusable"
+    fi
+}
+
+run_cmd() {
+    # Append the remote hostname option if provided
+    if [ "$BACKUP_IS_LOCAL" != "yes" ]; then
+	if [ -n "$1" ]; then
+	    opts+=( "$1" )
+	elif [ -n "$BACKUP_HOST" ]; then
+	    opts+=( "$BACKUP_HOST" )
+	else
+	    error "remote backup hostname not specified"
+	fi
+    fi
+
+    # Run the command
+    $dry_run "$cmd" "${opts[@]}"
+    exit $?
+}
+
+opts=()
 case $action in
     list)
-	# Find the command to run
-	cmd=${scripts_dir:-.}/list_pitr
-	if [ ! -f $cmd -o ! -x $cmd ]; then
-	    error "command \"$cmd\" is unusable"
-	fi
+	select_cmd "list_pitr"
 
 	# Parse args after action: they should take precedence over the configuration
 	while getopts "Lu:b:l:v?" arg 2>/dev/null; do
@@ -120,35 +143,17 @@ case $action in
 	done
 
 	# Add relevant options coming from the configuration
-	[ "$BACKUP_IS_LOCAL" = "yes" ] && opts="-L"
-	[ -n "$BACKUP_USER" ] && opts="$opts -u $BACKUP_USER"
-	[ -n "$BACKUP_DIR" ] && opts="$opts -b $BACKUP_DIR"
-	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
-	[ "$VERBOSE" = "yes" ] && opts="$opts -v"
+	[ "$BACKUP_IS_LOCAL" = "yes" ]	&& opts+=( "-L" )
+	[ -n "$BACKUP_USER" ]		&& opts+=( "-u" "$BACKUP_USER" )
+	[ -n "$BACKUP_DIR" ]		&& opts+=( "-b" "$BACKUP_DIR" )
+	[ -n "$BACKUP_LABEL" ]		&& opts+=( "-l" "$BACKUP_LABEL" )
+	[ "$VERBOSE" = "yes" ]		&& opts+=( "-v" )
 
-	# Take care of the destination host
-	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then
-	    host=${@:$OPTIND:1}
-	    if [ -n "$host" ]; then
-		opts="$opts $host"
-	    elif [ -n "$BACKUP_HOST" ]; then
-		opts="$opts $BACKUP_HOST"
-	    else
-		error "missing target host"
-	    fi
-	fi
-
-	# Run the command
-	$dry_run $cmd $opts
-	exit $?
+	run_cmd "${@:$OPTIND:1}"
 	;;
 
     backup)
-	# Find the command to run
-	cmd=${scripts_dir:-.}/backup_pitr
-	if [ ! -f $cmd -o ! -x $cmd ]; then
-	    error "command \"$cmd\" is unusable"
-	fi
+	select_cmd "backup_pitr"
 
 	# Parse args after action: they should take precedence over the configuration
 	while getopts "Lb:l:u:D:s:P:h:p:U:d:c:e:T?" arg 2>/dev/null; do
@@ -173,54 +178,30 @@ case $action in
 	done
 
 	# Add relevant options coming from the configuration
-	[ "$BACKUP_IS_LOCAL" = "yes" ] && opts="-L"
-	[ -n "$BACKUP_DIR" ] && opts="$opts -b $BACKUP_DIR"
-	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
-	[ -n "$BACKUP_USER" ] && opts="$opts -u $BACKUP_USER"
-	[ -n "$PGDATA" ] && opts="$opts -D $PGDATA"
-	[ -n "$STORAGE" ] && opts="$opts -s $STORAGE"
-	[ -n "$PGPSQL" ] && opts="$opts -P $PGPSQL"
-	[ -n "$PGHOST" ] && opts="$opts -h $PGHOST"
-	[ -n "$PGPORT" ] && opts="$opts -p $PGPORT"
-	[ -n "$PGUSER" ] && opts="$opts -U $PGUSER"
-	[ -n "$PGDATABASE" ] && opts="$opts -d $PGDATABASE"
-	[ -n "$BACKUP_COMPRESS_SUFFIX" ] && opts="$opts -e $BACKUP_COMPRESS_SUFFIX"
-	[ "$LOG_TIMESTAMP" = "yes" ] && opts="$opts -T"
-
-	# Take care of the destination host
-	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then
-	    h=${@:$OPTIND:1}
-	    if [ -n "$h" ]; then
-		host=$h
-	    elif [ -n "$BACKUP_HOST" ]; then
-		host=$BACKUP_HOST
-	    else
-		error "missing target host"
-	    fi
-	fi
+	[ "$BACKUP_IS_LOCAL" = "yes" ]	    && opts+=( "-L" )
+	[ -n "$BACKUP_DIR" ]		    && opts+=( "-b" "$BACKUP_DIR" )
+	[ -n "$BACKUP_LABEL" ]		    && opts+=( "-l" "$BACKUP_LABEL" )
+	[ -n "$BACKUP_USER" ]		    && opts+=( "-u" "$BACKUP_USER" )
+	[ -n "$PGDATA" ]		    && opts+=( "-D" "$PGDATA" )
+	[ -n "$STORAGE" ]		    && opts+=( "-s" "$STORAGE" )
+	[ -n "$PGPSQL" ]		    && opts+=( "-P" "$PGPSQL" )
+	[ -n "$PGHOST" ]		    && opts+=( "-h" "$PGHOST" )
+	[ -n "$PGPORT" ]		    && opts+=( "-p" "$PGPORT" )
+	[ -n "$PGUSER" ]		    && opts+=( "-U" "$PGUSER" )
+	[ -n "$PGDATABASE" ]		    && opts+=( "-d" "$PGDATABASE" )
+	[ -n "$BACKUP_COMPRESS_BIN" ]	    && opts+=( "-c" "$BACKUP_COMPRESS_BIN" )
+	[ -n "$BACKUP_COMPRESS_SUFFIX" ]    && opts+=( "-e" "$BACKUP_COMPRESS_SUFFIX" )
+	[ "$LOG_TIMESTAMP" = "yes" ]	    && opts+=( "-T" )
 
 	# If hooks are defined export them
 	[ -n "$PRE_BACKUP_COMMAND" ] && export PRE_BACKUP_COMMAND
 	[ -n "$POST_BACKUP_COMMAND" ] && export POST_BACKUP_COMMAND
 
-	# Run the command. The backup compression command may have
-	# spaces, make it difficult for bash to pass the argument
-	# correctly.
-	if [ -n "$BACKUP_COMPRESS_BIN" ]; then
-	    $dry_run $cmd $opts -c "$BACKUP_COMPRESS_BIN" $host
-	else
-	    $dry_run $cmd $opts $host
-	fi
-
-	exit $?
+	run_cmd "${@:$OPTIND:1}"
 	;;
 
     restore)
-	# Find the command to run
-	cmd=${scripts_dir:-.}/restore_pitr
-	if [ ! -f $cmd -o ! -x $cmd ]; then
-	    error "command \"$cmd\" is unusable"
-	fi
+	select_cmd "restore_pitr"
 
 	# Parse args after action: they should take precedence over the configuration
 	while getopts "Lu:b:l:D:x:d:O:t:nRc:e:r:C:T?" arg 2>/dev/null; do
@@ -233,7 +214,7 @@ case $action in
 		x) PGXLOG=$OPTARG;;
 		d) TARGET_DATE=$OPTARG;;
 		O) PGOWNER=$OPTARG;;
-		t) TBLSPC_RELOC="$TBLSPC_RELOC -t $OPTARG";;
+		t) TBLSPC_RELOC+=( "-t" "$OPTARG" );;
 		n) DRY_RUN="yes";;
 		R) OVERWRITE="yes";;
 		c) BACKUP_UNCOMPRESS_BIN="$OPTARG";;
@@ -247,79 +228,34 @@ case $action in
 	done
 
 	# Add relevant options coming from the configuration
-	[ "$BACKUP_IS_LOCAL" = "yes" ] && opts="$opts -L"
-	[ -n "$BACKUP_USER" ] && opts="$opts -u $BACKUP_USER"
-	[ -n "$BACKUP_DIR" ] && opts="$opts -b $BACKUP_DIR"
-	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
-	[ -n "$PGDATA" ] && opts="$opts -D $PGDATA"
-	[ -n "$PGXLOG" ] && opts="$opts -x $PGXLOG"
-	[ -n "$PGOWNER" ] && opts="$opts -O $PGOWNER"
-	[ -n "$TBLSPC_RELOC" ] && opts="$opts $TBLSPC_RELOC"
-	[ "$DRY_RUN" = "yes" ] && opts="$opts -n"
-	[ -n "$OVERWRITE" ] && opts="$opts -R"
-	[ -n "$BACKUP_COMPRESS_SUFFIX" ] && opts="$opts -e $BACKUP_COMPRESS_SUFFIX"
-	[ "$LOG_TIMESTAMP" = "yes" ] && opts="$opts -T"
+	[ "$BACKUP_IS_LOCAL" = "yes" ]	    && opts+=( "-L" )
+	[ -n "$BACKUP_USER" ]		    && opts+=( "-u" "$BACKUP_USER" )
+	[ -n "$BACKUP_DIR" ]		    && opts+=( "-b" "$BACKUP_DIR" )
+	[ -n "$BACKUP_LABEL" ]		    && opts+=( "-l" "$BACKUP_LABEL" )
+	[ -n "$PGDATA" ]		    && opts+=( "-D" "$PGDATA" )
+	[ -n "$PGXLOG" ]		    && opts+=( "-x" "$PGXLOG" )
+	[ -n "$TARGET_DATE" ]		    && opts+=( "-d" "$TARGET_DATE" )
+	[ -n "$PGOWNER" ]		    && opts+=( "-O" "$PGOWNER" )
+	(( ${#TBLSPC_RELOC[@]} > 0 ))	    && opts+=( "${TBLSPC_RELOC[@]}" )
+	[ "$DRY_RUN" = "yes" ]		    && opts+=( "-n" )
+	[ -n "$OVERWRITE" ]		    && opts+=( "-R" )
+	[ -n "$BACKUP_UNCOMPRESS_BIN" ]	    && opts+=( "-c" "$BACKUP_UNCOMPRESS_BIN" )
+	[ -n "$BACKUP_COMPRESS_SUFFIX" ]    && opts+=( "-e" "$BACKUP_COMPRESS_SUFFIX" )
+	[ -n "$RESTORE_COMMAND" ]	    && opts+=( "-r" "$RESTORE_COMMAND" )
+	[ "$LOG_TIMESTAMP" = "yes" ]	    && opts+=( "-T" )
 
 	# Pass along the configuration file
 	if [ -n "$RESTORE_XLOG_CONFIG" ]; then
-	    opts="$opts -C $RESTORE_XLOG_CONFIG"
-	else
-	    [ "$config" != @SYSCONFDIR@/pitr.conf ] && opts="$opts -C $config"
+	    opts+=( "-C" "$RESTORE_XLOG_CONFIG" )
+	elif [ "$config" != "@SYSCONFDIR@/pitr.conf" ]; then
+	    opts+=( "-C" "$config" )
 	fi
 
-	# Take care of the source host
-	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then
-	    a=${@:$OPTIND:1}
-	    if [ -n "$a" ]; then
-		host=$a
-	    elif [ -n "$BACKUP_HOST" ]; then
-		host=$BACKUP_HOST
-	    else
-		error "missing backup host"
-	    fi
-	fi
-
-	# The target date has spaces, making this difficult for bash
-	# to get the arguments passed properly. Same goes for the
-	# restore command and uncompress command.
-	if [ -n "$TARGET_DATE" ]; then
-	    if [ -n "$RESTORE_COMMAND" ]; then
-		if [ -n "$BACKUP_UNCOMPRESS_BIN" ]; then
-		    $dry_run $cmd $opts -d "$TARGET_DATE" -r "$RESTORE_COMMAND" -c "$BACKUP_UNCOMPRESS_BIN" $host
-		else
-		    $dry_run $cmd $opts -d "$TARGET_DATE" -r "$RESTORE_COMMAND" $host
-		fi
-	    else
-		if [ -n "$BACKUP_UNCOMPRESS_BIN" ]; then
-		    $dry_run $cmd $opts -d "$TARGET_DATE" -c "$BACKUP_UNCOMPRESS_BIN" $host
-		else
-		    $dry_run $cmd $opts -d "$TARGET_DATE" $host
-		fi
-	    fi
-	else
-	    if [ -n "$RESTORE_COMMAND" ]; then
-		if [ -n "$BACKUP_UNCOMPRESS_BIN" ]; then
-		    $dry_run $cmd $opts -r "$RESTORE_COMMAND" -c "$BACKUP_UNCOMPRESS_BIN" $host
-		else
-		    $dry_run $cmd $opts -r "$RESTORE_COMMAND" $host
-		fi
-	    else
-		if [ -n "$BACKUP_UNCOMPRESS_BIN" ]; then
-		    $dry_run $cmd $opts -c "$BACKUP_UNCOMPRESS_BIN" $host
-		else
-		    $dry_run $cmd $opts $host
-		fi
-	    fi
-	fi
-	exit $?
+	run_cmd "${@:$OPTIND:1}"
 	;;
 
     purge)
-	# Find the command to run
-	cmd=${scripts_dir:-.}/purge_pitr
-	if [ ! -f $cmd -o ! -x $cmd ]; then
-	    error "command \"$cmd\" is unusable"
-	fi
+	select_cmd "purge_pitr"
 
 	# Parse args after action: they should take precedence over the configuration
 	while getopts "Ll:b:u:n:U:X:m:d:T?" arg 2>/dev/null; do
@@ -340,32 +276,18 @@ case $action in
 	done
 
 	# Add relevant options coming from the configuration
-	[ "$BACKUP_IS_LOCAL" = "yes" ] && opts="$opts -L"
-	[ -n "$BACKUP_DIR" ] && opts="$opts -b $BACKUP_DIR"
-	[ -n "$BACKUP_LABEL" ] && opts="$opts -l $BACKUP_LABEL"
-	[ -n "$BACKUP_USER" ] && opts="$opts -u $BACKUP_USER"
-	[ -n "$ARCHIVE_HOST" ] && opts="$opts -n $ARCHIVE_HOST"
-	[ -n "$ARCHIVE_USER" ] && opts="$opts -U $ARCHIVE_USER"
-	[ -n "$ARCHIVE_DIR" ] && opts="$opts -X $ARCHIVE_DIR"
-	[ -n "$PURGE_KEEP_COUNT" ] && opts="$opts -m $PURGE_KEEP_COUNT"
-	[ -n "$PURGE_OLDER_THAN" ] && opts="$opts -d $PURGE_OLDER_THAN"
-	[ "$LOG_TIMESTAMP" = "yes" ] && opts="$opts -T"
+	[ "$BACKUP_IS_LOCAL" = "yes" ]	&& opts+=( "-L" )
+	[ -n "$BACKUP_DIR" ]		&& opts+=( "-b" "$BACKUP_DIR" )
+	[ -n "$BACKUP_LABEL" ]		&& opts+=( "-l" "$BACKUP_LABEL" )
+	[ -n "$BACKUP_USER" ]		&& opts+=( "-u" "$BACKUP_USER" )
+	[ -n "$ARCHIVE_HOST" ]		&& opts+=( "-n" "$ARCHIVE_HOST" )
+	[ -n "$ARCHIVE_USER" ]		&& opts+=( "-U" "$ARCHIVE_USER" )
+	[ -n "$ARCHIVE_DIR" ]		&& opts+=( "-X" "$ARCHIVE_DIR" )
+	[ -n "$PURGE_KEEP_COUNT" ]	&& opts+=( "-m" "$PURGE_KEEP_COUNT" )
+	[ -n "$PURGE_OLDER_THAN" ]	&& opts+=( "-d" "$PURGE_OLDER_THAN" )
+	[ "$LOG_TIMESTAMP" = "yes" ]	&& opts+=( "-T" )
 
-	# Take care of the destination host
-	if [ "$BACKUP_IS_LOCAL" != "yes" ]; then
-	    host=${@:$OPTIND:1}
-	    if [ -n "$host" ]; then
-		opts="$opts $host"
-	    elif [ -n "$BACKUP_HOST" ]; then
-		opts="$opts $BACKUP_HOST"
-	    else
-		error "missing target host"
-	    fi
-	fi
-
-	# Run the command
-	$dry_run $cmd $opts
-	exit $?
+	run_cmd "${@:$OPTIND:1}"
 	;;
 
     *)
