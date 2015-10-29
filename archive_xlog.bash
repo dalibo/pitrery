@@ -57,6 +57,7 @@ usage() {
     echo "    -h hostname    hostname for SSH login"
     echo "    -d dir         target directory"
     echo "    -X             do not compress"
+    echo "    -O             do not overwrite the destination file"
     echo "    -c command     compression command"
     echo "    -s suffix      compressed file suffix (ex: gz)"
     echo "    -S             send messages to syslog"
@@ -77,9 +78,10 @@ SYSLOG="no"
 ARCHIVE_COMPRESS="yes"
 ARCHIVE_COMPRESS_BIN="gzip -f -4"
 ARCHIVE_COMPRESS_SUFFIX="gz"
+ARCHIVE_OVERWRITE="yes"
 
 # Command line options
-while getopts "LC:u:d:h:Xc:s:Sf:t:?"  opt; do
+while getopts "LC:u:d:h:XOc:s:Sf:t:?"  opt; do
     case "$opt" in
 	L) CLI_ARCHIVE_LOCAL="yes";;
 	C) CONFIG=$OPTARG;;
@@ -87,6 +89,7 @@ while getopts "LC:u:d:h:Xc:s:Sf:t:?"  opt; do
 	h) CLI_ARCHIVE_HOST=$OPTARG;;
 	d) CLI_ARCHIVE_DIR=$OPTARG;;
 	X) CLI_ARCHIVE_COMPRESS="no";;
+	O) CLI_ARCHIVE_OVERWRITE="no";;
 	c) CLI_ARCHIVE_COMPRESS_BIN="$OPTARG";;
 	s) CLI_ARCHIVE_COMPRESS_SUFFIX=$OPTARG;;
 	S) CLI_SYSLOG="yes";;
@@ -128,6 +131,7 @@ fi
 [ -n "$CLI_ARCHIVE_COMPRESS" ] && ARCHIVE_COMPRESS=$CLI_ARCHIVE_COMPRESS
 [ -n "$CLI_ARCHIVE_COMPRESS_BIN" ] && ARCHIVE_COMPRESS_BIN=$CLI_ARCHIVE_COMPRESS_BIN
 [ -n "$CLI_ARCHIVE_COMPRESS_SUFFIX" ] && ARCHIVE_COMPRESS_SUFFIX=$CLI_ARCHIVE_COMPRESS_SUFFIX
+[ -n "$CLI_ARCHIVE_OVERWRITE" ] && ARCHIVE_OVERWRITE=$CLI_ARCHIVE_OVERWRITE
 [ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
 [ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
 [ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
@@ -161,52 +165,120 @@ if [ ! -r "$xlog" ]; then
     exit 1
 fi
 
+check_local_dest_exists()
+{
+    [ $ARCHIVE_OVERWRITE = "yes" ] && return 0
+
+    if [ -e "$1" ]; then
+	error "$1 already exists, refusing to overwrite it."
+	exit 1
+    fi
+}
+
+check_remote_dest_exists()
+{
+
+    [ $ARCHIVE_OVERWRITE = "yes" ] && return 0
+
+    local dest_host=$1
+    local dest_file=$2
+    local dest_exists
+
+    # We need to check this here, since [ ! -e ] will not do what you might expect
+    # and we can't safely single or double quote it for an arbitrary $dest_file.
+    # It would be better if we could use [[ ! -e ]] instead, but that would depend
+    # on the remote shell also being bash.
+    [ -n "$dest_file" ] || error "check_remote_dest_exists: no dest_file passed"
+
+    # Don't assign this in the local declaration, or $? will contain the exit status
+    # of the 'local' command, not the ssh command.
+    dest_exists=$(ssh -n -- "$dest_host" "[ ! -e $(qw "$dest_file") ] || echo 'oops'")
+    local rc=$?
+    if [ $rc != 0 ]; then
+	error "Failed to check if '$dest_file' exists on $dest_host"
+	return $rc
+    fi
+
+    if [ -n "$dest_exists" ]; then
+	error "'$dest_file' already exists on $dest_host, refusing to overwrite it."
+	return 1
+    fi
+
+    return 0;
+}
+
 # Copy the wal locally
 if [ $ARCHIVE_LOCAL = "yes" ]; then
     mkdir -p $ARCHIVE_DIR 1>&2
     rc=$?
     if [ $rc != 0 ]; then
-	error "Unable to create target directory"
+	error "Unable to create target directory '$ARCHIVE_DIR'"
 	exit $rc
     fi
 
-    cp $xlog $ARCHIVE_DIR 1>&2
-    rc=$?
-    if [ $rc != 0 ]; then
-	error "Unable to copy $xlog to $ARCHIVE_DIR"
-	exit $rc
-    fi
+    if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
+	dest_path=$ARCHIVE_DIR/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
+	check_local_dest_exists "$dest_path"
 
-    if [ $ARCHIVE_COMPRESS = "yes" ]; then
-	dest_path=$ARCHIVE_DIR/`basename $xlog`
-	$ARCHIVE_COMPRESS_BIN $dest_path
+	$ARCHIVE_COMPRESS_BIN -c < "$xlog" > "$dest_path"
 	rc=$?
 	if [ $rc != 0 ]; then
-	    error "Unable to compress $dest_path"
+	    error "Compressing $xlog to $dest_path failed"
+	    exit $rc
+	fi
+    else
+	dest_path=$ARCHIVE_DIR/$(basename -- "$xlog")
+	check_local_dest_exists "$dest_path"
+
+	cp -- "$xlog" "$dest_path" 1>&2
+	rc=$?
+	if [ $rc != 0 ]; then
+	    error "Unable to copy $xlog to $ARCHIVE_DIR"
 	    exit $rc
 	fi
     fi
-
 else
-    # Compress and copy with scp
+    # Compress and copy with rsync
     echo $ARCHIVE_HOST | grep -q ':' && ARCHIVE_HOST="[${ARCHIVE_HOST}]" # Dummy test for IPv6
 
-    ssh ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST} "mkdir -p $ARCHIVE_DIR"
+    dest_host=${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}
+
+    ssh -n -- "$dest_host" "mkdir -p -- $(qw "$ARCHIVE_DIR")"
     rc=$?
     if [ $rc != 0 ]; then
 	error "Unable to create target directory"
 	exit $rc
     fi
 
-    if [ $ARCHIVE_COMPRESS = "yes" ]; then
-	file=/tmp/`basename $xlog`.$ARCHIVE_COMPRESS_SUFFIX
+    if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
+	dest_file=$ARCHIVE_DIR/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
+	tmpfile=$(mktemp -t pitr_wal.XXXXXXXXXX)
+	rc=$?
+	if [ $rc != 0 ]; then
+	    error "Failed to create temporary file for compressed WAL"
+	    exit $rc
+	fi
+
 	# We take no risk, pipe the content to the compression program
 	# and save output elsewhere: the compression program never
 	# touches the input file
-	$ARCHIVE_COMPRESS_BIN -c < $xlog > $file
+	$ARCHIVE_COMPRESS_BIN -c < "$xlog" > "$tmpfile"
 	rc=$?
 	if [ $rc != 0 ]; then
-	    error "Compression to $file failed"
+	    error "Compressing $xlog to $tmpfile failed"
+	    rm -- "$tmpfile"
+	    exit $rc
+	fi
+
+	# We delay this check until after compression is completed.
+	# There is still a race where something else could create it between when
+	# we test this and when rsync completes, but this at least keeps it as
+	# small as we reasonably can.  There is no option for rsync to request
+	# "fail if the destination file already exists".
+	check_remote_dest_exists "$dest_host" "$dest_file"
+	rc=$?
+	if [ $rc != 0 ]; then
+	    rm -- "$tmpfile"
 	    exit $rc
 	fi
 
@@ -214,21 +286,27 @@ else
 	# safest way to archive, the file is transfered under a
 	# another name then moved to the target name when complete,
 	# partly copied files should not happen.
-	rsync -a $file ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}:${ARCHIVE_DIR:-'~'}/
+	rsync -a -- "$tmpfile" "$dest_host:$(qw "$dest_file")"
 	rc=$?
 	if [ $rc != 0 ]; then
 	    error "Unable to rsync the compressed file to ${ARCHIVE_HOST}:${ARCHIVE_DIR}"
+	    rm -- "$tmpfile"
 	    exit $rc
 	fi
 
-	rm $file
+	rm -- "$tmpfile"
 	rc=$?
 	if [ $rc != 0 ]; then
-	    error "Unable to remove temporary compressed file"
+	    error "Unable to remove temporary compressed file '$tmpfile'"
 	    exit $rc
 	fi
     else
-	rsync -a $xlog ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}:${ARCHIVE_DIR:-'~'}/
+	dest_file=$ARCHIVE_DIR/$(basename -- "$xlog")
+	check_remote_dest_exists "$dest_host" "$dest_file"
+	rc=$?
+	[ $rc = 0 ] || exit $rc
+
+	rsync -a -- "$xlog" "$dest_host:$(qw "$dest_file")"
 	rc=$?
 	if [ $rc != 0 ]; then
 	    error "Unable to rsync $xlog to ${ARCHIVE_HOST}:${ARCHIVE_DIR}"

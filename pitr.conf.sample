@@ -103,6 +103,11 @@ ARCHIVE_DIR="$BACKUP_DIR/$BACKUP_LABEL/archived_xlog"
 # Compress the WAL segment
 ARCHIVE_COMPRESS="yes"
 
+# Allow overwriting the file when it exists in the archive
+# directory. Since checking if the file exists before archiving has a
+# performance overhead, the option is enabled by default.
+ARCHIVE_OVERWRITE="yes"
+
 # Logging options.  When SYSLOG is no, messages are written to stderr,
 # to allow the logging collector or redirection to catch them. These
 # parameters are intended to match their counterparts in

@@ -201,6 +201,11 @@ configured:
   server doing a lot write transaction, this can avoid contention on
   archiving.
 
+* `ARCHIVE_OVERWRITE` can be set to "no" to check if the file to
+  archive already exists in the destination directory. Since it
+  reduces performance when archiving over SSH, it is set to "yes", by
+  default.
+
 * `SYSLOG` can be set to "yes" to log messages to syslog, otherwise
   stderr is used for messages.  `SYSLOG_FACILITY` and `SYSLOG_IDENT` can
   then by used to store messages in the log file of PostgreSQL when it

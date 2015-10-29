@@ -1,3 +1,12 @@
+pitrery 1.11
+============
+
+  * New ARCHIVE_OVERWRITE configuration parameter along with -O option
+    (do not overwrite) for archive_xlog to check if the target files
+    exists before archiving, when set to "no" or -O is on the command
+    line.
+
+
 pitrery 1.10
 ============
 
