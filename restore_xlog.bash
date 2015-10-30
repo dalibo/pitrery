@@ -183,8 +183,7 @@ fi
 # Get the file: use cp when the file is on localhost, scp otherwise
 if [ $ARCHIVE_LOCAL = "yes" ]; then
     if [ -f $ARCHIVE_DIR/$xlog_file ]; then
-	cp $ARCHIVE_DIR/$xlog_file $target_file
-	if [ $? != 0 ]; then
+	if ! cp -- "$ARCHIVE_DIR/$xlog_file" "$target_file"; then
 	    error "could not copy $ARCHIVE_DIR/$xlog_file to $target_file"
 	fi
     else
@@ -194,16 +193,14 @@ else
     # check if we have a IPv6, and put brackets for scp
     [[ $ARCHIVE_HOST == *([^][]):*([^][]) ]] && ARCHIVE_HOST="[${ARCHIVE_HOST}]"
 
-    scp ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}:$ARCHIVE_DIR/$xlog_file $target_file >/dev/null
-    if [ $? != 0 ]; then
-	error "could not copy ${ARCHIVE_HOST}:$ARCHIVE_DIR/$xlog_file to $target_file"
+    if ! scp -- "${ARCHIVE_USER:+$ARCHIVE_USER@}$ARCHIVE_HOST:$(qw "$ARCHIVE_DIR/$xlog_file")" "$target_file" >/dev/null; then
+	error "could not copy $ARCHIVE_HOST:$ARCHIVE_DIR/$xlog_file to $target_file"
     fi
 fi
 
 # Uncompress the file if needed
 if [ $ARCHIVE_COMPRESS = "yes" ]; then
-    $ARCHIVE_UNCOMPRESS_BIN $target_file
-    if [ $? != 0 ]; then
+    if ! $ARCHIVE_UNCOMPRESS_BIN "$target_file"; then
 	error "could not uncompress $target_file"
     fi
 fi

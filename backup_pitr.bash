@@ -260,8 +260,7 @@ if [ $local_backup = "yes" ]; then
 	error "could not create $backup_dir/tblspc"
     fi
 else
-    ssh ${ssh_user:+$ssh_user@}$target "test -e $backup_dir" 2>/dev/null
-    if [ $? = 0 ]; then
+    if ssh -n -- "$ssh_target" "test -e $(qw "$backup_dir")" 2>/dev/null; then
 	error "$backup_dir already exists, another backup may be in progress"
     fi
 
@@ -281,8 +280,7 @@ fi
 # Get the list of tablespaces. It comes from PostgreSQL to be sure to
 # process only defined tablespaces.
 info "listing tablespaces"
-tblspc_list=`mktemp -t backup_pitr.XXXXXX`
-if [ $? != 0 ]; then
+if ! tblspc_list=$(mktemp -t backup_pitr.XXXXXXXXXX); then
     error_and_hook "could not create temporary file"
 fi
 
@@ -349,8 +347,7 @@ case $storage in
         # Tar $PGDATA
 	info "backing up PGDATA with tar"
 	was=`pwd`
-	cd $pgdata
-	if [ $? != 0 ]; then
+	if ! cd -- "$pgdata"; then
 	    error_and_hook "could not change current directory to $pgdata"
 	fi
 
@@ -389,8 +386,7 @@ case $storage in
             # Change directory to the parent directory or the tablespace to be
             # able to tar only the base directory
 	    was=`pwd`
-	    cd $location
-	    if [ $? != 0 ]; then
+	    if ! cd -- "$location"; then
 		error_and_hook "could not change current directory to $location"
 	    fi
 
@@ -436,20 +432,20 @@ case $storage in
 		    mkdir -p $backup_dir/pgdata
 
 		    info "preparing hardlinks from previous backup"
-		    (cd $prev_backup/pgdata && @HARDLINKER@ . $backup_dir/pgdata)
-		    if [ $? != 0 ]; then
+		    if ! (cd -- "$prev_backup/pgdata" && @HARDLINKER@ -- . "$backup_dir/pgdata"); then
 			error_and_hook "could not hardlink previous backup"
 		    fi
 		fi
 	    else
-		ssh ${ssh_user:+$ssh_user@}$target "test -d $prev_backup/pgdata" 2>/dev/null
-		if [ $? = 0 ]; then
+		prevdir=$(qw "$prev_backup/pgdata")
+		newdir=$(qw "$backup_dir/pgdata")
+
+		if ssh -n -- "$ssh_target" "test -d $prevdir" 2>/dev/null; then
 		    # pax needs the target directory to exist
-		    ssh ${ssh_user:+$ssh_user@}$target "mkdir -p $backup_dir/pgdata" 2>/dev/null
+		    ssh -n -- "$ssh_target" "mkdir -p -- $newdir" 2>/dev/null
 
 		    info "preparing hardlinks from previous backup"
-		    ssh ${ssh_user:+$ssh_user@}$target "cd $prev_backup/pgdata && @HARDLINKER@ . $backup_dir/pgdata" 2>/dev/null
-		    if [ $? != 0 ]; then
+		    if ! ssh -n -- "$ssh_target" "cd -- $prevdir && @HARDLINKER@ -- . $newdir" 2>/dev/null; then
 			error_and_hook "could not hardlink previous backup. Missing pax?"
 		    fi
 		fi
@@ -492,20 +488,20 @@ case $storage in
 			mkdir -p $backup_dir/tblspc/$_name
 
 	    		info "preparing hardlinks from previous backup"
-	    		(cd $prev_backup/tblspc/$_name && @HARDLINKER@ . $backup_dir/tblspc/$_name)
-	    		if [ $? != 0 ]; then
+			if ! (cd -- "$prev_backup/tblspc/$_name" && @HARDLINKER@ -- . "$backup_dir/tblspc/$_name"); then
 	    		    error_and_hook "could not hardlink previous backup"
 	    		fi
 	    	    fi
 	    	else
-	    	    ssh -n ${ssh_user:+$ssh_user@}$target "test -d $prev_backup/tblspc/$_name" 2>/dev/null
-	    	    if [ $? = 0 ]; then
+		    prevtbl=$(qw "$prev_backup/tblspc/$_name")
+		    newtbl=$(qw "$backup_dir/tblspc/$_name")
+
+		    if ssh -n -- "$ssh_target" "test -d $prevtbl" 2>/dev/null; then
 			# pax needs the target directory to exist
-			ssh ${ssh_user:+$ssh_user@}$target "mkdir -p $backup_dir/tblspc/$_name" 2>/dev/null
+			ssh -n -- "$ssh_target" "mkdir -p -- $newtbl" 2>/dev/null
 
 	    		info "preparing hardlinks from previous backup"
-	    		ssh -n ${ssh_user:+$ssh_user@}$target "cd $prev_backup/tblspc/$_name && @HARDLINKER@ . $backup_dir/tblspc/$_name" 2>/dev/null
-	    		if [ $? != 0 ]; then
+			if ! ssh -n -- "$ssh_target" "cd -- $prevtbl && @HARDLINKER@ -- . $newtbl" 2>/dev/null; then
 	    		    error_and_hook "could not hardlink previous backup. Missing pax?"
 	    		fi
 	    	    fi
@@ -619,8 +615,7 @@ if [ $local_backup = "yes" ]; then
     # Add the name and location of the tablespace to an helper file for
     # the restoration script
     info "copying the tablespaces list"
-    cp $tblspc_list $backup_dir/tblspc_list
-    if [ $? != 0 ]; then
+    if ! cp -- "$tblspc_list" "$backup_dir/tblspc_list"; then
 	error_and_hook "could not copy the tablespace list to $backup_dir"
     fi
 else
@@ -648,8 +643,7 @@ else
     # Add the name and location of the tablespace to an helper file for
     # the restoration script
     info "copying the tablespaces list"
-    scp $tblspc_list ${ssh_user:+$ssh_user@}${target}:$backup_dir/tblspc_list >/dev/null
-    if [ $? != 0 ]; then
+    if ! scp -- "$tblspc_list" "$ssh_target:$(qw "$backup_dir/tblspc_list")" >/dev/null; then
 	error_and_hook "could not copy the tablespace list to ${target}:$backup_dir"
     fi
 fi

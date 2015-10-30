@@ -178,15 +178,13 @@ for dir in "${list[@]%/}"; do
 		# Only show sizes of PGDATA if available
 		if [ -n "`awk -F'|' '{ print $4 }' $dir/tblspc_list`" ]; then
 		    echo "PGDATA:"
-		    awk -F'|' '$2 == "" { print "  "$1" "$4 }' $dir/tblspc_list
-		    if [ $? != 0 ]; then
+		    if ! awk -F'|' '$2 == "" { print "  "$1" "$4 }' "$dir/tblspc_list"; then
 			echo "ERROR: could not display the list of tablespaces" 1>&2
 			st=1
 		    fi
 		fi
 		echo "Tablespaces:"
-		awk -F'|' '$2 != "" { print "  \""$1"\" "$2" ("$3") "$4 }' $dir/tblspc_list
-		if [ $? != 0 ]; then
+		if ! awk -F'|' '$2 != "" { print "  \""$1"\" "$2" ("$3") "$4 }' "$dir/tblspc_list"; then
 		    echo "ERROR: could not display the list of tablespaces" 1>&2
 		    st=1
 		fi
@@ -212,8 +210,7 @@ for dir in "${list[@]%/}"; do
 
 	# Storage method with compression suffix for tar
 	if [ -n "$verbose" ]; then
-	    ssh ${ssh_user:+$ssh_user@}$host "test -d $dir/pgdata" 2>/dev/null
-	    if [ $? = 0 ]; then
+	    if ssh -n -- "$ssh_target" "test -d $(qw "$dir/pgdata")" 2>/dev/null; then
 		echo "  storage: rsync"
 	    else
 		prefix=$dir/pgdata.tar.
@@ -236,8 +233,7 @@ for dir in "${list[@]%/}"; do
 	fi
 
 	# Minimum recovery target time
-	ssh ${ssh_user:+$ssh_user@}$host "test -f $dir/backup_label" 2>/dev/null
-	if [ $? = 0 ]; then
+	if ssh -n -- "$ssh_target" "test -f $(qw "$dir/backup_label")" 2>/dev/null; then
 	    [ -n "$verbose" ] && echo "Minimum recovery target time:"
 	    if stop_time=$(ssh -n -- "$ssh_target" "sed -n 's/STOP TIME: /  /p' -- $(qw "$dir/backup_label")") \
 	    && [ -n "$stop_time" ]; then
@@ -253,8 +249,7 @@ for dir in "${list[@]%/}"; do
 
 	# Name, path and space used at backup time of PGDATA and tablespaces
 	if [ -n "$verbose" ]; then
-	    ssh ${ssh_user:+$ssh_user@}$host "test -f $dir/tblspc_list" 2>/dev/null
-	    if [ $? = 0 ]; then
+	    if ssh -n -- "$ssh_target" "test -f $(qw "$dir/tblspc_list")" 2>/dev/null; then
 		if [ -n "$(ssh -n -- "$ssh_target" "awk -F'|' '{ print \$4 }' $(qw "$dir/tblspc_list")")" ]; then
 		    echo "PGDATA:"
 		    if ts=$(ssh -n -- "$ssh_target" \

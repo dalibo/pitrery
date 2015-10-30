@@ -463,17 +463,15 @@ if [ $local_backup = "yes" ]; then
     # inside PGDATA it does not exist
     if [ -d $backup_dir/conf ]; then
 	info "restoring configuration files to $restored_conf"
-	cp -r $backup_dir/conf $restored_conf
-	if [ $? != 0 ]; then
+	if ! cp -r -- "$backup_dir/conf" "$restored_conf"; then
 	    warn "could not copy $backup_dir/conf to $restored_conf"
 	fi
     fi
 else
-    ssh ${ssh_user:+$ssh_user@}$source "test -d $backup_dir/conf" 2>/dev/null
-    if [ $? = 0 ]; then
+    confdir=$(qw "$backup_dir/conf")
+    if ssh -n -- "$ssh_target" "test -d $confdir" 2>/dev/null; then
 	info "restoring configuration files to $restored_conf"
-	scp -r ${ssh_user:+$ssh_user@}$source:$backup_dir/conf $restored_conf >/dev/null
-	if [ $? != 0 ]; then
+	if ! scp -r -- "$ssh_target:$confdir" "$restored_conf" >/dev/null; then
 	    warn "could not copy $source:$backup_dir/conf to $restored_conf"
 	fi
     fi
@@ -482,8 +480,7 @@ fi
 # change owner of PGDATA to the target owner
 if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
     info "setting owner of PGDATA ($pgdata)"
-    chown -R ${owner}: $pgdata
-    if [ $? != 0 ]; then
+    if ! chown -R -- "$owner:" "$pgdata"; then
 	error "could not change owner of PGDATA to $owner"
     fi
 fi
@@ -564,8 +561,7 @@ for (( i=0; i<$tspc_count; ++i )); do
 	# change owner of the tablespace files to the target owner
 	if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
 	    info "setting owner of tablespace \"$name\" ($tbldir)"
-	    chown -R ${owner}: $tbldir
-	    if [ $? != 0 ]; then
+	    if ! chown -R -- "$owner:" "$tbldir"; then
 		error "could not change owner of tablespace \"$name\" to $owner"
 	    fi
 	fi
@@ -586,19 +582,16 @@ fi
 
 if [ ! -d $pgdata/pg_xlog/archive_status ]; then
     info "preparing pg_xlog directory"
-    mkdir -p $pgdata/pg_xlog/archive_status
-    if [ $? != 0 ]; then
+    if ! mkdir -p -- "$pgdata/pg_xlog/archive_status"; then
 	error "could not create $pgdata/pg_xlog"
     fi
 
-    chmod 700 $pgdata/pg_xlog $pgdata/pg_xlog/archive_status 2>/dev/null
-    if [ $? != 0 ]; then
+    if ! chmod -- 700 "$pgdata/pg_xlog" "$pgdata/pg_xlog/archive_status" 2>/dev/null; then
 	error "could not set permissions of $pgdata/pg_xlog and $pgdata/pg_xlog/archive_status"
     fi
 
     if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
-	chown -R ${owner}: $pgdata/pg_xlog
-	if [ $? != 0 ]; then
+	if ! chown -R -- "$owner:" "$pgdata/pg_xlog"; then
 	    error "could not change owner of $dir to $owner"
 	fi
     fi
@@ -668,8 +661,7 @@ esac >> $pgdata/recovery.conf
 # Ensure recovery.conf as the correct owner so that PostgreSQL can
 # rename it at the end of the recovery
 if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
-    chown -R ${owner}: $pgdata/recovery.conf
-    if [ $? != 0 ]; then
+    if ! chown -R -- "$owner:" "$pgdata/recovery.conf"; then
 	error "could not change owner of recovery.conf to $owner"
     fi
 fi
