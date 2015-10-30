@@ -67,11 +67,14 @@ while getopts "c:nlV?" opt; do
     esac
 done
 
+# Ensure failed globs will be empty, not left containing the literal glob pattern
+shopt -s nullglob
+
 # List the configuration files and exit
 if [ $list_configs = "yes" ]; then
     info "listing configuration files in $config_dir"
-    for x in `ls -1 $config_dir/*.conf 2>/dev/null`; do
-	basename $x .conf
+    for x in "$config_dir"/*.conf; do
+	basename -- "$x" .conf
     done
     exit 0
 fi
@@ -87,9 +90,8 @@ OPTIND=$(( $OPTIND + 1 ))
 # Check if the config option is a path or just a name in the
 # configuration directory.  Prepend the configuration directory and
 # .conf when needed.
-echo $config | grep -q '\/' 
-if [ $? != 0 ]; then
-    config="$config_dir/`basename $config .conf`.conf"
+if [[ $config != */* ]]; then
+    config="$config_dir/$(basename -- "$config" .conf).conf"
 fi
 
 # Load the configuration file
