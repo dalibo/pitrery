@@ -69,7 +69,7 @@ qw() {
 }
 
 now() {
-    [ $log_timestamp = "yes" ] && echo -e "$(date "+%F %T %Z ")"
+    [ $log_timestamp = "yes" ] && echo "$(date "+%F %T %Z ")"
 }
 
 info() {
