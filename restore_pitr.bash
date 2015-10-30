@@ -413,9 +413,7 @@ case $storage in
 	    uncompress_rc=${rc[0]}
 	    tar_rc=${rc[1]}
 	    if [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
-		echo "ERROR: could not extract $backup_dir/pgdata.tar.$compress_suffix to $pgdata" 1>&2
-		cd $was
-		exit 1
+		error "could not extract $backup_dir/pgdata.tar.$compress_suffix to $pgdata"
 	    fi
 	else
 	    ssh ${ssh_user:+$ssh_user@}$source "cat $backup_dir/pgdata.tar.$compress_suffix" 2>/dev/null | $uncompress_bin | tar xf - 2>/dev/null
@@ -424,9 +422,7 @@ case $storage in
 	    uncompress_rc=${rc[1]}
 	    tar_rc=${rc[2]}
 	    if [ $ssh_rc != 0 ] || [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
-		echo "ERROR: could not extract $source:$backup_dir/pgdata.tar.$compress_suffix to $pgdata" 1>&2
-		cd $was
-		exit 1
+		error "could not extract $source:$backup_dir/pgdata.tar.$compress_suffix to $pgdata"
 	    fi
 	fi
 	cd $was
@@ -522,9 +518,7 @@ for (( i=0; i<$tspc_count; ++i )); do
 		    uncompress_rc=${rc[0]}
 		    tar_rc=${rc[1]}
 		    if [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
-			echo "ERROR: could not extract tablespace $name to $tbldir" 1>&2
-			cd $was
-			exit 1
+			error "Could not extract tablespace $name to $tbldir"
 		    fi
 		else
 		    ssh -n ${ssh_user:+$ssh_user@}$source "cat $backup_dir/tblspc/${_name}.tar.$compress_suffix" 2>/dev/null | $uncompress_bin | tar xf - 2>/dev/null
@@ -533,9 +527,7 @@ for (( i=0; i<$tspc_count; ++i )); do
 		    uncompress_rc=${rc[1]}
 		    tar_rc=${rc[2]}
 		    if [ $ssh_rc != 0 ] || [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
-			echo "ERROR: could not extract tablespace $name to $tbldir" 1>&2
-			cd $was
-			exit 1
+			error "Could not extract tablespace $name to $tbldir"
 		    fi
 		fi
 		cd $was
