@@ -248,22 +248,22 @@ for dir in "${list[@]%/}"; do
 	if [ -n "$verbose" ]; then
 	    ssh ${ssh_user:+$ssh_user@}$host "test -f $dir/tblspc_list" 2>/dev/null
 	    if [ $? = 0 ]; then
-		if [ -n "`ssh ${ssh_user:+$ssh_user@}$host "cat $dir/tblspc_list" 2>/dev/null | awk -F'|' '{ print $4 }'`" ]; then
+		if [ -n "$(ssh -n -- "$ssh_target" "awk -F'|' '{ print \$4 }' $(qw "$dir/tblspc_list")")" ]; then
 		    echo "PGDATA:"
-		    ssh ${ssh_user:+$ssh_user@}$host "cat $dir/tblspc_list" 2>/dev/null | awk -F'|' '$2 == "" { print "  "$1" "$4 }'
-		    rc=(${PIPESTATUS[*]})
-		    ssh_rc=${rc[0]}
-		    if [ $ssh_rc != 0 ]; then
+		    if ts=$(ssh -n -- "$ssh_target" \
+			    "awk -F'|' '\$2 == \"\" { print \"  \"\$1\" \"\$4 }' $(qw "$dir/tblspc_list")"); then
+			[ -n "$ts" ] && echo "$ts"
+		    else
 			echo "ERROR: could not display the list of tablespaces" 1>&2
 			st=1
 		    fi
 		fi
 
 		echo "Tablespaces:"
-		ssh ${ssh_user:+$ssh_user@}$host "cat $dir/tblspc_list" 2>/dev/null | awk -F'|' '$2 != "" { print "  \""$1"\" "$2" ("$3") "$4 }'
-		rc=(${PIPESTATUS[*]})
-		ssh_rc=${rc[0]}
-		if [ $ssh_rc != 0 ]; then
+		if ts=$(ssh -n -- "$ssh_target" \
+			"awk -F'|' '"'$2 != "" { print "  \""$1"\" "$2" ("$3") "$4 }'"' $(qw "$dir/tblspc_list")"); then
+		    [ -n "$ts" ] && echo "$ts"
+		else
 		    echo "ERROR: could not display the list of tablespaces" 1>&2
 		    st=1
 		fi
