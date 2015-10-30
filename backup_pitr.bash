@@ -586,16 +586,19 @@ done
 
 # Compute the name of the backup directory from the stop time
 backup_name=`echo $stop_time | awk '{ print $1"_"$2 }' | sed -e 's/[:-]/./g'`
+new_backup_dir=$backup_root/$label_prefix/$backup_name
 
 # Finish the backup by copying needed files and rename the backup
 # directory to a useful name
 if [ $local_backup = "yes" ]; then
+    [ ! -e "$new_backup_dir" ] ||
+	error_and_hook "backup directory '$new_backup_dir' already exists"
+
     # Rename the backup directory using the stop time
-    mv $backup_dir $backup_root/${label_prefix}/$backup_name
-    if [ $? != 0 ]; then
+    if ! mv -- "$backup_dir" "$new_backup_dir"; then
 	error_and_hook "could not rename the backup directory"
     fi
-    backup_dir=$backup_root/${label_prefix}/$backup_name
+    backup_dir=$new_backup_dir
     
     # Copy the backup history file
     info "copying the backup history file"
@@ -616,12 +619,15 @@ if [ $local_backup = "yes" ]; then
 	error_and_hook "could not copy the tablespace list to $backup_dir"
     fi
 else
+    if ssh -n -- "$ssh_target" "test -e $(qw "$new_backup_dir")" 2>/dev/null; then
+	error_and_hook "backup directory '$target:$new_backup_dir' already exists"
+    fi
+
     # Rename the backup directory using the stop time
-    ssh ${ssh_user:+$ssh_user@}${target} "mv $backup_dir $backup_root/${label_prefix}/$backup_name" 2>/dev/null
-    if [ $? != 0 ]; then
+    if ! ssh -n -- "$ssh_target" "mv -- $(qw "$backup_dir" "$new_backup_dir")" 2>/dev/null; then
 	error_and_hook "could not rename the backup directory"
     fi
-    backup_dir=$backup_root/${label_prefix}/$backup_name
+    backup_dir=$new_backup_dir
     
     # Save the end of backup timestamp to a file
     if [ -n "$timestamp" ]; then
