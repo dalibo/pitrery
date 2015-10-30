@@ -154,9 +154,10 @@ for dir in "${list[@]%/}"; do
 	# Print the minimum recovery target time with this backup
 	if [ -f $dir/backup_label ]; then
 	    [ -n "$verbose" ] && echo "Minimum recovery target time:"
-	    grep "STOP TIME:" $dir/backup_label | sed -e 's/STOP TIME: /  /'
-	    if [ $? != 0 ]; then
-		echo "ERROR: could not find the \"stop time\" in the backup_label file" 1>&2
+	    if stop_time=$(sed -n 's/STOP TIME: /  /p' -- "$dir/backup_label") && [ -n "$stop_time" ]; then
+		echo "$stop_time"
+	    else
+		echo "ERROR: could not get \"stop time\" from $dir/backup_label" 1>&2
 		st=1
 	    fi
 	else
@@ -231,12 +232,11 @@ for dir in "${list[@]%/}"; do
 	ssh ${ssh_user:+$ssh_user@}$host "test -f $dir/backup_label" 2>/dev/null
 	if [ $? = 0 ]; then
 	    [ -n "$verbose" ] && echo "Minimum recovery target time:"
-	    ssh ${ssh_user:+$ssh_user@}$host "cat $dir/backup_label" 2>/dev/null | grep "STOP TIME:" | sed -e 's/STOP TIME: /  /'
-	    rc=(${PIPESTATUS[*]})
-	    ssh_rc=${rc[0]}
-	    grep_rc=${rc[1]}
-	    if [ $ssh_rc != 0 ] || [ $grep_rc != 0 ]; then
-		echo "ERROR: could find the \"stop time\" in the backup_label file" 1>&2
+	    if stop_time=$(ssh -n -- "$ssh_target" "sed -n 's/STOP TIME: /  /p' -- $(qw "$dir/backup_label")") \
+	    && [ -n "$stop_time" ]; then
+		echo "$stop_time"
+	    else
+		echo "ERROR: could not get \"stop time\" from $host:$dir/backup_label" 1>&2
 		st=1
 	    fi
 	else
