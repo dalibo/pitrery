@@ -332,6 +332,10 @@ if [ $storage = "rsync" ]; then
     fi
 fi
 
+# Enable the extended pattern matching operators.
+# We use them here for replacing whitespace in the tablespace tarball names.
+shopt -s extglob
+
 # Copy the files
 case $storage in
     "tar")
@@ -366,9 +370,9 @@ case $storage in
 
 	# Tar the tablespaces
 	while read line ; do
-	    name=`echo $line | cut -d '|' -f 1`
-	    _name=`echo $name | sed -re 's/\s+/_/g'` # No space version, we want paths without spaces
-	    location=`echo $line | cut -d '|' -f 2`
+	    name=$(cut -d '|' -f 1 <<< "$line")
+	    _name=${name//+([[:space:]])/_}	# No space version, we want paths without spaces
+	    location=$(cut -d '|' -f 2 <<< "$line")
 
 	    # Skip empty locations used for pg_default and pg_global, which are in PGDATA
 	    [ -z "$location" ] && continue
@@ -464,9 +468,9 @@ case $storage in
 	# Tablespaces. We do the same as pgdata: hardlink the previous
 	# backup directory if possible, then rsync.
 	while read line; do
-	    name=`echo "$line" | cut -d '|' -f 1`
-	    _name=`echo "$name" | sed -re 's/\s+/_/g'` # No space version, we want paths without spaces
-	    location=`echo "$line" | cut -d '|' -f 2`
+	    name=$(cut -d '|' -f 1 <<< "$line")
+	    _name=${name//+([[:space:]])/_}	# No space version, we want paths without spaces
+	    location=$(cut -d '|' -f 2 <<< "$line")
 
 	    # Skip empty locations used for pg_default and pg_global, which are in PGDATA
 	    [ -z "$location" ] && continue
