@@ -382,10 +382,7 @@ fi
 check_and_fix_directory "$pgdata"
 
 if [ -n "$pgxlog" ]; then
-    echo $pgxlog | grep -q '^/'
-    if [ $? != 0 ]; then
-	error "pg_xlog must be an absolute path"
-    fi
+    [[ $pgxlog == /* ]] || error "pg_xlog must be an absolute path"
 
     if [ "$pgxlog" = "$pgdata/pg_xlog" ]; then
 	error "xlog path cannot be \$PGDATA/pg_xlog, this path is reserved. It seems you do not need -x"
@@ -601,8 +598,9 @@ if [ ! -d $pgdata/pg_xlog/archive_status ]; then
 fi
 
 # Check PG_VERSION
-if [ -f $pgdata/PG_VERSION ]; then
-    pgvers=`cat $pgdata/PG_VERSION | sed -e 's/\./0/'`
+if [ -f "$pgdata/PG_VERSION" ]; then
+    pgvers=$(< "$pgdata/PG_VERSION")
+    pgvers=${pgvers//./0}
 else
     warn "PG_VERSION file is missing"
 fi
