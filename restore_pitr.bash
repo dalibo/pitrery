@@ -101,94 +101,63 @@ info() {
 }
 
 check_and_fix_directory() {
-    [ $# = 1 ] || return 1
+    [ $# = 1 ] || error "check_and_fix_directory called with $# arguments"
     local dir=$1
+
+    [ -n "$dir" ] || error "check_and_fix_directory called with empty dir argument"
 
     # Check if directory exists
     if [ ! -d "$dir" ]; then
-	info "creating $dir"
-	mkdir -p $dir
-	if [ $? != 0 ]; then
-	    error "could not create $dir"
-	fi
-	info "setting permissions of $dir"
-	chmod 700 $dir
-
-	# Change owner of directory only if run as root
-	if [ `id -u` = 0 ]; then
-	    info "setting owner of $dir"
-	    chown ${owner}: $dir
-	    if [ $? != 0 ]; then
-		error "could not change owner of $dir to $owner"
-	    fi
-	fi
+	info "creating $dir with permission 0700"
+	# Note that if this creates any parent directories, their mode will be set
+	# according to the current umask, only the final leaf dir will be set 0700.
+	mkdir -p -m 700 -- "$dir" || error "could not create $dir"
     else
         # Check if directory is empty
 	info "checking if $dir is empty"
-	ls $dir >/dev/null 2>&1
-	ls_rc=$?
-	content=`ls $dir 2>/dev/null | wc -l`
-	wc_rc=$?
-	if [ $ls_rc != 0 ] || [ $wc_rc != 0 ]; then
-	    error "could not check if $dir is empty"
-	fi
+	if [ -n "$(ls -A -- "$dir")" ]; then
+	    [ "$overwrite" = "yes" ] || error "$dir is not empty. Contents won't be overwritten"
 
-	if [ $content != 0 ]; then
-	    if [ $overwrite = "yes" ]; then
-		# Cancel in case there may be a postmaster running.
-		if [ -e $dir/postmaster.pid ]; then
-		    error "Found $dir/postmaster.pid. A postmaster may be running. Aborting."
-		fi
+	    # Cancel in case there may be a postmaster running.
+	    if [ -e "$dir/postmaster.pid" ]; then
+		error "Found $dir/postmaster.pid. A postmaster may be running. Aborting."
+	    fi
 
-		info "$dir is not empty, its contents will be overwritten"
-		# This is called after we know the storage
-		# method. When using "tar", we must clean the target
-		# directory. When using "rsync", we just let it do its
-		# diffs.
-		if [ $storage = "tar" ]; then
-		    info "Removing contents of $dir"
-		    rm -rf $dir/*
-		fi
-	    else
-		error "$dir is not empty. Contents won't be overwritten"
+	    info "$dir is not empty, its contents will be overwritten"
+	    # This is called after we know the storage
+	    # method. When using "tar", we must clean the target
+	    # directory. When using "rsync", we just let it do its
+	    # diffs.
+	    if [ "$storage" = "tar" ]; then
+		info "Removing contents of $dir"
+		rm -rf -- "$dir/"*
 	    fi
 	else
 	    # make rsync copy the whole files because target
 	    # directories are empty
 	    rsync_opts="$rsync_opts --whole-file"
 	fi
+
+	# Check permissions
+	dperms=`stat -c %a -- "$dir" 2>/dev/null` || error "Unable to get permissions of $dir"
+
+	if [ "$dperms" != "700" ]; then
+	    info "setting permissions of $dir"
+	    chmod -- 700 "$dir" || error "$dir must have 0700 permission"
+	fi
     fi
     
     # Check owner
-    downer=`stat -c %U $dir 2>/dev/null`
-    if [ $? != 0 ]; then
-	error "Unable to get owner of $dir"
-    fi
+    downer=`stat -c %U -- "$dir" 2>/dev/null` || error "Unable to get owner of $dir"
 
-    if [ $downer != $owner ]; then
+    if [ "$downer" != "$owner" ]; then
 	if [ `id -u` = 0 ]; then
 	    info "setting owner of $dir"
-	    chown ${owner}: $dir
-	    if [ $? != 0 ]; then
-		error "could not change owner of $dir to $owner"
-	    fi
+	    chown -- "$owner:" "$dir" || error "could not change owner of $dir to $owner"
 	else
 	    error "$dir must be owned by $owner"
 	fi
     fi
-
-    # Check permissions
-    dperms=`stat -c %a $dir 2>/dev/null`
-    if [ $? != 0 ]; then
-	error "Unable to get permissions of $dir"
-    fi
-
-    if [ $dperms != "700" ]; then
-	info "setting permissions of $dir"
-	chmod 700 $dir
-    fi
-
-    return 0
 }
 
 
@@ -414,7 +383,7 @@ fi
 
 
 # Check target directories
-check_and_fix_directory $pgdata
+check_and_fix_directory "$pgdata"
 
 if [ -n "$pgxlog" ]; then
     echo $pgxlog | grep -q '^/'
@@ -426,7 +395,7 @@ if [ -n "$pgxlog" ]; then
 	error "xlog path cannot be \$PGDATA/pg_xlog, this path is reserved. It seems you do not need -x"
     fi
 
-    check_and_fix_directory $pgxlog
+    check_and_fix_directory "$pgxlog"
 fi
 
 # Check the tablespaces directory and create them if possible
