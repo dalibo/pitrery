@@ -156,6 +156,10 @@ current_time=`date +%Y.%m.%d-%H.%M.%S`
 
 # scp needs IPv6 between brackets
 echo $target | grep -q ':' && target="[${target}]"
+ssh_target=${ssh_user:+$ssh_user@}$target
+
+# Ensure failed globs will be empty, not left containing the literal glob pattern
+shopt -s nullglob
 
 # initialize the target path early, so that cleaning works best
 backup_dir=$backup_root/${label_prefix}/current
@@ -337,9 +341,10 @@ trap stop_backup INT TERM KILL EXIT
 # between backups are not duplicated from a filesystem point of view
 if [ $storage = "rsync" ]; then
     if [ $local_backup = "yes" ]; then
-	prev_backup=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null | tail -1`
+	list=( "$backup_root/$label_prefix/"[0-9]*/ )
+	(( ${#list[@]} > 0 )) && prev_backup=${list[-1]%/}
     else
-	prev_backup=`ssh ${ssh_user:+$ssh_user@}$target "ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null" | tail -1`
+	prev_backup=$(ssh -n -- "$ssh_target" "f=\$(find $(qw "$backup_root/$label_prefix") -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -rz | cut -d '' -f1) && printf '%s' \"\$f\"")
     fi
 fi
 
