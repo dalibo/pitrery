@@ -167,6 +167,10 @@ if [ $ARCHIVE_LOCAL != "yes" -a -z "$ARCHIVE_HOST" ]; then
     error "Could not find where to get the file from (local or ssh?)"
 fi
 
+if [ "$ARCHIVE_LOCAL" = "yes" ] && [ -n "$ARCHIVE_HOST" ]; then
+    error "ARCHIVE_LOCAL and ARCHIVE_HOST are set, it can't be both"
+fi
+
 # the filename to retrieve depends on compression
 if [ $ARCHIVE_COMPRESS = "yes" ]; then
     xlog_file=${xlog}.$ARCHIVE_COMPRESS_SUFFIX

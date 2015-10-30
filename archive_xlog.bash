@@ -165,6 +165,10 @@ if [ $ARCHIVE_LOCAL != "yes" -a -z "$ARCHIVE_HOST" ]; then
     error "Not enough information to archive the segment"
 fi
 
+if [ "$ARCHIVE_LOCAL" = "yes" ] && [ -n "$ARCHIVE_HOST" ]; then
+    error "ARCHIVE_LOCAL and ARCHIVE_HOST are set, it can't be both"
+fi
+
 # Check if the source file exists
 if [ ! -r "$xlog" ]; then
     error "Input file '$xlog' does not exist or is not readable"

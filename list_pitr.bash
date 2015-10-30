@@ -83,6 +83,12 @@ if [ -z "$host" ] && [ $local_backup != "yes" ]; then
     usage 1
 fi
 
+# This shouldn't ever happen, but if we check it here we don't have to worry
+# about what might get confused in the logic below if it does.
+if [ -n "$host" ] && [ "$local_backup" = "yes" ]; then
+    error "BACKUP_HOST and BACKUP_IS_LOCAL are set, it can't be both"
+fi
+
 [[ $host == *([^][]):*([^][]) ]] && host="[${host}]"
 ssh_target=${ssh_user:+$ssh_user@}$host
 
