@@ -578,19 +578,14 @@ done
 # Create or symlink pg_xlog directory if needed
 if [ -d "$pgxlog" ]; then
     info "creating symbolic link pg_xlog to $pgxlog"
-    was=`pwd`
-    cd $pgdata
-    ln -sf $pgxlog pg_xlog
-    if [ $? != 0 ]; then
+    if ! ln -sf -- "$pgxlog" "$pgdata/pg_xlog"; then
 	error "could not create $pgdata/pg_xlog symbolic link"
     fi
     if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
-	chown -h ${owner}: pg_xlog
-	if [ $? != 0 ]; then
+	if ! chown -h -- "$owner:" "$pgdata/pg_xlog"; then
 	    error "could not change owner of pg_xlog symbolic link to $owner"
 	fi
     fi
-    cd $was
 fi
 
 if [ ! -d $pgdata/pg_xlog/archive_status ]; then
