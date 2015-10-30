@@ -83,27 +83,37 @@ if [ -z "$host" ] && [ $local_backup != "yes" ]; then
     usage 1
 fi
 
+ssh_target=${ssh_user:+$ssh_user@}$host
+
+
+# Ensure failed globs will be empty, not left containing the literal glob pattern
+shopt -s nullglob
+
 # Search the store
 if [ $local_backup = "yes" ]; then
-    list=`ls -d $backup_root/$label_prefix/[0-9]* 2>/dev/null`
-    if [ $? != 0 ]; then
-	error "could not list the content of $backup_root/$label_prefix/"
-    fi
+    list=( "$backup_root/$label_prefix/"[0-9]*/ )
+
+    (( ${#list[@]} > 0 )) || error "Could not find any backups in $backup_root/$label_prefix/"
 
     # Print a header
     echo "List of local backups"
 else
-    list=`ssh ${ssh_user:+$ssh_user@}$host "ls -d $backup_root/$label_prefix/[0-9]*" 2>/dev/null`
-    if [ $? != 0 ]; then
-	error "could not list the content of $backup_root/$label_prefix/ on $host"
-    fi
+    list=()
+    while read -r -d '' d; do
+	list+=("$d")
+    done < <(
+	ssh -n -- "$ssh_target" \
+	    "find $(qw "$backup_root/$label_prefix") -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -z"
+    )
+
+    (( ${#list[@]} > 0 )) || error "Could not find any backups in $backup_root/$label_prefix/ on $host"
 
     # Print a header
     echo "List of backups on $host"
 fi
 
 # Print the directory and stop time of each backup
-for dir in $list; do
+for dir in "${list[@]%/}"; do
     # Print the details of the backup dir
     if [ -n "$verbose" ]; then
 	echo "----------------------------------------------------------------------"
@@ -116,7 +126,7 @@ for dir in $list; do
     # Get the exact stop date from the backup label
     if [ $local_backup = "yes" ]; then
 	# Compute the size of full backup
-	backup_size=`du -sh $dir | awk '{ print $1 }'`
+	backup_size=( $(du -sh -- "$dir") )
 	if [ -n "$verbose" ]; then
 	    echo "  space used: $backup_size"
 	else
@@ -128,9 +138,16 @@ for dir in $list; do
 	    if [ -d "$dir/pgdata" ]; then
 		echo "  storage: rsync"
 	    else
-		suffix=`ls $dir/pgdata.tar.* 2>/dev/null | sed -r -e 's/.*\.tar\.(.+)$/\1/'`
-		[ -z "$suffix" ] && suffix="unknown"
-		echo "  storage: tar with $suffix compression"
+		prefix=$dir/pgdata.tar.
+		tarfile=( "$prefix"* )
+		if (( ${#tarfile[@]} != 1 )); then
+		    echo "ERROR: no rsync dir and ${#tarfile[@]} pgdata.tar files found" 1>&2
+		    st=1
+		else
+		    suffix=${tarfile#$prefix}
+		    [ -z "$suffix" ] && suffix="unknown"
+		    echo "  storage: tar with $suffix compression"
+		fi
 	    fi
 	fi
 
@@ -173,8 +190,8 @@ for dir in $list; do
 	fi
     else
 	# Backup size
-	backup_size=`ssh ${ssh_user:+$ssh_user@}$host "du -sh $dir" 2>/dev/null | awk '{ print \$1 }'`
-	if [ $? = 0 ]; then
+	backup_size=( $(ssh -n -- "$ssh_target" "du -sh -- $(qw "$dir") 2>/dev/null" 2>/dev/null) )
+	if [ -n "$backup_size" ]; then
 	    if [ -n "$verbose" ]; then
 		echo "  space used: $backup_size"
 	    else
@@ -191,9 +208,22 @@ for dir in $list; do
 	    if [ $? = 0 ]; then
 		echo "  storage: rsync"
 	    else
-		suffix=`ssh ${ssh_user:+$ssh_user@}$host "ls $dir/pgdata.tar.*" 2>/dev/null | sed -r -e 's/.*\.tar\.(.+)$/\1/'`
-		[ -z "$suffix" ] && suffix="unknown"
-		echo "  storage: tar with $suffix compression"
+		prefix=$dir/pgdata.tar.
+		tarfile=()
+		while read -r -d '' d; do
+		    tarfile+=("$d")
+		done < <(
+		    ssh -n -- "$ssh_target" "find $(qw "$dir") -maxdepth 1 -name 'pgdata.tar.*' -type f -print0"
+		)
+
+		if (( ${#tarfile[@]} != 1 )); then
+		    echo "ERROR: no rsync dir and ${#tarfile[@]} pgdata.tar files found in $host:$dir" 1>&2
+		    st=1
+		else
+		    suffix=${tarfile#$prefix}
+		    [ -z "$suffix" ] && suffix="unknown"
+		    echo "  storage: tar with $suffix compression"
+		fi
 	    fi
 	fi
 
