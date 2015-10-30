@@ -361,7 +361,7 @@ case $storage in
 
 	info "archiving $pgdata"
 	if [ $local_backup = "yes" ]; then
-	    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' --exclude='pgsql_tmp' * 2>/dev/null | $compress_bin > $backup_dir/pgdata.tar.$compress_suffix
+	    tar -cpf - --ignore-failed-read --exclude='pg_xlog' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' -- * 2>/dev/null | $compress_bin > "$backup_dir/pgdata.tar.$compress_suffix"
 	    rc=(${PIPESTATUS[*]})
 	    tar_rc=${rc[0]}
 	    compress_rc=${rc[1]}
@@ -369,7 +369,7 @@ case $storage in
 		error_and_hook "could not tar PGDATA"
 	    fi
 	else
-	    tar -cpf - --ignore-failed-read --exclude=pg_xlog --exclude='postmaster.*' --exclude='pgsql_tmp' * 2>/dev/null | $compress_bin | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/pgdata.tar.$compress_suffix" 2>/dev/null
+	    tar -cpf - --ignore-failed-read --exclude='pg_xlog' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' -- * 2>/dev/null | $compress_bin | ssh -- "$ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.$compress_suffix")" 2>/dev/null
 	    rc=(${PIPESTATUS[*]})
 	    tar_rc=${rc[0]}
 	    compress_rc=${rc[1]}
@@ -463,13 +463,13 @@ case $storage in
 
 	info "transferring data from $pgdata"
 	if [ $local_backup = "yes" ]; then
-	    rsync -aq --delete-before --exclude pgsql_tmp --exclude pg_xlog --exclude 'postmaster.*' $pgdata/ $backup_dir/pgdata/
+	    rsync -aq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' -- "$pgdata/" "$backup_dir/pgdata/"
 	    rc=$?
 	    if [ $rc != 0 -a $rc != 24 ]; then
 		error_and_hook "rsync of PGDATA failed with exit code $rc"
 	    fi
 	else
-	    rsync $rsync_opts -e "ssh -o Compression=no" -a --delete-before --exclude pgsql_tmp --exclude pg_xlog --exclude 'postmaster.*' $pgdata/ ${ssh_user:+$ssh_user@}${target}:$backup_dir/pgdata/
+	    rsync $rsync_opts -e "ssh -o Compression=no" -a --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' -- "$pgdata/" "$ssh_target:$(qw "$backup_dir/pgdata/")"
 	    rc=$?
 	    if [ $rc != 0 -a $rc != 24 ]; then
 		error_and_hook "rsync of PGDATA failed with exit code $rc"
@@ -520,13 +520,13 @@ case $storage in
 	    # rsync
 	    info "transferring data from $location"
 	    if [ $local_backup = "yes" ]; then
-	    	rsync -aq --delete-before --exclude pgsql_tmp $location/ $backup_dir/tblspc/$_name/
+		rsync -aq --delete-excluded --exclude 'pgsql_tmp' -- "$location/" "$backup_dir/tblspc/$_name/"
 	    	rc=$?
 	    	if [ $rc != 0 -a $rc != 24 ]; then
 	    	    error_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 	    	fi
 	    else
-	    	rsync $rsync_opts -e "ssh -o Compression=no" -a --delete-before --exclude pgsql_tmp $location/ ${ssh_user:+$ssh_user@}${target}:$backup_dir/tblspc/$_name/
+		rsync $rsync_opts -e "ssh -o Compression=no" -a --delete-excluded --exclude 'pgsql_tmp' -- "$location/" "$ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
 	    	rc=$?
 	    	if [ $rc != 0 -a $rc != 24 ]; then
 	    	    error_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
