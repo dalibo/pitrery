@@ -177,7 +177,7 @@ while getopts "Lu:b:l:D:x:d:O:t:nRc:e:r:C:T?" opt; do
 	R) overwrite="yes";;
 	c) uncompress_bin="$OPTARG";;
 	e) compress_suffix=$OPTARG;;
-	r) restore_cli="$OPTARG";;
+	r) restore_command=$OPTARG;;
 	C) restore_xlog_config=$OPTARG;;
 	T) log_timestamp="yes";;
 	"?") usage 1;;
@@ -205,12 +205,8 @@ if [ `id -u $owner` = 0 ]; then
 fi
 
 # When no restore_command is given, build it using restore_xlog
-if [ -z "$restore_cli" ]; then
-    [ -n "$restore_xlog_config" ] && restore_xlog_opts="-C $restore_xlog_config"
-
-    restore_command="@BINDIR@/restore_xlog $restore_xlog_opts %f %p"
-else
-    restore_command="$restore_cli"
+if [ -z "$restore_command" ]; then
+    restore_command="@BINDIR@/restore_xlog${restore_xlog_config:+ -C $(qw "$restore_xlog_config")} %f %p"
 fi
 
 
