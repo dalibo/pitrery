@@ -108,6 +108,7 @@ storage="tar"
 rsync_opts="-q --whole-file" # Remote only
 compress_bin="gzip -4"
 compress_suffix="gz"
+psql_command=( "psql" )
 log_timestamp="no"
 
 
@@ -123,7 +124,7 @@ while getopts "Lb:l:u:D:s:c:e:P:h:p:U:d:T?" opt; do
 	c) compress_bin="$OPTARG";;
 	e) compress_suffix=$OPTARG;;
 
-	P) psql_command=$OPTARG;;
+	P) psql_command=( "$OPTARG" );;
 	h) dbhost=$OPTARG;;
 	p) dbport=$OPTARG;;
 	U) dbuser=$OPTARG;;
@@ -163,17 +164,16 @@ shopt -s nullglob
 backup_dir=$backup_root/${label_prefix}/current
 
 # Prepare psql command line
-psql_command=${psql_command:-"psql"}
-[ -n "$dbhost" ] && psql_command="$psql_command -h $dbhost"
-[ -n "$dbport" ] && psql_command="$psql_command -p $dbport"
-[ -n "$dbuser" ] && psql_command="$psql_command -U $dbuser"
+[ -n "$dbhost" ] && psql_command+=( "-h" "$dbhost" )
+[ -n "$dbport" ] && psql_command+=( "-p" "$dbport" )
+[ -n "$dbuser" ] && psql_command+=( "-U" "$dbuser" )
 
 psql_condb=${dbname:-postgres}
 
 # Exports for both the pre and post backup hooks.
 export PITRERY_HOOK="pre_backup"
 export PITRERY_BACKUP_DIR=$backup_dir
-export PITRERY_PSQL=$psql_command
+export PITRERY_PSQL="${psql_command[@]}"
 export PITRERY_DATABASE=$psql_condb
 export PITRERY_BACKUP_LOCAL=$local_backup
 export PITRERY_SSH_TARGET=$ssh_target
@@ -212,8 +212,7 @@ stop_backup() {
 
     # Tell PostgreSQL the backup is done
     info "stopping the backup process"
-    $psql_command -Atc "SELECT pg_stop_backup();" $psql_condb >/dev/null
-    if [ $? != 0 ]; then
+    if ! "${psql_command[@]}" -Atc "SELECT pg_stop_backup();" -- "$psql_condb" >/dev/null; then
 	error_and_hook "could not stop backup process"
     fi
 
@@ -222,16 +221,15 @@ stop_backup() {
 }
 
 # Get the version of the server
-pg_version=`$psql_command -Atc "SELECT setting FROM pg_settings WHERE name = 'server_version_num';" $psql_condb`
-if [ $? != 0 ]; then
+if ! pg_version=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'server_version_num';" \
+				-- "$psql_condb"); then
     error "could not get the version of the server"
 fi
 
 # Check if the server is in hot standby, it can happen from 9.0
 # otherwise we would have already exited on error.
-if [ $pg_version -ge 90000 ]; then
-    standby=`$psql_command -Atc "SELECT pg_is_in_recovery();" $psql_condb`
-    if [ $? != 0 ]; then
+if (( 10#$pg_version >= 90000 )); then
+    if ! standby=$("${psql_command[@]}" -Atc "SELECT pg_is_in_recovery();" -- "$psql_condb"); then
 	error "could not check if the server is in recovery"
     fi
 
@@ -288,11 +286,11 @@ fi
 # get list of tablespaces is different.
 
 # Ask PostgreSQL the list of tablespaces
-if [ $pg_version -ge 90200 ]; then
-    $psql_command -Atc "SELECT spcname, pg_tablespace_location(oid), oid, pg_size_pretty(pg_tablespace_size(oid)) FROM pg_tablespace;" $psql_condb > $tblspc_list
+if (( $pg_version >= 90200 )); then
+    "${psql_command[@]}" -Atc "SELECT spcname, pg_tablespace_location(oid), oid, pg_size_pretty(pg_tablespace_size(oid)) FROM pg_tablespace;" -- "$psql_condb" > "$tblspc_list"
     rc=$?
 else
-    $psql_command -Atc "SELECT spcname, spclocation, oid, pg_size_pretty(pg_tablespace_size(oid)) FROM pg_tablespace;" $psql_condb > $tblspc_list
+    "${psql_command[@]}" -Atc "SELECT spcname, spclocation, oid, pg_size_pretty(pg_tablespace_size(oid)) FROM pg_tablespace;" -- "$psql_condb" > "$tblspc_list"
     rc=$?
 fi
 
@@ -307,11 +305,11 @@ info "starting the backup process"
 # result of pg_xlogfile_name_offset on the LSN returned by
 # pg_start_backup, so that we have the name of the backup_label that
 # will be archived after pg_stop_backup completes
-if [ $pg_version -ge 80400 ]; then
+if (( $pg_version -ge 80400 )); then
     start_backup_label_file=`$psql_command -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}', true)) as i;" $psql_condb`
     rc=$?
 else
-    start_backup_label_file=`$psql_command -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}', true)) as i;" $psql_condb`
+    start_backup_label_file=`$psql_command -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}')) as i;" $psql_condb`
     rc=$?
 fi
 
@@ -579,7 +577,7 @@ while read -r -d '' f; do
 	fi
     fi
 done < <(
-    $psql_command -0 -Atc \
+    "${psql_command[@]}" -0 -Atc \
 	"SELECT setting FROM pg_settings WHERE name IN ('config_file', 'hba_file', 'ident_file');" \
 	-- "$psql_condb" \
 	|| warn "could not get the list of configuration files from PostgreSQL"
