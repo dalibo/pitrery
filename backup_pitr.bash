@@ -557,32 +557,33 @@ fi
 # Ask PostgreSQL where are its configuration file. When they are
 # outside PGDATA, copy them in the backup
 _pgdata=`readlink -f $pgdata`
-file_list=`$psql_command -Atc "SELECT setting FROM pg_settings WHERE name IN ('config_file', 'hba_file', 'ident_file');" $psql_condb`
-if [ $? != 0 ]; then
-    warn "could not get the list of configuration files from PostgreSQL"
-fi
 
-for f in $file_list; do
-    file=`readlink -f $f`
-    echo $file | grep -q "^$_pgdata"
-    if [ $? != 0 ]; then
+while read -r -d '' f; do
+    file=`readlink -f -- "$f"`
+    if [[ ! $file =~ ^"$_pgdata" ]]; then
 	# the file in not inside PGDATA, copy it
+	destdir=$backup_dir/conf
+	dest=$destdir/$(basename -- "$file")
 	info "saving $f"
+
 	if [ $local_backup = "yes" ]; then
-	    mkdir -p $backup_dir/conf
-	    cp $file $backup_dir/conf/`basename $file`
-	    if [ $? != 0 ]; then
+	    mkdir -p -- "$destdir"
+	    if ! cp -- "$file" "$dest"; then
 		error_and_hook "could not copy $f to backup directory"
 	    fi
 	else
-	    ssh ${ssh_user:+$ssh_user@}${target} "mkdir -p $backup_dir/conf" 2>/dev/null
-	    scp $file ${ssh_user:+$ssh_user@}${target}:$backup_dir/conf/`basename $file` >/dev/null
-	    if [ $? != 0 ]; then
+	    ssh -n -- "$ssh_target" "mkdir -p -- $(qw "$destdir")" 2>/dev/null
+	    if ! scp -- "$file" "$ssh_target:$(qw "$dest")" >/dev/null; then
 		error_and_hook "could not copy $f to backup directory on $target"
 	    fi
 	fi
     fi
-done
+done < <(
+    $psql_command -0 -Atc \
+	"SELECT setting FROM pg_settings WHERE name IN ('config_file', 'hba_file', 'ident_file');" \
+	-- "$psql_condb" \
+	|| warn "could not get the list of configuration files from PostgreSQL"
+)
 
 # Compute the name of the backup directory from the stop time
 backup_name=`echo $stop_time | awk '{ print $1"_"$2 }' | sed -e 's/[:-]/./g'`
