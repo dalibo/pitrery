@@ -168,18 +168,25 @@ psql_command=${psql_command:-"psql"}
 
 psql_condb=${dbname:-postgres}
 
+# Exports for both the pre and post backup hooks.
+export PITRERY_HOOK="pre_backup"
+export PITRERY_BACKUP_DIR=$backup_dir
+export PITRERY_PSQL=$psql_command
+export PITRERY_DATABASE=$psql_condb
+export PITRERY_BACKUP_LOCAL=$local_backup
+export PITRERY_SSH_TARGET=$ssh_target
+
 # Functions
 post_backup_hook() {
     if [ -n "$POST_BACKUP_COMMAND" ]; then
+	# We need to set PITRERY_BACKUP_DIR again here, because it will have
+	# changed since the PRE_BACKUP_COMMAND was run, unless something failed
+	# and we're bailing out early via error_and_hook().
 	info "running post backup command"
-	export PITRERY_HOOK="post_backup"
-	export PITRERY_BACKUP_DIR=$backup_dir
-	# Do not overwrite the return code which can be set by
-	# error_and_hook to inform to hook command that the backup
-	# failed
-	export PITRERY_EXIT_CODE=${PITRERY_EXIT_CODE:-0}
-	$POST_BACKUP_COMMAND
-	if [ $? != 0 ]; then
+	PITRERY_HOOK="post_backup"
+	PITRERY_BACKUP_DIR=$backup_dir
+	export PITRERY_EXIT_CODE
+	if ! $POST_BACKUP_COMMAND; then
 	    error "post_backup command exited with a non-zero code"
 	fi
     fi
@@ -274,14 +281,7 @@ fi
 # Execute the pre-backup command
 if [ -n "$PRE_BACKUP_COMMAND" ]; then
     info "running pre backup hook"
-    export PITRERY_HOOK="pre_backup"
-    export PITRERY_BACKUP_DIR=$backup_dir
-    export PITRERY_PSQL=$psql_command
-    export PITRERY_DATABASE=$psql_condb
-    export PITRERY_BACKUP_LOCAL=$local_backup
-    export PITRERY_SSH_TARGET=${ssh_user:+$ssh_user@}$target
-    $PRE_BACKUP_COMMAND
-    if [ $? != 0 ]; then
+    if ! $PRE_BACKUP_COMMAND; then
 	error "pre_backup command exited with a non-zero code"
     fi
 fi
