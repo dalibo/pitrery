@@ -151,7 +151,7 @@ if [ -n "$target" ] && [ "$local_backup" = "yes" ]; then
 fi
 
 # Only tar or rsync are allowed as storage method
-if [ "$storage" != "tar" -a "$storage" != "rsync" ]; then
+if [ "$storage" != "tar" ] && [ "$storage" != "rsync" ]; then
     echo "ERROR: storage method must be 'tar' or 'rsync'" 1>&2
     usage 1
 fi
@@ -460,13 +460,13 @@ case $storage in
 	if [ $local_backup = "yes" ]; then
 	    rsync -aq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' -- "$pgdata/" "$backup_dir/pgdata/"
 	    rc=$?
-	    if [ $rc != 0 -a $rc != 24 ]; then
+	    if [ $rc != 0 ] && [ $rc != 24 ]; then
 		error_and_hook "rsync of PGDATA failed with exit code $rc"
 	    fi
 	else
 	    rsync $rsync_opts -e "ssh -o Compression=no" -a --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' -- "$pgdata/" "$ssh_target:$(qw "$backup_dir/pgdata/")"
 	    rc=$?
-	    if [ $rc != 0 -a $rc != 24 ]; then
+	    if [ $rc != 0 ] && [ $rc != 24 ]; then
 		error_and_hook "rsync of PGDATA failed with exit code $rc"
 	    fi
 	fi
@@ -517,13 +517,13 @@ case $storage in
 	    if [ $local_backup = "yes" ]; then
 		rsync -aq --delete-excluded --exclude 'pgsql_tmp' -- "$location/" "$backup_dir/tblspc/$_name/"
 	    	rc=$?
-	    	if [ $rc != 0 -a $rc != 24 ]; then
+		if [ $rc != 0 ] && [ $rc != 24 ]; then
 	    	    error_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 	    	fi
 	    else
 		rsync $rsync_opts -e "ssh -o Compression=no" -a --delete-excluded --exclude 'pgsql_tmp' -- "$location/" "$ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
 	    	rc=$?
-	    	if [ $rc != 0 -a $rc != 24 ]; then
+		if [ $rc != 0 ] && [ $rc != 24 ]; then
 	    	    error_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 	    	fi
 	    fi

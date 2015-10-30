@@ -161,7 +161,7 @@ fi
 
 # Sanity check. We need at least to know if we want to perform a local
 # copy or have a hostname for an SSH copy
-if [ $ARCHIVE_LOCAL != "yes" -a -z "$ARCHIVE_HOST" ]; then
+if [ "$ARCHIVE_LOCAL" != "yes" ] && [ -z "$ARCHIVE_HOST" ]; then
     error "Not enough information to archive the segment"
 fi
 

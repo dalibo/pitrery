@@ -158,12 +158,12 @@ fi
 xlog=${@:$OPTIND:1}
 target_path=${@:$(($OPTIND+1)):1}
 
-if [ -z "$xlog" -o -z "$target_path" ]; then
+if [ -z "$xlog" ] || [ -z "$target_path" ]; then
     error "missing xlog filename and/or target path. Please use %f and %p in restore_command"
 fi
 
 # Check if we have enough information on where to get the file
-if [ $ARCHIVE_LOCAL != "yes" -a -z "$ARCHIVE_HOST" ]; then
+if [ "$ARCHIVE_LOCAL" != "yes" ] && [ -z "$ARCHIVE_HOST" ]; then
     error "Could not find where to get the file from (local or ssh?)"
 fi
 

@@ -438,13 +438,13 @@ case $storage in
 	if [ $local_backup = "yes" ]; then
 	    rsync -aq --delete -- "$backup_dir/pgdata/" "$pgdata/"
 	    rc=$?
-	    if [ $rc != 0 -a $rc != 24 ]; then
+	    if [ $rc != 0 ] && [ $rc != 24 ]; then
 		error "rsync of PGDATA failed with exit code $rc"
 	    fi
 	else
 	    rsync $rsync_opts -e "ssh -o Compression=no" -a --delete -- "$ssh_target:$(qw "$backup_dir/pgdata/")" "$pgdata/"
 	    rc=$?
-	    if [ $rc != 0 -a $rc != 24 ]; then
+	    if [ $rc != 0 ] && [ $rc != 24 ]; then
 		error "rsync of PGDATA failed with exit code $rc"
 	    fi
 	fi
@@ -480,7 +480,7 @@ else
 fi
 
 # change owner of PGDATA to the target owner
-if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
     info "setting owner of PGDATA ($pgdata)"
     chown -R ${owner}: $pgdata
     if [ $? != 0 ]; then
@@ -505,7 +505,7 @@ for (( i=0; i<$tspc_count; ++i )); do
 
 	    # Ensure the new link has the correct owner, the chown -R
 	    # issued after extraction will not do it
-	    if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+	    if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
 		chown -h -- "$owner:" "$pgdata/pg_tblspc/$oid"
 	    fi
 	fi
@@ -543,13 +543,13 @@ for (( i=0; i<$tspc_count; ++i )); do
 		if [ $local_backup = "yes" ]; then
 		    rsync -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
 		    rc=$?
-		    if [ $rc != 0 -a $rc != 24 ]; then
+		    if [ $rc != 0 ] && [ $rc != 24 ]; then
 			error "rsync of tablespace \"${name}\" failed with exit code $rc"
 		    fi
 		else
 		    rsync $rsync_opts -e "ssh -o Compression=no" -a --delete -- "$ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
 		    rc=$?
-		    if [ $rc != 0 -a $rc != 24 ]; then
+		    if [ $rc != 0 ] && [ $rc != 24 ]; then
 			error "rsync of tablespace \"${name}\" failed with exit code $rc"
 		    fi
 		fi
@@ -562,7 +562,7 @@ for (( i=0; i<$tspc_count; ++i )); do
 	esac
 
 	# change owner of the tablespace files to the target owner
-	if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+	if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
 	    info "setting owner of tablespace \"$name\" ($tbldir)"
 	    chown -R ${owner}: $tbldir
 	    if [ $? != 0 ]; then
@@ -577,7 +577,7 @@ if [ -d "$pgxlog" ]; then
     if ! ln -sf -- "$pgxlog" "$pgdata/pg_xlog"; then
 	error "could not create $pgdata/pg_xlog symbolic link"
     fi
-    if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+    if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
 	if ! chown -h -- "$owner:" "$pgdata/pg_xlog"; then
 	    error "could not change owner of pg_xlog symbolic link to $owner"
 	fi
@@ -596,7 +596,7 @@ if [ ! -d $pgdata/pg_xlog/archive_status ]; then
 	error "could not set permissions of $pgdata/pg_xlog and $pgdata/pg_xlog/archive_status"
     fi
 
-    if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+    if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
 	chown -R ${owner}: $pgdata/pg_xlog
 	if [ $? != 0 ]; then
 	    error "could not change owner of $dir to $owner"
@@ -667,7 +667,7 @@ esac >> $pgdata/recovery.conf
 
 # Ensure recovery.conf as the correct owner so that PostgreSQL can
 # rename it at the end of the recovery
-if [ `id -u` = 0 -a "`id -un`" != $owner ]; then
+if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
     chown -R ${owner}: $pgdata/recovery.conf
     if [ $? != 0 ]; then
 	error "could not change owner of recovery.conf to $owner"

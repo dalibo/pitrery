@@ -120,7 +120,7 @@ if [ -n "$target" ] && [ "$local_backup" = "yes" ]; then
 fi
 
 # Either -m or -d must be specified
-if [ -z "$max_count" -a -z "$max_days" ]; then
+if [ -z "$max_count" ] && [ -z "$max_days" ]; then
     echo "ERROR: missing purge condition. Use -m or -d." 1>&2
     usage 1
 fi
