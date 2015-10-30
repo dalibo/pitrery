@@ -534,7 +534,7 @@ case $storage in
 
 
     *)
-	error_and_hook "do not know how to backup... I have a bug"
+	error_and_hook "Unknown STORAGE method '$storage'"
 	;;
 esac
 

@@ -452,7 +452,7 @@ case $storage in
 	;;
 
     *)
-	error "do not know how to restore... I have a bug"
+	error "Unknown STORAGE method '$storage'"
 	;;
 esac
 
@@ -557,7 +557,7 @@ for (( i=0; i<$tspc_count; ++i )); do
 		;;
 
 	    *)
-		error "do not know how to restore... I have a bug"
+		error "Unknown STORAGE method '$storage'"
 		;;
 	esac
 
