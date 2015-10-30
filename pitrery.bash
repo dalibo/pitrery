@@ -79,7 +79,7 @@ if [ $list_configs = "yes" ]; then
     exit 0
 fi
 
-if [ $# -lt 1 -a $list_configs = "no" ]; then
+if (( $# < 1 )); then
     echo "ERROR: missing action" 1>&2
     usage 1
 fi
