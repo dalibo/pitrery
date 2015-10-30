@@ -77,11 +77,9 @@ cleanup() {
 	if [ -d "$backup_dir" ]; then
 	    rm -rf $backup_dir
 	fi
-    else
-	ssh $target "test -d \"$backup_dir\"" 2>/dev/null
-	if [ $? = 0 ]; then
-	    ssh $target "rm -rf $backup_dir" 2>/dev/null
-	fi
+    elif [ -n "$ssh_target" ] && [ -n "$backup_dir" ]; then
+	bd=$(qw "$backup_dir")
+	ssh -n -- "$ssh_target" "test -d $bd && rm -rf -- $bd" 2>/dev/null
     fi
     [ -n "$tblspc_list" ] && rm $tblspc_list
 }
