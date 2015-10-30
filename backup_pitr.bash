@@ -254,32 +254,18 @@ if [ $local_backup = "yes" ]; then
 	error "$backup_dir already exists, another backup may be in progress"
     fi
 
-    mkdir -p $backup_dir
-    if [ $? != 0 ]; then
-	error "could not create $backup_dir"
-    fi
-	
-    mkdir -p $backup_dir/tblspc
-    if [ $? != 0 ]; then
+    if ! mkdir -p -- "$backup_dir/tblspc"; then
 	error "could not create $backup_dir/tblspc"
     fi
-
 else
     ssh ${ssh_user:+$ssh_user@}$target "test -e $backup_dir" 2>/dev/null
     if [ $? = 0 ]; then
 	error "$backup_dir already exists, another backup may be in progress"
     fi
 
-    ssh ${ssh_user:+$ssh_user@}$target "mkdir -p $backup_dir" 2>/dev/null
-    if [ $? != 0 ]; then
-	error "could not create $backup_dir"
-    fi
-
-    ssh ${ssh_user:+$ssh_user@}$target "mkdir -p $backup_dir/tblspc" 2>/dev/null
-    if [ $? != 0 ]; then
+    if ! ssh -n -- "$ssh_target" "mkdir -p -- $(qw "$backup_dir/tblspc")" 2>/dev/null; then
 	error "could not create $backup_dir/tblspc"
     fi
-
 fi
 
 # Execute the pre-backup command
