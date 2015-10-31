@@ -491,80 +491,80 @@ shopt -s extglob
 
 # tablespaces
 for (( i=0; i<$tspc_count; ++i )); do
-	name=${tspc_name[$i]}
-	_name=${name//+([[:space:]])/_} # No space version, we want paths without spaces
-	tbldir=${tspc_dir[$i]}
-	oid=${tspc_oid[$i]}
+    name=${tspc_name[$i]}
+    _name=${name//+([[:space:]])/_} # No space version, we want paths without spaces
+    tbldir=${tspc_dir[$i]}
+    oid=${tspc_oid[$i]}
 
-	# Change the symlink in pg_tblspc when the tablespace directory changes
-	if [ "${tspc_reloc[$i]}" = "yes" ]; then
-	    ln -sf "$tbldir" "$pgdata/pg_tblspc/$oid" || error "could not update the symbolic of tablespace $name ($oid) to $tbldir"
+    # Change the symlink in pg_tblspc when the tablespace directory changes
+    if [ "${tspc_reloc[$i]}" = "yes" ]; then
+	ln -sf "$tbldir" "$pgdata/pg_tblspc/$oid" || error "could not update the symbolic of tablespace $name ($oid) to $tbldir"
 
-	    # Ensure the new link has the correct owner, the chown -R
-	    # issued after extraction will not do it
-	    if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
-		chown -h -- "$owner:" "$pgdata/pg_tblspc/$oid"
-	    fi
-	fi
-
-	# Get the data in place
-	case $storage in
-	    "tar")
-		info "extracting tablespace \"${name}\" to $tbldir"
-		was=`pwd`
-		cd -- "$tbldir"
-		if [ "$local_backup" = "yes" ]; then
-		    $uncompress_bin -c -- "$backup_dir/tblspc/${_name}.tar.$compress_suffix" | tar xf -
-		    rc=(${PIPESTATUS[*]})
-		    uncompress_rc=${rc[0]}
-		    tar_rc=${rc[1]}
-		    if [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
-			error "Could not extract tablespace $name to $tbldir"
-		    fi
-		else
-		    ssh -n -- "$ssh_target" "cat -- $(qw "$backup_dir/tblspc/${_name}.tar.$compress_suffix")" 2>/dev/null | $uncompress_bin | tar xf - 2>/dev/null
-		    rc=(${PIPESTATUS[*]})
-		    ssh_rc=${rc[0]}
-		    uncompress_rc=${rc[1]}
-		    tar_rc=${rc[2]}
-		    if [ "$ssh_rc" != 0 ] || [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
-			error "Could not extract tablespace $name to $tbldir"
-		    fi
-		fi
-		cd -- "$was"
-		info "extraction of tablespace \"${name}\" successful"
-		;;
-
-	    "rsync")
-		info "transferring tablespace \"${name}\" to $tbldir with rsync"
-		if [ "$local_backup" = "yes" ]; then
-		    rsync -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
-		    rc=$?
-		    if [ $rc != 0 ] && [ $rc != 24 ]; then
-			error "rsync of tablespace \"${name}\" failed with exit code $rc"
-		    fi
-		else
-		    rsync $rsync_opts -e "ssh -o Compression=no" -a --delete -- "$ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
-		    rc=$?
-		    if [ $rc != 0 ] && [ $rc != 24 ]; then
-			error "rsync of tablespace \"${name}\" failed with exit code $rc"
-		    fi
-		fi
-		info "transfer of tablespace \"${name}\" successful"
-		;;
-
-	    *)
-		error "Unknown STORAGE method '$storage'"
-		;;
-	esac
-
-	# change owner of the tablespace files to the target owner
+	# Ensure the new link has the correct owner, the chown -R
+	# issued after extraction will not do it
 	if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
-	    info "setting owner of tablespace \"$name\" ($tbldir)"
-	    if ! chown -R -- "$owner:" "$tbldir"; then
-		error "could not change owner of tablespace \"$name\" to $owner"
-	    fi
+	    chown -h -- "$owner:" "$pgdata/pg_tblspc/$oid"
 	fi
+    fi
+
+    # Get the data in place
+    case $storage in
+	"tar")
+	    info "extracting tablespace \"${name}\" to $tbldir"
+	    was=`pwd`
+	    cd -- "$tbldir"
+	    if [ "$local_backup" = "yes" ]; then
+		$uncompress_bin -c -- "$backup_dir/tblspc/${_name}.tar.$compress_suffix" | tar xf -
+		rc=(${PIPESTATUS[*]})
+		uncompress_rc=${rc[0]}
+		tar_rc=${rc[1]}
+		if [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		    error "Could not extract tablespace $name to $tbldir"
+		fi
+	    else
+		ssh -n -- "$ssh_target" "cat -- $(qw "$backup_dir/tblspc/${_name}.tar.$compress_suffix")" 2>/dev/null | $uncompress_bin | tar xf - 2>/dev/null
+		rc=(${PIPESTATUS[*]})
+		ssh_rc=${rc[0]}
+		uncompress_rc=${rc[1]}
+		tar_rc=${rc[2]}
+		if [ "$ssh_rc" != 0 ] || [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		    error "Could not extract tablespace $name to $tbldir"
+		fi
+	    fi
+	    cd -- "$was"
+	    info "extraction of tablespace \"${name}\" successful"
+	    ;;
+
+	"rsync")
+	    info "transferring tablespace \"${name}\" to $tbldir with rsync"
+	    if [ "$local_backup" = "yes" ]; then
+		rsync -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
+		rc=$?
+		if [ $rc != 0 ] && [ $rc != 24 ]; then
+		    error "rsync of tablespace \"${name}\" failed with exit code $rc"
+		fi
+	    else
+		rsync $rsync_opts -e "ssh -o Compression=no" -a --delete -- "$ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
+		rc=$?
+		if [ $rc != 0 ] && [ $rc != 24 ]; then
+		    error "rsync of tablespace \"${name}\" failed with exit code $rc"
+		fi
+	    fi
+	    info "transfer of tablespace \"${name}\" successful"
+	    ;;
+
+	*)
+	    error "Unknown STORAGE method '$storage'"
+	    ;;
+    esac
+
+    # change owner of the tablespace files to the target owner
+    if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
+	info "setting owner of tablespace \"$name\" ($tbldir)"
+	if ! chown -R -- "$owner:" "$tbldir"; then
+	    error "could not change owner of tablespace \"$name\" to $owner"
+	fi
+    fi
 done
 
 # Create or symlink pg_xlog directory if needed
