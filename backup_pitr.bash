@@ -352,7 +352,7 @@ case $storage in
 
 	info "archiving $pgdata"
 	if [ "$local_backup" = "yes" ]; then
-	    tar -cpf - --ignore-failed-read --exclude='pg_xlog' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' -- * 2>/dev/null | $compress_bin > "$backup_dir/pgdata.tar.$compress_suffix"
+	    tar -cpf - --ignore-failed-read --exclude='pg_xlog' --exclude='pg_replslot/*' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' -- * 2>/dev/null | $compress_bin > "$backup_dir/pgdata.tar.$compress_suffix"
 	    rc=(${PIPESTATUS[*]})
 	    tar_rc=${rc[0]}
 	    compress_rc=${rc[1]}
@@ -360,7 +360,7 @@ case $storage in
 		error_and_hook "could not tar PGDATA"
 	    fi
 	else
-	    tar -cpf - --ignore-failed-read --exclude='pg_xlog' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' -- * 2>/dev/null | $compress_bin | ssh -- "$ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.$compress_suffix")" 2>/dev/null
+	    tar -cpf - --ignore-failed-read --exclude='pg_xlog' --exclude='pg_replslot/*' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' -- * 2>/dev/null | $compress_bin | ssh -- "$ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.$compress_suffix")" 2>/dev/null
 	    rc=(${PIPESTATUS[*]})
 	    tar_rc=${rc[0]}
 	    compress_rc=${rc[1]}
@@ -433,13 +433,13 @@ case $storage in
 
 	info "transferring data from $pgdata"
 	if [ "$local_backup" = "yes" ]; then
-	    rsync -aq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' "${rsync_link[@]}" -- "$pgdata/" "$backup_dir/pgdata/"
+	    rsync -aq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' "${rsync_link[@]}" -- "$pgdata/" "$backup_dir/pgdata/"
 	    rc=$?
 	    if [ $rc != 0 ] && [ $rc != 24 ]; then
 		error_and_hook "rsync of PGDATA failed with exit code $rc"
 	    fi
 	else
-	    rsync -e "ssh -o Compression=no" -aq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' "${rsync_link[@]}" -- "$pgdata/" "$ssh_target:$(qw "$backup_dir/pgdata/")"
+	    rsync -e "ssh -o Compression=no" -aq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' "${rsync_link[@]}" -- "$pgdata/" "$ssh_target:$(qw "$backup_dir/pgdata/")"
 	    rc=$?
 	    if [ $rc != 0 ] && [ $rc != 24 ]; then
 		error_and_hook "rsync of PGDATA failed with exit code $rc"
