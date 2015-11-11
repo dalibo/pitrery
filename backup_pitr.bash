@@ -82,6 +82,7 @@ cleanup() {
 	ssh -n -- "$ssh_target" "test -d $bd && rm -rf -- $bd" 2>/dev/null
     fi
     [ -n "$tblspc_list" ] && rm -f -- "$tblspc_list"
+    [ -n "$replslot_list" ] && rm -f -- "$replslot_list"
 }
 
 error() {
@@ -496,6 +497,21 @@ case $storage in
 esac
 
 
+# Backup replication slots informations to a separate file. If we take
+# their status files and restore them, they would be restored as stale
+# slots. Instead we'll give the commands to recreate them after the
+# restore.
+if (( $pg_version >= 90400 )); then
+    if ! replslot_list=$(mktemp -t backup_pitr.XXXXXXXXXX); then
+	error_and_hook "could not create temporary file"
+    fi
+
+    "${psql_command[@]}" -Atc \
+	"SELECT slot_name,plugin,slot_type,database FROM pg_replication_slots;" \
+	-- "$psql_condb" 2>/dev/null > "$replslot_list" ||
+	error_and_hook "could not get the list of replication slots from PostgreSQL"
+fi
+
 # Stop backup
 stop_backup
 
@@ -579,6 +595,14 @@ if [ "$local_backup" = "yes" ]; then
     if ! cp -- "$tblspc_list" "$backup_dir/tblspc_list"; then
 	error_and_hook "could not copy the tablespace list to $backup_dir"
     fi
+
+    # Save the list of defined replication slots
+    if [ -f "$replslot_list" ] && (( $(cat -- "$replslot_list" | wc -l) > 0 )); then
+	info "copying the replication slots list"
+	cp -- "$replslot_list" "$backup_dir/replslot_list" ||
+	    error_and_hook "could not copy the replication slots list to $backup_dir"
+    fi
+
 else
     if ssh -n -- "$ssh_target" "test -e $(qw "$new_backup_dir")" 2>/dev/null; then
 	error_and_hook "backup directory '$target:$new_backup_dir' already exists"
@@ -608,6 +632,13 @@ else
     if ! scp -- "$tblspc_list" "$ssh_target:$(qw "$backup_dir/tblspc_list")" >/dev/null; then
 	error_and_hook "could not copy the tablespace list to $target:$backup_dir"
     fi
+
+    # Save the list of defined replication slots
+    if [ -f "$replslot_list" ] && (( $(cat -- "$replslot_list" | wc -l) > 0 )); then
+	info "copying the replication slots list"
+	scp -- "$replslot_list" "$ssh_target:$(qw "$backup_dir/replslot_list")" >/dev/null ||
+	    error_and_hook "could not copy the replication slots list to $backup_dir"
+    fi
 fi
 
 # Give the name of the backup
@@ -618,6 +649,7 @@ PITRERY_EXIT_CODE=0
 post_backup_hook
 
 # Cleanup
-rm -f "$tblspc_list"
+rm -f -- "$tblspc_list"
+[ -n "$replslot_list" ] && rm -f -- "$replslot_list"
 
 info "done"

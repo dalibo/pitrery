@@ -862,6 +862,36 @@ Contains the exit code of the \fBbackup\fP operation when the
 Will be 0 for success, 1 for failure.
 
 
+.SH REPLICATION SLOTS
+For PostgreSQL >= 9.4. If the primary server that is being backed up
+has streaming replication slots defined for hot standby servers, they
+will not be included directly in the base backup.  Even in the cases
+where you do want them to be recreated when restoring from a backup,
+the state information captured at the time of the backup will almost
+certainly be out of date, and the WAL segments required to recover
+from that state will almost certainly no longer be present in the
+normal \fIpg_xlog\fP cache, even if they have been kept in a separate
+archive elsewhere.  So the best solution is normally to create them
+again freshly when rebuilding a cluster, whatever the reason for
+needing to rebuild it from a backup might be.
+
+To assist with that, the \fBbackup\fP action will create a record of
+the physical replication slots that existed at the time of the base
+backup, and the \fBrestore\fP action will create a SQL script that can
+be used to recreate them again if that is desired.  Note that any
+change to the list of replication slots which took place after the
+base backup was taken will not be preserved, so you should probably
+create a new base backup shortly after any 'permanent' change adding
+or removing them, but that should be a fairly infrequent operation in
+most cases.
+
+To recreate the replication slots which were defined at the time of the base
+backup, then after a \fBrestore\fP you can run something like:
+
+ psql\ \-f $PGDATA/restore_replication_slots.sql
+
+
+
 .SH FILES
 .TP
 .I /etc/pitrery/pitr.conf

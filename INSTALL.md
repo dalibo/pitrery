@@ -749,6 +749,9 @@ This action perform the following steps:
   `PGDATA/restored_config_files` if they were outside PGDATA at the time
   of the backup.
 
+* Create a script which can be used to optionally restore any replication
+  slots that were active (or inactive) at the time of the base backup.
+
 * Optionally, create a script to update the catalog when paths to
   tablespaces have changed, for PostgreSQL <= 9.1.
 

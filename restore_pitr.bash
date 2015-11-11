@@ -458,6 +458,7 @@ esac
 
 # Restore the configuration file in a subdirectory of PGDATA
 restored_conf=$pgdata/restored_config_files
+
 if [ "$local_backup" = "yes" ]; then
     # Check the directory, when configuration files are
     # inside PGDATA it does not exist
@@ -467,6 +468,7 @@ if [ "$local_backup" = "yes" ]; then
 	    warn "could not copy $backup_dir/conf to $restored_conf"
 	fi
     fi
+
 else
     confdir=$(qw "$backup_dir/conf")
     if ssh -n -- "$ssh_target" "test -d $confdir" 2>/dev/null; then
@@ -683,6 +685,38 @@ if (( $tspc_count > 0 )) && [ -n "$pgvers" ] && (( 10#$pgvers <= 901 )); then
     fi
 fi
 
+# Generate a SQL file in PGDATA to let the user recreate the
+# replication slots existing at backup time
+replslots_sql=$pgdata/restore_replication_slots.sql
+rm -f -- "$replslots_sql"
+if [ -n "$pgvers" ] && (( 10#$pgvers >= 904 )); then
+    if [ "$local_backup" = "yes" ]; then
+	if [ -f "$backup_dir/replslot_list" ]; then
+	    replslot_list=$(< "$backup_dir/replslot_list") || error "Failed to read $backup_dir/replslot_list"
+	fi
+    else
+	rfile=$(qw "$backup_dir/replslot_list")
+	replslot_list=$(ssh -n -- "$ssh_target" "[ ! -f $rfile ] || cat -- $tfile") ||
+            error "Failed to read $source:$backup_dir/replslot_list"
+    fi
+
+    while read -r l; do
+	rs_name=$(cut -d '|' -f 1 <<< "$l")
+	rs_plugin=$(cut -d '|' -f 2 <<< "$l")
+	rs_type=$(cut -d '|' -f 3 <<< "$l")
+	rs_db=$(cut -d '|' -f 4 <<< "$l")
+
+	case $rs_type in
+	    "physical")
+		echo "SELECT pg_create_physical_replication_slot('$rs_name');"
+		;;
+	    "logical")
+		echo "\connect $rs_db"
+		echo "SELECT pg_create_logical_replication_slot('$rs_name', '$rs_plugin');"
+		;;
+	esac >> "$replslots_sql"
+    done <<< "$replslot_list"
+fi
 
 info "done"
 info
@@ -695,6 +729,12 @@ info "please check directories and recovery.conf before starting the cluster"
 info "and do not forget to update the configuration of pitrery if needed"
 info
 
+if [ -f "$replslots_sql" ]; then
+    info "replication slots defined at the time of the backup can be restored"
+    info "with the SQL commands from:"
+    info "  $replslots_sql"
+    info
+fi
 
 if [ -f "$updsql" ]; then
     warn "locations of tablespaces have changed, after recovery update the catalog with:"
