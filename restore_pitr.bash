@@ -151,7 +151,7 @@ check_and_fix_directory() {
     downer=`stat -c %U -- "$dir" 2>/dev/null` || error "Unable to get owner of $dir"
 
     if [ "$downer" != "$owner" ]; then
-	if [ `id -u` = 0 ]; then
+	if [ "`id -u`" = 0 ]; then
 	    info "setting owner of $dir"
 	    chown -- "$owner:" "$dir" || error "could not change owner of $dir to $owner"
 	else
@@ -175,7 +175,7 @@ while getopts "Lu:b:l:D:x:d:O:t:nRc:e:r:C:T?" opt; do
 	t) tsmv_list+=( "$OPTARG" );;
 	n) dry_run="yes";;
 	R) overwrite="yes";;
-	c) uncompress_bin="$OPTARG";;
+	c) uncompress_bin=$OPTARG;;
 	e) compress_suffix=$OPTARG;;
 	r) restore_command=$OPTARG;;
 	C) restore_xlog_config=$OPTARG;;
@@ -207,7 +207,7 @@ shopt -s nullglob
 
 # An unprivileged target owner is mandatory as PostgreSQL cannot run
 # as root.
-if [ `id -u $owner` = 0 ]; then
+if [ "$(id -u -- "$owner")" = 0 ]; then
     error "the target owner cannot not be root. Use -O when restoring as root"
 fi
 
@@ -258,7 +258,7 @@ if [ -n "$target_date" ]; then
     # find the latest backup
     for t in "${list[@]}"; do
 	# get the timestamp of the end of the backup
-	if [ $local_backup = "yes" ]; then
+	if [ "$local_backup" = "yes" ]; then
 	    backup_timestamp=$(< "$t")
 	else
 	    backup_timestamp=$(ssh -n -- "$ssh_target" "cat -- $(qw "$t")")
@@ -283,8 +283,8 @@ fi
 
 # get the tablespace list and check the directories
 info "searching for tablespaces information"
-if [ $local_backup = "yes" ]; then
-    if [ -f $backup_dir/tblspc_list ]; then
+if [ "$local_backup" = "yes" ]; then
+    if [ -f "$backup_dir/tblspc_list" ]; then
 	tblspc_list=$(< "$backup_dir/tblspc_list") || error "Failed to read $backup_dir/tblspc_list"
     fi
 else
@@ -365,7 +365,7 @@ fi
 # Find out what storage method is used in the backup. If the PGDATA is
 # stored as a gzip'ed tarball, the method is tar, if it is a
 # directory, then backup_pitr used rsync to put files there.
-if [ $local_backup = "yes" ]; then
+if [ "$local_backup" = "yes" ]; then
     if [ -f "$backup_dir/pgdata.tar.$compress_suffix" ]; then
 	storage="tar"
     elif [ -d "$backup_dir/pgdata" ]; then
@@ -410,32 +410,32 @@ case $storage in
 	# pgdata
 	info "extracting PGDATA to $pgdata"
 	was=`pwd`
-	cd $pgdata
-	if [ $local_backup = "yes" ]; then
-	    $uncompress_bin -c $backup_dir/pgdata.tar.$compress_suffix | tar xf -
+	cd -- "$pgdata"
+	if [ "$local_backup" = "yes" ]; then
+	    $uncompress_bin -c -- "$backup_dir/pgdata.tar.$compress_suffix" | tar xf -
 	    rc=(${PIPESTATUS[*]})
 	    uncompress_rc=${rc[0]}
 	    tar_rc=${rc[1]}
-	    if [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
+	    if [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
 		error "could not extract $backup_dir/pgdata.tar.$compress_suffix to $pgdata"
 	    fi
 	else
-	    ssh ${ssh_user:+$ssh_user@}$source "cat $backup_dir/pgdata.tar.$compress_suffix" 2>/dev/null | $uncompress_bin | tar xf - 2>/dev/null
+	    ssh -n -- "$ssh_target" "cat -- $(qw "$backup_dir/pgdata.tar.$compress_suffix")" 2>/dev/null | $uncompress_bin | tar xf - 2>/dev/null
 	    rc=(${PIPESTATUS[*]})
 	    ssh_rc=${rc[0]}
 	    uncompress_rc=${rc[1]}
 	    tar_rc=${rc[2]}
-	    if [ $ssh_rc != 0 ] || [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
+	    if [ "$ssh_rc" != 0 ] || [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
 		error "could not extract $source:$backup_dir/pgdata.tar.$compress_suffix to $pgdata"
 	    fi
 	fi
-	cd $was
+	cd -- "$was"
 	info "extraction of PGDATA successful"
 	;;
 
     "rsync")
 	info "transferring PGDATA to $pgdata with rsync"
-	if [ $local_backup = "yes" ]; then
+	if [ "$local_backup" = "yes" ]; then
 	    rsync -aq --delete -- "$backup_dir/pgdata/" "$pgdata/"
 	    rc=$?
 	    if [ $rc != 0 ] && [ $rc != 24 ]; then
@@ -458,10 +458,10 @@ esac
 
 # Restore the configuration file in a subdirectory of PGDATA
 restored_conf=$pgdata/restored_config_files
-if [ $local_backup = "yes" ]; then
+if [ "$local_backup" = "yes" ]; then
     # Check the directory, when configuration files are
     # inside PGDATA it does not exist
-    if [ -d $backup_dir/conf ]; then
+    if [ -d "$backup_dir/conf" ]; then
 	info "restoring configuration files to $restored_conf"
 	if ! cp -r -- "$backup_dir/conf" "$restored_conf"; then
 	    warn "could not copy $backup_dir/conf to $restored_conf"
@@ -512,32 +512,32 @@ for (( i=0; i<$tspc_count; ++i )); do
 	    "tar")
 		info "extracting tablespace \"${name}\" to $tbldir"
 		was=`pwd`
-		cd $tbldir
-		if [ $local_backup = "yes" ]; then
-		    $uncompress_bin -c $backup_dir/tblspc/${_name}.tar.$compress_suffix | tar xf -
+		cd -- "$tbldir"
+		if [ "$local_backup" = "yes" ]; then
+		    $uncompress_bin -c -- "$backup_dir/tblspc/${_name}.tar.$compress_suffix" | tar xf -
 		    rc=(${PIPESTATUS[*]})
 		    uncompress_rc=${rc[0]}
 		    tar_rc=${rc[1]}
-		    if [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
+		    if [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
 			error "Could not extract tablespace $name to $tbldir"
 		    fi
 		else
-		    ssh -n ${ssh_user:+$ssh_user@}$source "cat $backup_dir/tblspc/${_name}.tar.$compress_suffix" 2>/dev/null | $uncompress_bin | tar xf - 2>/dev/null
+		    ssh -n -- "$ssh_target" "cat -- $(qw "$backup_dir/tblspc/${_name}.tar.$compress_suffix")" 2>/dev/null | $uncompress_bin | tar xf - 2>/dev/null
 		    rc=(${PIPESTATUS[*]})
 		    ssh_rc=${rc[0]}
 		    uncompress_rc=${rc[1]}
 		    tar_rc=${rc[2]}
-		    if [ $ssh_rc != 0 ] || [ $uncompress_rc != 0 ] || [ $tar_rc != 0 ]; then
+		    if [ "$ssh_rc" != 0 ] || [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
 			error "Could not extract tablespace $name to $tbldir"
 		    fi
 		fi
-		cd $was
+		cd -- "$was"
 		info "extraction of tablespace \"${name}\" successful"
 		;;
 
 	    "rsync")
 		info "transferring tablespace \"${name}\" to $tbldir with rsync"
-		if [ $local_backup = "yes" ]; then
+		if [ "$local_backup" = "yes" ]; then
 		    rsync -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
 		    rc=$?
 		    if [ $rc != 0 ] && [ $rc != 24 ]; then
@@ -580,7 +580,7 @@ if [ -d "$pgxlog" ]; then
     fi
 fi
 
-if [ ! -d $pgdata/pg_xlog/archive_status ]; then
+if [ ! -d "$pgdata/pg_xlog/archive_status" ]; then
     info "preparing pg_xlog directory"
     if ! mkdir -p -- "$pgdata/pg_xlog/archive_status"; then
 	error "could not create $pgdata/pg_xlog"
@@ -607,13 +607,13 @@ fi
 
 # Create a recovery.conf file in $PGDATA
 info "preparing recovery.conf file"
-echo "restore_command = '$restore_command'" > $pgdata/recovery.conf
+echo "restore_command = '$restore_command'" > "$pgdata/recovery.conf"
 
 # Put the given target date in recovery.conf
 if [ -n "$recovery_target_time" ]; then
     echo "recovery_target_time = '$recovery_target_time'" >> "$pgdata/recovery.conf"
 else
-    echo "#recovery_target_time = ''	# e.g. '2004-07-14 22:39:00 EST'" >> $pgdata/recovery.conf
+    echo "#recovery_target_time = ''	# e.g. '2004-07-14 22:39:00 EST'" >> "$pgdata/recovery.conf"
 fi
 
 # Add all possible parameters for recovery, commented out.
@@ -655,7 +655,7 @@ case $pgvers in
 	echo "#recovery_target_timeline = 'latest'"
 	echo "#recovery_target_action = 'pause'"
 	;;
-esac >> $pgdata/recovery.conf
+esac >> "$pgdata/recovery.conf"
 
 
 # Ensure recovery.conf as the correct owner so that PostgreSQL can
@@ -678,7 +678,7 @@ if (( $tspc_count > 0 )) && [ -n "$pgvers" ] && (( 10#$pgvers <= 901 )); then
 	fi
     done
 
-    if [ `id -u` = 0 ] && [ "`id -un`" != "$owner" ]; then
+    if [ "`id -u`" = 0 ] && [ "`id -un`" != "$owner" ]; then
 	chown -- "$owner:" "$updsql" 2>/dev/null
     fi
 fi
@@ -686,7 +686,7 @@ fi
 
 info "done"
 info
-if [ -d $restored_conf ]; then
+if [ -d "$restored_conf" ]; then
     info "saved configuration files have been restored to:"
     info "  $restored_conf"
     info
@@ -696,7 +696,7 @@ info "and do not forget to update the configuration of pitrery if needed"
 info
 
 
-if [ -f $updsql ]; then
+if [ -f "$updsql" ]; then
     warn "locations of tablespaces have changed, after recovery update the catalog with:"
     warn "  $updsql"
 fi

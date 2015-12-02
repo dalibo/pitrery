@@ -89,7 +89,7 @@ ARCHIVE_OVERWRITE="yes"
 
 # Command line options
 while getopts "LC:u:d:h:XOc:s:Sf:t:?"  opt; do
-    case "$opt" in
+    case $opt in
 	L) CLI_ARCHIVE_LOCAL="yes";;
 	C) CONFIG=$OPTARG;;
 	u) CLI_ARCHIVE_USER=$OPTARG;;
@@ -97,7 +97,7 @@ while getopts "LC:u:d:h:XOc:s:Sf:t:?"  opt; do
 	d) CLI_ARCHIVE_DIR=$OPTARG;;
 	X) CLI_ARCHIVE_COMPRESS="no";;
 	O) CLI_ARCHIVE_OVERWRITE="no";;
-	c) CLI_ARCHIVE_COMPRESS_BIN="$OPTARG";;
+	c) CLI_ARCHIVE_COMPRESS_BIN=$OPTARG;;
 	s) CLI_ARCHIVE_COMPRESS_SUFFIX=$OPTARG;;
 	S) CLI_SYSLOG="yes";;
 	f) CLI_SYSLOG_FACILITY=$OPTARG;;
@@ -117,7 +117,7 @@ fi
 
 # Load configuration file
 if [ -f "$CONFIG" ]; then
-    . $CONFIG
+    . "$CONFIG"
 
     # Check for renamed parameters between versions
     if [ -n "$COMPRESS_BIN" ] && [ -z "$CLI_ARCHIVE_COMPRESS_BIN" ]; then
@@ -149,8 +149,8 @@ if [ "$SYSLOG" = "yes" ]; then
     SYSLOG_FACILITY=${SYSLOG_FACILITY:-local0}
     SYSLOG_IDENT=${SYSLOG_IDENT:-postgres}
 
-    exec 1> >(logger -t ${SYSLOG_IDENT} -p ${SYSLOG_FACILITY}.info)
-    exec 2> >(logger -t ${SYSLOG_IDENT} -p ${SYSLOG_FACILITY}.err)
+    exec 1> >(logger -t "$SYSLOG_IDENT" -p "${SYSLOG_FACILITY}.info")
+    exec 2> >(logger -t "$SYSLOG_IDENT" -p "${SYSLOG_FACILITY}.err")
 fi
 
 # The first argument must be a WAL file
@@ -204,7 +204,7 @@ check_remote_dest_exists()
 }
 
 # Copy the wal locally
-if [ $ARCHIVE_LOCAL = "yes" ]; then
+if [ "$ARCHIVE_LOCAL" = "yes" ]; then
     mkdir -p -- "$ARCHIVE_DIR" 1>&2 ||
 	error "Unable to create target directory '$ARCHIVE_DIR'" $?
 

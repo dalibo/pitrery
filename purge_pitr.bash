@@ -108,7 +108,7 @@ done
 target=${@:$OPTIND:1}
 
 # Destination host is mandatory unless the backup is local
-if [ -z "$target" ] && [ $local_backup != "yes" ]; then
+if [ -z "$target" ] && [ "$local_backup" != "yes" ]; then
     echo "ERROR: missing target host" 1>&2
     usage 1
 fi

@@ -64,7 +64,7 @@ error() {
 
 # Process CLI Options
 while getopts "Lu:b:l:v?" opt; do
-    case "$opt" in
+    case $opt in
 	L) local_backup="yes";;
 	u) ssh_user=$OPTARG;;
 	b) backup_root=$OPTARG;;
@@ -78,7 +78,7 @@ done
 host=${@:$OPTIND:1}
 
 # Storage host is mandatory unless stored locally
-if [ -z "$host" ] && [ $local_backup != "yes" ]; then
+if [ -z "$host" ] && [ "$local_backup" != "yes" ]; then
     echo "ERROR: missing target host" 1>&2
     usage 1
 fi
@@ -97,7 +97,7 @@ ssh_target=${ssh_user:+$ssh_user@}$host
 shopt -s nullglob
 
 # Search the store
-if [ $local_backup = "yes" ]; then
+if [ "$local_backup" = "yes" ]; then
     list=( "$backup_root/$label_prefix/"[0-9]*/ )
 
     (( ${#list[@]} > 0 )) || error "Could not find any backups in $backup_root/$label_prefix/"
@@ -131,7 +131,7 @@ for dir in "${list[@]%/}"; do
 
     st=0
     # Get the exact stop date from the backup label
-    if [ $local_backup = "yes" ]; then
+    if [ "$local_backup" = "yes" ]; then
 	# Compute the size of full backup
 	backup_size=( $(du -sh -- "$dir") )
 	if [ -n "$verbose" ]; then
@@ -159,7 +159,7 @@ for dir in "${list[@]%/}"; do
 	fi
 
 	# Print the minimum recovery target time with this backup
-	if [ -f $dir/backup_label ]; then
+	if [ -f "$dir/backup_label" ]; then
 	    [ -n "$verbose" ] && echo "Minimum recovery target time:"
 	    if stop_time=$(sed -n 's/STOP TIME: /  /p' -- "$dir/backup_label") && [ -n "$stop_time" ]; then
 		echo "$stop_time"
@@ -174,9 +174,9 @@ for dir in "${list[@]%/}"; do
 
 	if [ -n "$verbose" ]; then
 	    # Display name, path and sizes of PGDATA and tablespaces
-	    if [ -f $dir/tblspc_list ]; then
+	    if [ -f "$dir/tblspc_list" ]; then
 		# Only show sizes of PGDATA if available
-		if [ -n "`awk -F'|' '{ print $4 }' $dir/tblspc_list`" ]; then
+		if [ -n "`awk -F'|' '{ print $4 }' "$dir/tblspc_list"`" ]; then
 		    echo "PGDATA:"
 		    if ! awk -F'|' '$2 == "" { print "  "$1" "$4 }' "$dir/tblspc_list"; then
 			echo "ERROR: could not display the list of tablespaces" 1>&2
@@ -277,7 +277,7 @@ for dir in "${list[@]%/}"; do
 	fi
     fi
 
-    if [ $st != 0 ]; then
+    if [ "$st" != 0 ]; then
 	echo "!!! This backup may be imcomplete or corrupted !!!"
     fi
 done

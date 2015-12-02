@@ -73,15 +73,15 @@ now() {
 
 cleanup() {
     info "cleaning..."
-    if [ $local_backup = "yes" ]; then
+    if [ "$local_backup" = "yes" ]; then
 	if [ -d "$backup_dir" ]; then
-	    rm -rf $backup_dir
+	    rm -rf -- "$backup_dir"
 	fi
     elif [ -n "$ssh_target" ] && [ -n "$backup_dir" ]; then
 	bd=$(qw "$backup_dir")
 	ssh -n -- "$ssh_target" "test -d $bd && rm -rf -- $bd" 2>/dev/null
     fi
-    [ -n "$tblspc_list" ] && rm $tblspc_list
+    [ -n "$tblspc_list" ] && rm -f -- "$tblspc_list"
 }
 
 error() {
@@ -114,14 +114,14 @@ log_timestamp="no"
 
 # CLI options
 while getopts "Lb:l:u:D:s:c:e:P:h:p:U:d:T?" opt; do
-    case "$opt" in
+    case $opt in
         L) local_backup="yes";;
 	b) backup_root=$OPTARG;;
 	l) label_prefix=$OPTARG;;
 	u) ssh_user=$OPTARG;;
 	D) pgdata=$OPTARG;;
 	s) storage=$OPTARG;;
-	c) compress_bin="$OPTARG";;
+	c) compress_bin=$OPTARG;;
 	e) compress_suffix=$OPTARG;;
 
 	P) psql_command=( "$OPTARG" );;
@@ -139,7 +139,7 @@ done
 target=${@:$OPTIND:1}
 
 # Destination host is mandatory unless the backup is local
-if [ -z "$target" ] && [ $local_backup != "yes" ]; then
+if [ -z "$target" ] && [ "$local_backup" != "yes" ]; then
     echo "ERROR: missing target host" 1>&2
     usage 1
 fi
@@ -248,11 +248,11 @@ fi
 # Prepare target directories
 info "preparing directories in ${target:+$target:}$backup_root/${label_prefix}"
 
-if [ $local_backup = "yes" ]; then
+if [ "$local_backup" = "yes" ]; then
     # Ensure the destination is clean from failed backups and that no
     # concurrent backup is running, the "current" temporary directory
     # acts as a lock.
-    if [ -e $backup_dir ]; then
+    if [ -e "$backup_dir" ]; then
 	error "$backup_dir already exists, another backup may be in progress"
     fi
 
@@ -328,8 +328,8 @@ trap stop_backup INT TERM KILL EXIT
 # the target directories. We try to optimize the space usage by
 # hardlinking the previous backup, so that files that have not changed
 # between backups are not duplicated from a filesystem point of view
-if [ $storage = "rsync" ]; then
-    if [ $local_backup = "yes" ]; then
+if [ "$storage" = "rsync" ]; then
+    if [ "$local_backup" = "yes" ]; then
 	list=( "$backup_root/$label_prefix/"[0-9]*/ )
 	(( ${#list[@]} > 0 )) && prev_backup=${list[-1]%/}
     else
@@ -352,12 +352,12 @@ case $storage in
 	fi
 
 	info "archiving $pgdata"
-	if [ $local_backup = "yes" ]; then
+	if [ "$local_backup" = "yes" ]; then
 	    tar -cpf - --ignore-failed-read --exclude='pg_xlog' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' -- * 2>/dev/null | $compress_bin > "$backup_dir/pgdata.tar.$compress_suffix"
 	    rc=(${PIPESTATUS[*]})
 	    tar_rc=${rc[0]}
 	    compress_rc=${rc[1]}
-	    if [ $tar_rc = 2 ] || [ $compress_rc != 0 ]; then
+	    if [ "$tar_rc" = 2 ] || [ "$compress_rc" != 0 ]; then
 		error_and_hook "could not tar PGDATA"
 	    fi
 	else
@@ -366,11 +366,11 @@ case $storage in
 	    tar_rc=${rc[0]}
 	    compress_rc=${rc[1]}
 	    ssh_rc=${rc[2]}
-	    if [ $tar_rc = 2 ] || [ $compress_rc != 0 ] || [ $ssh_rc != 0 ]; then
+	    if [ "$tar_rc" = 2 ] || [ "$compress_rc" != 0 ] || [ "$ssh_rc" != 0 ]; then
 		error_and_hook "could not tar PGDATA"
 	    fi
 	fi
-	cd $was
+	cd -- "$was"
 
 	# Tar the tablespaces
 	while read line ; do
@@ -394,28 +394,28 @@ case $storage in
             # of the tar file is the tablespace name defined in the cluster, which is
             # unique.
 	    info "archiving $location"
-	    if [ $local_backup = "yes" ]; then
-		tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' * 2>/dev/null | $compress_bin > $backup_dir/tblspc/${_name}.tar.$compress_suffix
+	    if [ "$local_backup" = "yes" ]; then
+		tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | $compress_bin > "$backup_dir/tblspc/${_name}.tar.$compress_suffix"
 		rc=(${PIPESTATUS[*]})
 		tar_rc=${rc[0]}
 		compress_rc=${rc[1]}
-		if [ $tar_rc = 2 ] || [ $compress_rc != 0 ]; then
+		if [ "$tar_rc" = 2 ] || [ "$compress_rc" != 0 ]; then
 		    error_and_hook "could not tar tablespace \"$name\""
 		fi
 	    else
-		tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' * 2>/dev/null | $compress_bin | ssh ${ssh_user:+$ssh_user@}$target "cat > $backup_dir/tblspc/${_name}.tar.$compress_suffix" 2>/dev/null
+		tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | $compress_bin | ssh -- "$ssh_target" "cat > $(qw "$backup_dir/tblspc/${_name}.tar.$compress_suffix")" 2>/dev/null
 		rc=(${PIPESTATUS[*]})
 		tar_rc=${rc[0]}
 		compress_rc=${rc[1]}
 		ssh_rc=${rc[2]}
-		if [ $tar_rc = 2 ] || [ $compress_rc != 0 ] || [ $ssh_rc != 0 ]; then
+		if [ "$tar_rc" = 2 ] || [ "$compress_rc" != 0 ] || [ "$ssh_rc" != 0 ]; then
 		    error_and_hook "could not tar tablespace \"$name\""
 		fi
 	    fi
 
-	    cd $was
+	    cd -- "$was"
 
-	done < $tblspc_list
+	done < "$tblspc_list"
 	;;
 
 
@@ -424,12 +424,12 @@ case $storage in
 	info "backing up PGDATA with rsync"
 	if [ -n "$prev_backup" ]; then
 	    # Link previous backup of pgdata
-	    if [ $local_backup = "yes" ]; then
+	    if [ "$local_backup" = "yes" ]; then
 		# Check if pgdata is a directory, this checks if the
 		# storage method is rsync or tar.
-		if [ -d $prev_backup/pgdata ]; then
+		if [ -d "$prev_backup/pgdata" ]; then
 		    # pax needs the target directory to exist
-		    mkdir -p $backup_dir/pgdata
+		    mkdir -p -- "$backup_dir/pgdata"
 
 		    info "preparing hardlinks from previous backup"
 		    if ! (cd -- "$prev_backup/pgdata" && @HARDLINKER@ -- . "$backup_dir/pgdata"); then
@@ -453,7 +453,7 @@ case $storage in
 	fi
 
 	info "transferring data from $pgdata"
-	if [ $local_backup = "yes" ]; then
+	if [ "$local_backup" = "yes" ]; then
 	    rsync -aq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' -- "$pgdata/" "$backup_dir/pgdata/"
 	    rc=$?
 	    if [ $rc != 0 ] && [ $rc != 24 ]; then
@@ -482,10 +482,10 @@ case $storage in
 
 	    if [ -n "$prev_backup" ]; then
 	    	# Link previous backup of the tablespace
-	    	if [ $local_backup = "yes" ]; then
-	    	    if [ -d $prev_backup/tblspc/$_name ]; then
+		if [ "$local_backup" = "yes" ]; then
+		    if [ -d "$prev_backup/tblspc/$_name" ]; then
 			# pax needs the target directory to exist
-			mkdir -p $backup_dir/tblspc/$_name
+			mkdir -p -- "$backup_dir/tblspc/$_name"
 
 	    		info "preparing hardlinks from previous backup"
 			if ! (cd -- "$prev_backup/tblspc/$_name" && @HARDLINKER@ -- . "$backup_dir/tblspc/$_name"); then
@@ -510,7 +510,7 @@ case $storage in
 
 	    # rsync
 	    info "transferring data from $location"
-	    if [ $local_backup = "yes" ]; then
+	    if [ "$local_backup" = "yes" ]; then
 		rsync -aq --delete-excluded --exclude 'pgsql_tmp' -- "$location/" "$backup_dir/tblspc/$_name/"
 	    	rc=$?
 		if [ $rc != 0 ] && [ $rc != 24 ]; then
@@ -524,7 +524,7 @@ case $storage in
 	    	fi
 	    fi
 
-	done < $tblspc_list
+	done < "$tblspc_list"
 	;;
 
 
@@ -556,7 +556,7 @@ fi
 
 # Ask PostgreSQL where are its configuration file. When they are
 # outside PGDATA, copy them in the backup
-_pgdata=`readlink -f $pgdata`
+_pgdata=`readlink -f -- "$pgdata"`
 
 while read -r -d '' f; do
     file=`readlink -f -- "$f"`
@@ -566,7 +566,7 @@ while read -r -d '' f; do
 	dest=$destdir/$(basename -- "$file")
 	info "saving $f"
 
-	if [ $local_backup = "yes" ]; then
+	if [ "$local_backup" = "yes" ]; then
 	    mkdir -p -- "$destdir"
 	    if ! cp -- "$file" "$dest"; then
 		error_and_hook "could not copy $f to backup directory"
@@ -591,7 +591,7 @@ new_backup_dir=$backup_root/$label_prefix/$backup_name
 
 # Finish the backup by copying needed files and rename the backup
 # directory to a useful name
-if [ $local_backup = "yes" ]; then
+if [ "$local_backup" = "yes" ]; then
     [ ! -e "$new_backup_dir" ] ||
 	error_and_hook "backup directory '$new_backup_dir' already exists"
 
@@ -609,7 +609,7 @@ if [ $local_backup = "yes" ]; then
 
     # Save the end of backup timestamp to a file
     if [ -n "$timestamp" ]; then
-	echo $timestamp > $backup_dir/backup_timestamp || warn "could not save timestamp"
+	echo "$timestamp" > "$backup_dir/backup_timestamp" || warn "could not save timestamp"
     fi
 
     # Add the name and location of the tablespace to an helper file for
@@ -631,20 +631,21 @@ else
     
     # Save the end of backup timestamp to a file
     if [ -n "$timestamp" ]; then
-	ssh ${ssh_user:+$ssh_user@}${target} "echo $timestamp > $backup_dir/backup_timestamp" 2>/dev/null || warn "could not save timestamp"
+	ssh -n -- "$ssh_target" "echo '$timestamp' > $(qw "$backup_dir/backup_timestamp")" 2>/dev/null ||
+	    warn "could not save timestamp"
     fi
 
     # Copy the backup history file
     info "copying the backup history file"
     if ! scp -- "$backup_file" "$ssh_target:$(qw "$backup_dir/backup_label")" > /dev/null; then
-	error_and_hook "could not copy backup history file to ${target}:$backup_dir"
+	error_and_hook "could not copy backup history file to $target:$backup_dir"
     fi
 
     # Add the name and location of the tablespace to an helper file for
     # the restoration script
     info "copying the tablespaces list"
     if ! scp -- "$tblspc_list" "$ssh_target:$(qw "$backup_dir/tblspc_list")" >/dev/null; then
-	error_and_hook "could not copy the tablespace list to ${target}:$backup_dir"
+	error_and_hook "could not copy the tablespace list to $target:$backup_dir"
     fi
 fi
 
@@ -656,6 +657,6 @@ PITRERY_EXIT_CODE=0
 post_backup_hook
 
 # Cleanup
-rm $tblspc_list
+rm -f "$tblspc_list"
 
 info "done"

@@ -57,7 +57,7 @@ info() {
 }
 
 while getopts "c:nlV?" opt; do
-    case "$opt" in
+    case $opt in
 	c) config=$OPTARG;;
 	n) dry_run="echo";;
 	l) list_configs="yes";;
@@ -71,7 +71,7 @@ done
 shopt -s nullglob
 
 # List the configuration files and exit
-if [ $list_configs = "yes" ]; then
+if [ "$list_configs" = "yes" ]; then
     info "listing configuration files in $config_dir"
     for x in "$config_dir"/*.conf; do
 	basename -- "$x" .conf
@@ -95,8 +95,8 @@ if [[ $config != */* ]]; then
 fi
 
 # Load the configuration file
-if [ -f $config ]; then
-    . $config
+if [ -f "$config" ]; then
+    . "$config"
 else
     error "cannot access configuration file: $config"
 fi
@@ -134,13 +134,13 @@ case $action in
 
 	# Parse args after action: they should take precedence over the configuration
 	while getopts "Lu:b:l:v?" arg 2>/dev/null; do
-	    case "$arg" in
+	    case $arg in
 		L) BACKUP_IS_LOCAL="yes";;
 		u) BACKUP_USER=$OPTARG;;
 		b) BACKUP_DIR=$OPTARG;;
 		l) BACKUP_LABEL=$OPTARG;;
 		v) VERBOSE="yes";;
-		'?') $cmd -?; exit $?;;
+		'?') "$cmd" -?; exit $?;;
 	    esac
 	done
 
@@ -159,7 +159,7 @@ case $action in
 
 	# Parse args after action: they should take precedence over the configuration
 	while getopts "Lb:l:u:D:s:P:h:p:U:d:c:e:T?" arg 2>/dev/null; do
-	    case "$arg" in
+	    case $arg in
 		L) BACKUP_IS_LOCAL="yes";;
 		b) BACKUP_DIR=$OPTARG;;
 		l) BACKUP_LABEL=$OPTARG;;
@@ -171,11 +171,11 @@ case $action in
 		p) PGPORT=$OPTARG;;
 		U) PGUSER=$OPTARG;;
 		d) PGDATABASE=$OPTARG;;
-		c) BACKUP_COMPRESS_BIN="$OPTARG";;
+		c) BACKUP_COMPRESS_BIN=$OPTARG;;
 		e) BACKUP_COMPRESS_SUFFIX=$OPTARG;;
 		T) LOG_TIMESTAMP="yes";;
 
-		'?') $cmd -?; exit $?;;
+		'?') "$cmd" -?; exit $?;;
 	    esac
 	done
 
@@ -207,7 +207,7 @@ case $action in
 
 	# Parse args after action: they should take precedence over the configuration
 	while getopts "Lu:b:l:D:x:d:O:t:nRc:e:r:C:T?" arg 2>/dev/null; do
-	    case "$arg" in
+	    case $arg in
 		L) BACKUP_IS_LOCAL="yes";;
 		u) BACKUP_USER=$OPTARG;;
 		b) BACKUP_DIR=$OPTARG;;
@@ -219,13 +219,13 @@ case $action in
 		t) TBLSPC_RELOC+=( "-t" "$OPTARG" );;
 		n) DRY_RUN="yes";;
 		R) OVERWRITE="yes";;
-		c) BACKUP_UNCOMPRESS_BIN="$OPTARG";;
+		c) BACKUP_UNCOMPRESS_BIN=$OPTARG;;
 		e) BACKUP_COMPRESS_SUFFIX=$OPTARG;;
-		r) RESTORE_COMMAND="$OPTARG";;
-		C) RESTORE_XLOG_CONFIG="$OPTARG";;
+		r) RESTORE_COMMAND=$OPTARG;;
+		C) RESTORE_XLOG_CONFIG=$OPTARG;;
 		T) LOG_TIMESTAMP="yes";;
 
-		"?") $cmd -?; exit $?;;
+		"?") "$cmd" -?; exit $?;;
 	    esac
 	done
 
@@ -261,7 +261,7 @@ case $action in
 
 	# Parse args after action: they should take precedence over the configuration
 	while getopts "Ll:b:u:n:U:X:m:d:NT?" arg 2>/dev/null; do
-	    case "$arg" in
+	    case $arg in
 		L) BACKUP_IS_LOCAL="yes";;
 		l) BACKUP_LABEL=$OPTARG;;
 		b) BACKUP_DIR=$OPTARG;;
@@ -274,7 +274,7 @@ case $action in
 		N) DRY_RUN="yes";;
 		T) LOG_TIMESTAMP="yes";;
 
-		"?") $cmd -?; exit $?;;
+		"?") "$cmd" -?; exit $?;;
 	    esac
 	done
 

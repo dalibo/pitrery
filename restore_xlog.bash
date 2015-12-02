@@ -86,14 +86,14 @@ ARCHIVE_COMPRESS_SUFFIX=gz
 
 # CLI processing
 while getopts "LC:u:h:d:Xc:s:Sf:t:?" opt; do
-    case "$opt" in
+    case $opt in
 	L) CLI_ARCHIVE_LOCAL="yes";;
 	C) CONFIG=$OPTARG;;
 	u) CLI_ARCHIVE_USER=$OPTARG;;
 	h) CLI_ARCHIVE_HOST=$OPTARG;;
 	d) CLI_ARCHIVE_DIR=$OPTARG;;
 	X) CLI_ARCHIVE_COMPRESS="no";;
-	c) CLI_ARCHIVE_UNCOMPRESS_BIN="$OPTARG";;
+	c) CLI_ARCHIVE_UNCOMPRESS_BIN=$OPTARG;;
 	s) CLI_ARCHIVE_COMPRESS_SUFFIX=$OPTARG;;
 	S) CLI_SYSLOG="yes";;
 	f) CLI_SYSLOG_FACILITY=$OPTARG;;
@@ -113,7 +113,7 @@ fi
 
 # Load configuration file
 if [ -f "$CONFIG" ]; then
-    . $CONFIG
+    . "$CONFIG"
 
     # Check for renamed parameters between versions
     if [ -n "$UNCOMPRESS_BIN" ] && [ -z "$CLI_ARCHIVE_UNCOMPRESS_BIN" ]; then
@@ -149,8 +149,8 @@ if [ "$SYSLOG" = "yes" ]; then
     SYSLOG_FACILITY=${SYSLOG_FACILITY:-local0}
     SYSLOG_IDENT=${SYSLOG_IDENT:-postgres}
 
-    exec 1> >(logger -t ${SYSLOG_IDENT} -p ${SYSLOG_FACILITY}.info)
-    exec 2> >(logger -t ${SYSLOG_IDENT} -p ${SYSLOG_FACILITY}.err)
+    exec 1> >(logger -t "$SYSLOG_IDENT" -p "${SYSLOG_FACILITY}.info")
+    exec 2> >(logger -t "$SYSLOG_IDENT" -p "${SYSLOG_FACILITY}.err")
 fi
 
 # Check input: the name of the xlog file (%f) is needed as well has the target path (%p)
@@ -172,7 +172,7 @@ if [ "$ARCHIVE_LOCAL" = "yes" ] && [ -n "$ARCHIVE_HOST" ]; then
 fi
 
 # the filename to retrieve depends on compression
-if [ $ARCHIVE_COMPRESS = "yes" ]; then
+if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
     xlog_file=${xlog}.$ARCHIVE_COMPRESS_SUFFIX
     target_file=${target_path}.$ARCHIVE_COMPRESS_SUFFIX
 else
@@ -181,8 +181,8 @@ else
 fi
 
 # Get the file: use cp when the file is on localhost, scp otherwise
-if [ $ARCHIVE_LOCAL = "yes" ]; then
-    if [ -f $ARCHIVE_DIR/$xlog_file ]; then
+if [ "$ARCHIVE_LOCAL" = "yes" ]; then
+    if [ -f "$ARCHIVE_DIR/$xlog_file" ]; then
 	if ! cp -- "$ARCHIVE_DIR/$xlog_file" "$target_file"; then
 	    error "could not copy $ARCHIVE_DIR/$xlog_file to $target_file"
 	fi
@@ -199,7 +199,7 @@ else
 fi
 
 # Uncompress the file if needed
-if [ $ARCHIVE_COMPRESS = "yes" ]; then
+if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
     if ! $ARCHIVE_UNCOMPRESS_BIN "$target_file"; then
 	error "could not uncompress $target_file"
     fi
