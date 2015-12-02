@@ -154,7 +154,7 @@ fi
 current_time=`date +%Y.%m.%d-%H.%M.%S`
 
 # scp needs IPv6 between brackets
-echo $target | grep -q ':' && target="[${target}]"
+[[ $target == *([^][]):*([^][]) ]] && target="[${target}]"
 ssh_target=${ssh_user:+$ssh_user@}$target
 
 # Ensure failed globs will be empty, not left containing the literal glob pattern

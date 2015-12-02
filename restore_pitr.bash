@@ -193,6 +193,7 @@ if [ -z "$source" ] && [ $local_backup != "yes" ]; then
     usage 1
 fi
 
+[[ $source == *([^][]):*([^][]) ]] && source="[${source}]"
 ssh_target=${ssh_user:+$ssh_user@}$source
 
 # Ensure failed globs will be empty, not left containing the literal glob pattern

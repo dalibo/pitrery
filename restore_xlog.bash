@@ -188,7 +188,7 @@ if [ $ARCHIVE_LOCAL = "yes" ]; then
     fi
 else
     # check if we have a IPv6, and put brackets for scp
-    echo $ARCHIVE_HOST | grep -q ':' && ARCHIVE_HOST="[${ARCHIVE_HOST}]"
+    [[ $ARCHIVE_HOST == *([^][]):*([^][]) ]] && ARCHIVE_HOST="[${ARCHIVE_HOST}]"
 
     scp ${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}:$ARCHIVE_DIR/$xlog_file $target_file >/dev/null
     if [ $? != 0 ]; then

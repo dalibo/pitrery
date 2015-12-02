@@ -127,8 +127,8 @@ fi
 [ -z "$xlog_ssh_user" ] && xlog_ssh_user=$ssh_user
 
 # Prepare the IPv6 address for use with SSH
-[ -n "$target" ] && (echo $target | grep -q ':') && target="[${target}]"
-[ -n "$xlog_host" ] && (echo $xlog_host | grep -q ':') && xlog_host="[${xlog_host}]"
+[[ $target == *([^][]):*([^][]) ]] && target="[${target}]"
+[[ $xlog_host == *([^][]):*([^][]) ]] && xlog_host="[${xlog_host}]"
 ssh_target=${ssh_user:+$ssh_user@}$target
 xlog_ssh_target=${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host
 

@@ -245,7 +245,7 @@ if [ $ARCHIVE_LOCAL = "yes" ]; then
     fi
 else
     # Compress and copy with rsync
-    echo $ARCHIVE_HOST | grep -q ':' && ARCHIVE_HOST="[${ARCHIVE_HOST}]" # Dummy test for IPv6
+    [[ $ARCHIVE_HOST == *([^][]):*([^][]) ]] && ARCHIVE_HOST="[${ARCHIVE_HOST}]" # Dummy test for IPv6
 
     dest_host=${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}
 

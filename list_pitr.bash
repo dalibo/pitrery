@@ -83,6 +83,7 @@ if [ -z "$host" ] && [ $local_backup != "yes" ]; then
     usage 1
 fi
 
+[[ $host == *([^][]):*([^][]) ]] && host="[${host}]"
 ssh_target=${ssh_user:+$ssh_user@}$host
 
 
