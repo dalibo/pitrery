@@ -303,12 +303,15 @@ fi
 # Start the backup
 info "starting the backup process"
 
-# Force a checkpoint for version >= 8.4
+# Force a checkpoint for version >= 8.4. We add some parsing of the
+# result of pg_xlogfile_name_offset on the LSN returned by
+# pg_start_backup, so that we have the name of the backup_label that
+# will be archived after pg_stop_backup completes
 if [ $pg_version -ge 80400 ]; then
-    start_backup_xlog=`$psql_command -Atc "SELECT pg_xlogfile_name(pg_start_backup('${label_prefix}_${current_time}', true));" $psql_condb`
+    start_backup_label_file=`$psql_command -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}', true)) as i;" $psql_condb`
     rc=$?
 else
-    start_backup_xlog=`$psql_command -Atc "SELECT pg_xlogfile_name(pg_start_backup('${label_prefix}_${current_time}'));" $psql_condb`
+    start_backup_label_file=`$psql_command -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}', true)) as i;" $psql_condb`
     rc=$?
 fi
 
@@ -535,14 +538,20 @@ esac
 # Stop backup
 stop_backup
 
+# The complete backup_label is going to be archived. We put it in the
+# backup, just in case and also use the stop time from the file to
+# name the backup directory and have the minimum datetime required to
+# select this backup on restore.
+backup_file="$pgdata/pg_xlog/$start_backup_label_file"
+
 # Get the stop date of the backup and convert it to UTC, this make
 # it easier when searching for a proper backup when restoring
-stop_time=`grep "STOP TIME:" $pgdata/pg_xlog/${start_backup_xlog}.*.backup | sed -e 's/STOP TIME: //'`
+stop_time=$(sed -n 's/STOP TIME: //p' -- "$backup_file")
 if [ -n "$stop_time" ]; then
-    timestamp=`$psql_command -Atc "SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '${stop_time}');" $psql_condb`
-    if [ $? != 0 ]; then
-	warn "could not get the stop time timestamp from PostgreSQL"
-    fi
+    timestamp=$($psql_command -Atc "SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '${stop_time}');" $psql_condb) ||
+        warn "could not get the stop time timestamp from PostgreSQL"
+else
+    error_and_hook "Failed to get STOP TIME from '$backup_file'"
 fi
 
 # Ask PostgreSQL where are its configuration file. When they are
@@ -590,8 +599,7 @@ if [ $local_backup = "yes" ]; then
     
     # Copy the backup history file
     info "copying the backup history file"
-    cp $pgdata/pg_xlog/${start_backup_xlog}.*.backup $backup_dir/backup_label
-    if [ $? != 0 ]; then
+    if ! cp -- "$backup_file" "$backup_dir/backup_label"; then
 	error_and_hook "could not copy backup history file to $backup_dir"
     fi
 
@@ -622,8 +630,7 @@ else
 
     # Copy the backup history file
     info "copying the backup history file"
-    scp $pgdata/pg_xlog/${start_backup_xlog}.*.backup ${ssh_user:+$ssh_user@}${target}:$backup_dir/backup_label > /dev/null 
-    if [ $? != 0 ]; then
+    if ! scp -- "$backup_file" "$ssh_target:$(qw "$backup_dir/backup_label")" > /dev/null; then
 	error_and_hook "could not copy backup history file to ${target}:$backup_dir"
     fi
 
