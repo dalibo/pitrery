@@ -1,8 +1,8 @@
 Setup the installation paths
 --- a/config.mk
 +++ b/config.mk
-@@ -15,9 +15,9 @@
- #HARDLINKER = pax -rwl
+@@ -7,9 +7,9 @@
+ BASH = /bin/bash
  
  # paths
 -PREFIX = /usr/local

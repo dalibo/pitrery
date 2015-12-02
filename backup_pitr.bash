@@ -105,7 +105,6 @@ backup_root=/var/lib/pgsql/backups
 label_prefix="pitr"
 pgdata=/var/lib/pgsql/data
 storage="tar"
-rsync_opts="-q --whole-file" # Remote only
 compress_bin="gzip -4"
 compress_suffix="gz"
 psql_command=( "psql" )
@@ -309,7 +308,7 @@ info "starting the backup process"
 # result of pg_xlogfile_name_offset on the LSN returned by
 # pg_start_backup, so that we have the name of the backup_label that
 # will be archived after pg_stop_backup completes
-if (( $pg_version -ge 80400 )); then
+if (( $pg_version >= 80400 )); then
     start_backup_label_file=`$psql_command -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}', true)) as i;" $psql_condb`
     rc=$?
 else
@@ -422,45 +421,25 @@ case $storage in
 
     "rsync")
 	info "backing up PGDATA with rsync"
+	rsync_link=()
 	if [ -n "$prev_backup" ]; then
 	    # Link previous backup of pgdata
 	    if [ "$local_backup" = "yes" ]; then
-		# Check if pgdata is a directory, this checks if the
-		# storage method is rsync or tar.
-		if [ -d "$prev_backup/pgdata" ]; then
-		    # pax needs the target directory to exist
-		    mkdir -p -- "$backup_dir/pgdata"
-
-		    info "preparing hardlinks from previous backup"
-		    if ! (cd -- "$prev_backup/pgdata" && @HARDLINKER@ -- . "$backup_dir/pgdata"); then
-			error_and_hook "could not hardlink previous backup"
-		    fi
-		fi
+		rsync_link=( '--link-dest' "$prev_backup/pgdata" )
 	    else
-		prevdir=$(qw "$prev_backup/pgdata")
-		newdir=$(qw "$backup_dir/pgdata")
-
-		if ssh -n -- "$ssh_target" "test -d $prevdir" 2>/dev/null; then
-		    # pax needs the target directory to exist
-		    ssh -n -- "$ssh_target" "mkdir -p -- $newdir" 2>/dev/null
-
-		    info "preparing hardlinks from previous backup"
-		    if ! ssh -n -- "$ssh_target" "cd -- $prevdir && @HARDLINKER@ -- . $newdir" 2>/dev/null; then
-			error_and_hook "could not hardlink previous backup. Missing pax?"
-		    fi
-		fi
+		rsync_link=( '--link-dest' "$(qw "$prev_backup/pgdata")" )
 	    fi
 	fi
 
 	info "transferring data from $pgdata"
 	if [ "$local_backup" = "yes" ]; then
-	    rsync -aq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' -- "$pgdata/" "$backup_dir/pgdata/"
+	    rsync -aq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' "${rsync_link[@]}" -- "$pgdata/" "$backup_dir/pgdata/"
 	    rc=$?
 	    if [ $rc != 0 ] && [ $rc != 24 ]; then
 		error_and_hook "rsync of PGDATA failed with exit code $rc"
 	    fi
 	else
-	    rsync $rsync_opts -e "ssh -o Compression=no" -a --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' -- "$pgdata/" "$ssh_target:$(qw "$backup_dir/pgdata/")"
+	    rsync -e "ssh -o Compression=no" -aq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' "${rsync_link[@]}" -- "$pgdata/" "$ssh_target:$(qw "$backup_dir/pgdata/")"
 	    rc=$?
 	    if [ $rc != 0 ] && [ $rc != 24 ]; then
 		error_and_hook "rsync of PGDATA failed with exit code $rc"
@@ -480,45 +459,27 @@ case $storage in
 
 	    info "backing up tablespace \"$name\" with rsync"
 
+	    rsync_link=()
 	    if [ -n "$prev_backup" ]; then
 	    	# Link previous backup of the tablespace
 		if [ "$local_backup" = "yes" ]; then
-		    if [ -d "$prev_backup/tblspc/$_name" ]; then
-			# pax needs the target directory to exist
-			mkdir -p -- "$backup_dir/tblspc/$_name"
-
-	    		info "preparing hardlinks from previous backup"
-			if ! (cd -- "$prev_backup/tblspc/$_name" && @HARDLINKER@ -- . "$backup_dir/tblspc/$_name"); then
-	    		    error_and_hook "could not hardlink previous backup"
-	    		fi
-	    	    fi
-	    	else
-		    prevtbl=$(qw "$prev_backup/tblspc/$_name")
-		    newtbl=$(qw "$backup_dir/tblspc/$_name")
-
-		    if ssh -n -- "$ssh_target" "test -d $prevtbl" 2>/dev/null; then
-			# pax needs the target directory to exist
-			ssh -n -- "$ssh_target" "mkdir -p -- $newtbl" 2>/dev/null
-
-	    		info "preparing hardlinks from previous backup"
-			if ! ssh -n -- "$ssh_target" "cd -- $prevtbl && @HARDLINKER@ -- . $newtbl" 2>/dev/null; then
-	    		    error_and_hook "could not hardlink previous backup. Missing pax?"
-	    		fi
-	    	    fi
-	    	fi
+		    rsync_link=( '--link-dest' "$prev_backup/tblspc/$_name" )
+		else
+		    rsync_link=( '--link-dest' "$(qw "$prev_backup/tblspc/$_name")" )
+		fi
 	    fi
 
 	    # rsync
 	    info "transferring data from $location"
 	    if [ "$local_backup" = "yes" ]; then
-		rsync -aq --delete-excluded --exclude 'pgsql_tmp' -- "$location/" "$backup_dir/tblspc/$_name/"
-	    	rc=$?
+		rsync -aq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_dir/tblspc/$_name/"
+		rc=$?
 		if [ $rc != 0 ] && [ $rc != 24 ]; then
 	    	    error_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 	    	fi
 	    else
-		rsync $rsync_opts -e "ssh -o Compression=no" -a --delete-excluded --exclude 'pgsql_tmp' -- "$location/" "$ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
-	    	rc=$?
+		rsync -e "ssh -o Compression=no" -aq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
+		rc=$?
 		if [ $rc != 0 ] && [ $rc != 24 ]; then
 	    	    error_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 	    	fi

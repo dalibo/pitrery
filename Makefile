@@ -31,7 +31,6 @@ options:
 $(BINS) $(LIBS): $(SRCS) $(HELPERS)
 	@echo translating paths in bash scripts: $@
 	@sed -e "s%@BASH@%${BASH}%" \
-		-e "s%@HARDLINKER@%${HARDLINKER}%" \
 		-e "s%@VERSION@%${VERSION}%" \
 		-e "s%@BINDIR@%${BINDIR}%" \
 		-e "s%@SYSCONFDIR@%${SYSCONFDIR}%" \
