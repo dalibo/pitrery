@@ -212,8 +212,10 @@ if [ "$ARCHIVE_LOCAL" = "yes" ]; then
 	dest_path=$ARCHIVE_DIR/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
 	check_local_dest_exists "$dest_path"
 
-	$ARCHIVE_COMPRESS_BIN -c < "$xlog" > "$dest_path" ||
-	    error "Compressing $xlog to $dest_path failed" $?
+	if ! $ARCHIVE_COMPRESS_BIN -c < "$xlog" > "$dest_path"; then
+	    rm -f -- "$dest_path"
+	    error "Compressing $xlog to $dest_path failed"
+	fi
     else
 	dest_path=$ARCHIVE_DIR/$(basename -- "$xlog")
 	check_local_dest_exists "$dest_path"
