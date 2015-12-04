@@ -1,6 +1,23 @@
 pitrery 1.11
 ============
 
+  * Do not backup replication slots state files and produce an SQL
+    file to recreate them after restore.
+
+  * Add a dry run option (-N) for purge.
+
+  * Improve the quoting and ensure unusual characters are handled
+    properly.
+
+  * Add manpages for the user facing commands, pitrery, archive_xlog
+    and restore_xlog.
+
+  * Relax restrictions on the target date format on restore. It was
+    meant to have a working format common to all free unices
+    platforms, but the user can just adapt the command to its
+    system. So now one can do run: pitrery restore -d '1 hour ago', or
+    anything the local date command can parse.
+
   * New ARCHIVE_OVERWRITE configuration parameter along with -O option
     (do not overwrite) for archive_xlog to check if the target files
     exists before archiving, when set to "no" or -O is on the command
