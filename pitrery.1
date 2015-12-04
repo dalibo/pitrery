@@ -692,6 +692,10 @@ they can be stored near the base backups by setting this to something like:
 .fi
 .hy
 
+.TP
+.B ARCHIVE_OVERWRITE
+If set to "yes", overwrite destination files if they exist. Since it
+adds a performance penalty over SSH, it is set to "yes" by default.
 
 .SS Compression configuration
 These variables are used to configure the compression of the archived WAL
