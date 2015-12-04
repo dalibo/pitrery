@@ -442,7 +442,7 @@ case $storage in
 		error "rsync of PGDATA failed with exit code $rc"
 	    fi
 	else
-	    rsync $rsync_opts -e "ssh -o Compression=no" -a --delete -- "$ssh_target:$(qw "$backup_dir/pgdata/")" "$pgdata/"
+	    rsync $rsync_opts -e "ssh -o Compression=no" -za --delete -- "$ssh_target:$(qw "$backup_dir/pgdata/")" "$pgdata/"
 	    rc=$?
 	    if [ $rc != 0 ] && [ $rc != 24 ]; then
 		error "rsync of PGDATA failed with exit code $rc"
@@ -546,7 +546,7 @@ for (( i=0; i<$tspc_count; ++i )); do
 		    error "rsync of tablespace \"${name}\" failed with exit code $rc"
 		fi
 	    else
-		rsync $rsync_opts -e "ssh -o Compression=no" -a --delete -- "$ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
+		rsync $rsync_opts -e "ssh -o Compression=no" -za --delete -- "$ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
 		rc=$?
 		if [ $rc != 0 ] && [ $rc != 24 ]; then
 		    error "rsync of tablespace \"${name}\" failed with exit code $rc"

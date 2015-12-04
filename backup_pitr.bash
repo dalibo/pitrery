@@ -440,7 +440,7 @@ case $storage in
 		error_and_hook "rsync of PGDATA failed with exit code $rc"
 	    fi
 	else
-	    rsync -e "ssh -o Compression=no" -aq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$pgdata/" "$ssh_target:$(qw "$backup_dir/pgdata/")"
+	    rsync -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$pgdata/" "$ssh_target:$(qw "$backup_dir/pgdata/")"
 	    rc=$?
 	    if [ $rc != 0 ] && [ $rc != 24 ]; then
 		error_and_hook "rsync of PGDATA failed with exit code $rc"
@@ -479,7 +479,7 @@ case $storage in
 	    	    error_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 	    	fi
 	    else
-		rsync -e "ssh -o Compression=no" -aq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
+		rsync -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
 		rc=$?
 		if [ $rc != 0 ] && [ $rc != 24 ]; then
 	    	    error_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
