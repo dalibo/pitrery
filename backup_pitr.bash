@@ -108,7 +108,7 @@ pgdata=/var/lib/pgsql/data
 storage="tar"
 compress_bin="gzip -4"
 compress_suffix="gz"
-psql_command=( "psql" )
+psql_command=( "psql" "-X" )
 log_timestamp="no"
 
 
@@ -310,10 +310,10 @@ info "starting the backup process"
 # pg_start_backup, so that we have the name of the backup_label that
 # will be archived after pg_stop_backup completes
 if (( $pg_version >= 80400 )); then
-    start_backup_label_file=`$psql_command -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}', true)) as i;" $psql_condb`
+    start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}', true)) as i;" $psql_condb`
     rc=$?
 else
-    start_backup_label_file=`$psql_command -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}')) as i;" $psql_condb`
+    start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}')) as i;" $psql_condb`
     rc=$?
 fi
 
@@ -525,7 +525,7 @@ backup_file="$pgdata/pg_xlog/$start_backup_label_file"
 # it easier when searching for a proper backup when restoring
 stop_time=$(sed -n 's/STOP TIME: //p' -- "$backup_file")
 if [ -n "$stop_time" ]; then
-    timestamp=$($psql_command -Atc "SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '${stop_time}');" $psql_condb) ||
+    timestamp=$(${psql_command[@]} -Atc "SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '${stop_time}');" $psql_condb) ||
         warn "could not get the stop time timestamp from PostgreSQL"
 else
     error_and_hook "Failed to get STOP TIME from '$backup_file'"
