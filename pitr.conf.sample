@@ -12,22 +12,32 @@
 # Backup management
 ####################
 
-# Specify all needed information to be able to run SQL command on the
-# PostgreSQL cluster to backup.  Those options can be commented out to
-# let the scripts use the ones defined in the environment (be careful
-# with cron when doing this)
+# Data directory of the PostgreSQL cluster to backup.
 PGDATA="/var/lib/pgsql/data"
-PGPSQL="psql"
+
+# Specify all needed information to be able to run SQL command on the
+# PostgreSQL cluster to backup.  Those options are commented out to
+# let the scripts use the ones defined in the environment (be careful
+# with cron which may need them)
 PGUSER="postgres"
 PGPORT=5432
 PGHOST="/tmp"
 PGDATABASE="postgres"
-PGOWNER=$PGUSER
+
+# Command line to invoke psql.
+#PGPSQL="psql -X"
+
+# Target owner of the files when restoring with a different user
+# (e.g. one may need to restore as root to create some missing
+# directories, then PGOWNER should be set to "postgres" or whatever
+# unprivileged user is used to run PostgreSQL)
+#PGOWNER=$PGUSER
+
 
 # If the transaction logs directory is outside PGDATA (see -X option
 # of initdb), specify its path here to recreate the symbolic link when
 # restoring.
-PGXLOG=
+#PGXLOG=
 
 # BACKUP_IS_LOCAL permits to store the backups on the local machine.
 # When it is set to "yes", a target host is no longer required
