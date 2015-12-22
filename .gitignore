@@ -13,3 +13,4 @@ restore_xlog
 .s[a-w][a-z]
 .*.s[a-w][a-z]
 Session*.vim
+*.1

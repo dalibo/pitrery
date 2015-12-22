@@ -11,13 +11,14 @@ HELPERS = backup_pitr.bash \
 	restore_pitr.bash
 SRCCONFS = pitr.conf.sample
 DOCS = COPYRIGHT INSTALL.md UPGRADE.md CHANGELOG
-MANPAGES = pitrery.1 archive_xlog.1 restore_xlog.1
+SRCMANPAGES = pitrery.1.man archive_xlog.1.man restore_xlog.1.man
 
 BINS = $(basename $(SRCS))
 LIBS = $(basename $(HELPERS))
 CONFS = $(basename $(SRCCONFS))
+MANPAGES = $(basename $(SRCMANPAGES))
 
-all: options $(BINS) $(LIBS) $(CONFS)
+all: options $(BINS) $(LIBS) $(CONFS) $(MANPAGES)
 
 options:
 	@echo ${NAME} ${VERSION} install options:
@@ -41,11 +42,16 @@ $(CONFS): $(SRCCONFS)
 	@sed -e "s%@SYSCONFDIR@%${SYSCONFDIR}%" \
 		-e "s%@LIBDIR@%${LIBDIR}/${NAME}%" $(addsuffix .sample,$@) > $@
 
+$(MANPAGES): $(SRCMANPAGES)
+	@echo translating paths in manual pages: $@
+	@sed -e "s%@SYSCONFDIR@%${SYSCONFDIR}%" $(addsuffix .man,$@) > $@
+
 clean:
 	@echo cleaning
 	@-rm -f $(BINS)
 	@-rm -f $(LIBS)
 	@-rm -f $(CONFS)
+	@-rm -f $(MANPAGES)
 
 install: all
 	@echo installing executable files to ${DESTDIR}${BINDIR}

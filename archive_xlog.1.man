@@ -42,8 +42,7 @@ The following options are available:
 .BI "\-C " conf
 Use option settings from the specified configuration file instead of the
 default \fIpitr.conf\fP file.  This may be a full path to the file to use,
-or the name of a configuration file in the default \fBCONFIG_DIR\fP (which
-on Debian systems is \fI/etc/pitrery/\fP).
+or the name of a configuration file in \fI@SYSCONFDIR@\fP.
 
 .TP
 .B \-L
@@ -135,7 +134,7 @@ A minimal \fIpostgresql.conf\fP configuration for WAL archiving with
 
   # The archive command with parameters.
   #archive_command = 'archive_xlog \-C /path/to/pitr.conf %p'
-  # or to search /etc/pitrery for the pitr.conf configuration:
+  # or to search @SYSCONFDIR@ for the pitr.conf configuration:
   #archive_command = 'archive_xlog \-C pitr %p'
 .fi
 .hy
@@ -149,7 +148,7 @@ for details of the configuration options available there.
 
 .SH FILES
 .TP
-.I /etc/pitrery/pitr.conf
+.I @SYSCONFDIR@/pitr.conf
 The default \fBarchive_xlog\fP configuration file if not explicitly specified.
 
 .TP

@@ -60,9 +60,7 @@ The following options are available:
 .BI "\-c " conf
 Use option settings from the specified configuration file instead of the
 default \fIpitr.conf\fP file.  This may be a full path to the file to use,
-or the name of a configuration file in the default \fBCONFIG_DIR\fP (which
-is selected at package build time and on Debian systems is
-\fI/etc/pitrery/\fP).
+or the name of a configuration file in \fI@SYSCONFDIR@\fP.
 
 .TP
 .B \-l
@@ -898,7 +896,7 @@ backup, then after a \fBrestore\fP you can run something like:
 
 .SH FILES
 .TP
-.I /etc/pitrery/pitr.conf
+.I @SYSCONFDIR@/pitr.conf
 The default \fBpitrery\fP configuration file if not explicitly specified.
 
 
