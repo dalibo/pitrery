@@ -140,7 +140,7 @@ case $action in
 		b) BACKUP_DIR=$OPTARG;;
 		l) BACKUP_LABEL=$OPTARG;;
 		v) VERBOSE="yes";;
-		'?') "$cmd" -?; exit $?;;
+		'?') "$cmd" '-?'; exit $?;;
 	    esac
 	done
 
@@ -175,7 +175,7 @@ case $action in
 		e) BACKUP_COMPRESS_SUFFIX=$OPTARG;;
 		T) LOG_TIMESTAMP="yes";;
 
-		'?') "$cmd" -?; exit $?;;
+		'?') "$cmd" '-?'; exit $?;;
 	    esac
 	done
 
@@ -225,7 +225,7 @@ case $action in
 		C) RESTORE_XLOG_CONFIG=$OPTARG;;
 		T) LOG_TIMESTAMP="yes";;
 
-		"?") "$cmd" -?; exit $?;;
+		"?") "$cmd" '-?'; exit $?;;
 	    esac
 	done
 
@@ -274,7 +274,7 @@ case $action in
 		N) DRY_RUN="yes";;
 		T) LOG_TIMESTAMP="yes";;
 
-		"?") "$cmd" -?; exit $?;;
+		"?") "$cmd" '-?'; exit $?;;
 	    esac
 	done
 
