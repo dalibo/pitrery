@@ -185,9 +185,7 @@ configured:
 
 * `ARCHIVE_LOCAL` controls whether local copy is performed. When this parameter
   is set to "yes", archive_xlog uses cp to copy the file on a local
-  path. This path maybe a local filesystem or a remote filesystem mounted
-  locally.  This parameter can be overridden on the command line with
-  the `-L` option.
+  path.
 
 * `ARCHIVE_HOST` is the target hostname or IP address used when copying over
   an SSH connection.
@@ -231,7 +229,7 @@ dependent parameters:
     # Changing this requires a restart
     archive_mode = on
     
-    # The archive command using the defaults
+    # The archive command using the defaults from pitr.conf
     archive_command = '/usr/local/bin/archive_xlog %p'
     
     # The archive command with parameters
@@ -316,15 +314,18 @@ corresponding script stored by default in `/usr/local/lib/pitrery`.
 These scripts are standalone, they perform the action based on the
 options given on the command line at execution time.  The purpose of
 `pitrery` is to wrap there scripts and provide them with their command
-line options based on a configuration file.  This reduces the command
-line size and try to avoid mistakes at runtime.
+line options based on a configuration file. Those options can be
+overridden at runtime.
 
 Before using `pitrery` to backup and manage backups for a specific
 PostgreSQL cluster, a configuration file shall be created in the
 configuration directory, `/usr/local/etc/pitrery` by default. This
-configuration holds all the information necessary to manage backups for
-this cluster. The default configuration file is `pitr.conf`, containing
-all the default parameters.
+configuration holds all the information necessary to manage backups
+for this cluster. Having a dedicated configuration file for each
+cluster is recommended.
+
+The default configuration file is `pitr.conf`, containing all the
+default parameters.
 
 The easiest way to configure pitrery is to copy the default
 configuration file to new name meaningful to our setup:
@@ -386,8 +387,7 @@ through pitrery :
   mode. It is useful when WAL archiving is not performed by
   pitrery. When archive_xlog is used, e.g. `RESTORE_COMMAND` is left
   empty, it defaults to a call to `restore_xlog` and it is not necessary
-  to set it up here, unless archived WAL files are stored on a
-  different host than `BACKUP_HOST`.
+  to set it up here.
 
 * `PURGE_KEEP_COUNT` controls how many backups must be kept when purging
   old backups.
@@ -771,7 +771,7 @@ controlled from its command line options, for example:
     restore_xlog -h HOST -d ARCHIVE_DIR %f %p
 
 The restore script uses options values from the configuration, which
-can be passed by the restore action to restore_xlog, using the `-C`
+is passed by the restore action to `restore_xlog`, using the `-C`
 option. If options, different from the configuration, must be given to
 `restore_xlog`, the complete command must be provided to the restore
 action with `-r`.
