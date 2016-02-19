@@ -147,7 +147,7 @@ fi
 # This shouldn't ever happen, but if we check it here we don't have to worry
 # about what might get confused in the logic below if it does.
 if [ -n "$target" ] && [ "$local_backup" = "yes" ]; then
-    error "BACKUP_HOST and BACKUP_IS_LOCAL are set, it can't be both"
+    error "BACKUP_HOST is set and BACKUP_IS_LOCAL=\"yes\", it can't be both"
 fi
 
 # Only tar or rsync are allowed as storage method
