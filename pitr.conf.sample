@@ -16,7 +16,7 @@
 PGDATA="/var/lib/pgsql/data"
 
 # Specify all needed information to be able to run SQL command on the
-# PostgreSQL cluster to backup.  Those options are commented out to
+# PostgreSQL cluster to backup.  Those options may be commented out to
 # let the scripts use the ones defined in the environment (be careful
 # with cron which may need them)
 PGUSER="postgres"
