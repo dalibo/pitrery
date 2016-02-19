@@ -30,14 +30,15 @@ The purpose of \fBpitrery\fP is to make it easy to manage the archiving of
 PostgreSQL WAL segments and automate the tasks of taking base backups and
 preparing a point in time recovery operation if or when that is needed.
 
-The \fBpitrery\fP script itself is a front end for four archive maintenance
+The \fBpitrery\fP script itself is a front end for five archive maintenance
 actions,
-.BR backup ", " restore ", " purge ", and " list ,
-which create a new base backup, prepare the necessary files for initiating
-a recovery, clean up old base backup and WAL segments that are no longer
-wanted, and display the available base backups, respectively.  It is designed
-to be run on the same machine as the PostgreSQL cluster, but the base backups
-and WAL segments that it operates on can be archived either locally or on a
+.BR backup ", " restore ", " purge ", " list ", and " check ,
+which create a new base backup, prepare the necessary files for
+initiating a recovery, clean up old base backup and WAL segments that
+are no longer wanted, display the available base backups, and check
+the configuration, respectively.  It is designed to be run on the same
+machine as the PostgreSQL cluster, but the base backups and WAL
+segments that it operates on can be archived either locally or on a
 remote server.
 
 The \fBpitrery\fP package also provides two helper scripts,
@@ -527,6 +528,36 @@ This will override the \fBBACKUP_HOST\fP option from the configuration file.
 
 .RE
 
+
+.SS check
+The \fBcheck\fP action is used to check if a configuration file is
+correct. The action tests if the backup directory is reachable, if WAL
+archiving can be done with \fBarchive_xlog\fP(1), if PostgreSQL is up
+and properly configured for PITR and if the current user can actually
+backup the files.
+
+.TP 4
+.B SYNOPSIS
+.B pitrery
+.RI [ options ]
+.B check
+.RI [ check-options ]
+
+.TP 4
+.B CHECK-OPTIONS
+The following options are available for the \fBcheck\fP action:
+
+.RS
+
+.TP
+.B "\-C " config_file
+The configuration file to check. It can be provided using the \-c option of \fBpitrery\fP
+
+.TP
+.B \-?
+Output the brief help summarising the \fBcheck\fP options.
+
+.RE
 
 .SH CONFIGURATION
 The following options may be configured persistently in one or more

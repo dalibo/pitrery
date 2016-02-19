@@ -8,7 +8,8 @@ SRCS = archive_xlog.bash \
 HELPERS = backup_pitr.bash \
 	list_pitr.bash \
 	purge_pitr.bash \
-	restore_pitr.bash
+	restore_pitr.bash \
+	check_pitr.bash
 SRCCONFS = pitr.conf.sample
 DOCS = COPYRIGHT INSTALL.md UPGRADE.md CHANGELOG
 SRCMANPAGES = pitrery.1.man archive_xlog.1.man restore_xlog.1.man

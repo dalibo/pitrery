@@ -111,6 +111,10 @@ D'un autre côté, ajouter quelques options à la ligne de commande permet
 de modifier le comportement du script sans pour autant avoir à modifier
 systématiquement le fichier de configuration.
 
+Une cinguième action, `check` permet de vérifier le fichier de
+configuration et si PostgreSQL est correctement configuré pour le
+PITR.
+
 Le stockage des sauvegardes peut être fait sur un serveur distant ou
 en local.  Dans le cas d'un serveur distant, celui ci doit être
 accessible via ssh en mode batch (c'est-à-dire, sans avoir à insérer
@@ -550,6 +554,7 @@ avec l'option `-?`
         backup
         restore
         purge
+        check
     
 
 Si l'on veut réaliser la sauvegarde de notre serveur "prod" donné en
@@ -1070,15 +1075,76 @@ Comme précédement, si des doutes subsistent quant à la purge, lancez
 l'action de purge avec l'option `-N` pour afficher ce qui serait purgé.   
 
 
+Vérification de la configuration
+--------------------------------
 
+L'action `check` permet de vérifier un fichier de configuration. The
+tests consistent à vérifier si le répertoire de stockage des backups
+est utilisable, si l'archivage est possible avec `archive_xlog`, si
+PostgreSQL est accessible et correctement configuré pour le PITR et
+enfin si l'utilisateur peut accéder aux fichiers à sauvegarder.
 
+Par exemple, on peut vérifier si le fichier `local.conf` est correct:
 
-
-
-
-
-
-
-
-
+    INFO: Configuration file is: /usr/local/etc/pitrery/local.conf
+    INFO: loading configuration
+    INFO: the configuration file contains:
+    PGDATA="/home/pgsql/postgresql-9.5.1/data"
+    PGUSER="orgrim"
+    PGPORT=5951
+    PGHOST="/tmp"
+    PGDATABASE="postgres"
+    BACKUP_IS_LOCAL="yes"
+    BACKUP_DIR="/home/pgsql/pitrery"
+    BACKUP_LABEL="local"
+    BACKUP_HOST=
+    BACKUP_USER=
+    RESTORE_COMMAND=
+    PURGE_KEEP_COUNT=2
+    PURGE_OLDER_THAN=
+    PRE_BACKUP_COMMAND=
+    POST_BACKUP_COMMAND=
+    STORAGE="tar"
+    LOG_TIMESTAMP="no"
+    ARCHIVE_LOCAL="yes"
+    ARCHIVE_HOST=
+    ARCHIVE_USER=
+    ARCHIVE_DIR="$BACKUP_DIR/$BACKUP_LABEL/archived_xlog"
+    ARCHIVE_COMPRESS="yes"
+    ARCHIVE_OVERWRITE="yes"
+    SYSLOG="no"
+    SYSLOG_FACILITY="local0"
+    SYSLOG_IDENT="postgres"
+    
+    INFO: ==> checking the configuration for inconsistencies
+    INFO: configuration seems correct
+    INFO: ==> checking backup configuration
+    INFO: backups are local, not checking SSH
+    INFO: target directory '/home/pgsql/pitrery' exists
+    INFO: target directory '/home/pgsql/pitrery' is writable
+    INFO: ==> checking WAL files archiving configuration
+    INFO: WAL archiving is local, not checking SSH
+    INFO: checking WAL archiving directory: /home/pgsql/pitrery/local/archived_xlog
+    INFO: target directory '/home/pgsql/pitrery/local/archived_xlog' exists
+    INFO: target directory '/home/pgsql/pitrery/local/archived_xlog' is writable
+    INFO: checking rsync on the local host
+    INFO: rsync found on the local host
+    INFO: ==> checking access to PostgreSQL
+    INFO: psql command and connection options are: psql -X -h /tmp -p 5951 -U orgrim
+    INFO: connection database is: postgres
+    INFO: environment variables (maybe overwritten by the configuration file):
+    INFO:   PGPORT=5951
+    INFO:   PGDATABASE=postgres
+    INFO:   PGDATA=/home/pgsql/postgresql-9.5.1/data
+    INFO: PostgreSQL version is: 9.5.1
+    INFO: connection role can run backup functions
+    INFO: checking the configuration:
+    INFO:   wal_level = hot_standby
+    INFO:   archive_mode = on
+    INFO:   archive_command = 'archive_xlog -C local %p'
+    INFO: ==> checking access to PGDATA
+    INFO: PostgreSQL and the configuration reports the same PGDATA
+    INFO: permissions of PGDATA ok
+    INFO: owner of PGDATA is the current user
+    INFO: access to the contents of PGDATA ok
 

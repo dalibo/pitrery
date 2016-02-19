@@ -43,6 +43,7 @@ usage() {
     echo "    backup"
     echo "    restore"
     echo "    purge"
+    echo "    check"
     echo
     exit $1
 }
@@ -292,6 +293,27 @@ case $action in
 	[ "$LOG_TIMESTAMP" = "yes" ]	&& opts+=( "-T" )
 
 	run_cmd "${@:$OPTIND:1}"
+	;;
+
+    check)
+	select_cmd "check_pitr"
+
+	while getopts "C:?" opt; do
+	    case $opt in
+		C) PITR_CONFIG=$OPTARG;;
+		"?") "$cmd" '-?'; exit $?;;
+	    esac
+	done
+
+	if [ -n "$PITR_CONFIG" ]; then
+	    opts+=( "-C" "$PITR_CONFIG" )
+	else
+	    opts+=( "-C" "$config" )
+	fi
+
+        # Run the command
+	$dry_run "$cmd" "${opts[@]}"
+	exit $?
 	;;
 
     *)

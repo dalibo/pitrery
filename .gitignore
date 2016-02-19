@@ -1,8 +1,7 @@
 *~
-archive_nodes.conf
 archive_xlog
-archive_xlog.conf
 backup_pitr
+check_pitr
 list_pitr
 pitr.conf
 pitr_mgr
