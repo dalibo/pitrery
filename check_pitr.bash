@@ -358,7 +358,7 @@ info "==> checking access to PostgreSQL"
 
 # Prepare psql command line
 [ -n "$PGHOST" ] && psql_command+=( "-h" "$PGHOST" )
-[ -n "$PGHOST" ] && psql_command+=( "-p" "$PGPORT" )
+[ -n "$PGPORT" ] && psql_command+=( "-p" "$PGPORT" )
 [ -n "$PGUSER" ] && psql_command+=( "-U" "$PGUSER" )
 
 psql_condb=${PGDATABASE:-postgres}
@@ -387,7 +387,7 @@ else
     # Now get the numerical version of PostgreSQL so that we can compare
     # it
     if ! pg_version=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'server_version_num';" -- "$psql_condb"); then
-	error "could not get the version of the server"
+	error "could not get the numerical version of the server"
     fi
 
     # Check if the server is in hot standby. If so, basebackup
