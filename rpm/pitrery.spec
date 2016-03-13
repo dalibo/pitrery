@@ -1,5 +1,5 @@
 Name:           pitrery
-Version:        1.10
+Version:        1.11dev
 Release:        1%{?dist}
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
@@ -37,19 +37,25 @@ make install DESTDIR=%{buildroot}
 /usr/bin/pitrery
 /usr/bin/restore_xlog
 /usr/lib/pitrery/backup_pitr
+/usr/lib/pitrery/check_pitr
+/usr/lib/pitrery/configure_pitr
 /usr/lib/pitrery/list_pitr
 /usr/lib/pitrery/purge_pitr
 /usr/lib/pitrery/restore_pitr
 /usr/share/doc/pitrery/COPYRIGHT
+/usr/share/pitrery/pitr.conf.template
 %doc /usr/share/doc/pitrery/INSTALL.md
 %doc /usr/share/doc/pitrery/UPGRADE.md
 %doc /usr/share/doc/pitrery/pitr.conf
 %doc /usr/share/doc/pitrery/CHANGELOG
-%doc %{_mandir}/man1/pitrery.1
-%doc %{_mandir}/man1/archive_xlog.1
-%doc %{_mandir}/man1/restore_xlog.1
+%doc %{_mandir}/man1/pitrery.1.gz
+%doc %{_mandir}/man1/archive_xlog.1.gz
+%doc %{_mandir}/man1/restore_xlog.1.gz
 
 %changelog
+* Thu Mar 10 2016 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.11dev-1
+- Update to 1.11
+
 * Mon Oct 19 2015 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.10-1
 - Update to 1.10
 

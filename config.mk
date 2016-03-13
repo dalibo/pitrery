@@ -11,5 +11,6 @@ PREFIX = /usr/local
 BINDIR = ${PREFIX}/bin
 LIBDIR = ${PREFIX}/lib
 SYSCONFDIR = ${PREFIX}/etc/${NAME}
+SHAREDIR = ${PREFIX}/share/${NAME}
 DOCDIR = ${PREFIX}/share/doc/${NAME}
 MANDIR = ${PREFIX}/share/man

@@ -2,8 +2,10 @@
 archive_xlog
 backup_pitr
 check_pitr
+configure_pitr
 list_pitr
 pitr.conf
+pitr.conf.template
 pitr_mgr
 pitrery
 purge_pitr

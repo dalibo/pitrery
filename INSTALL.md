@@ -73,7 +73,7 @@ WAL files locally or to another server reachable using SSH.  A
 configuration file can be used to reduce the size of the command line
 defined in the configuration file of PostgreSQL.
 
-The management of base backups is divided in four parts, each one
+The management of base backups is divided in four main parts, each one
 using a standalone script to perform an action: `backup`, `restore`,
 `purge` and `list`.  These action can then be called by `pitrery`, a
 wrapper around those scripts that uses a configuration file to define
@@ -84,9 +84,10 @@ from a simple command with a few switchs, because the pressure on the
 person running it can be high at a time when end-users cannot access
 the database. On the other side, adding command line switches at run
 time will easily modify the behaviour of the action to avoid modifying
-the configuration all the time.  A fifth action, named `check` can be
-used to ensure the configuration file is correct and PostgreSQL
-properly configured.
+the configuration all the time.  To more actions are available to ease
+the administration : `check` can be used to ensure the configuration
+file is correct and PostgreSQL properly configured and `configure` can
+be used to easily create a configuration file from the command line.
 
 The storage place can be a remote server or the local machine. If is a
 remote server, it must accessible using SSH in batch mode (One needs
@@ -479,6 +480,7 @@ The help for `pitrery` is available by running it with the `-?` option :
         restore
         purge
         check
+	configure
     
 
 If we want to backup our example production server, the name of the
@@ -971,6 +973,51 @@ The options of purge are:
 
 If unsure about the configuration of the purge, the `-N` switch can be
 used to display what whould be done.
+
+
+Configuring pitrery from the command line
+-----------------------------------------
+
+The `configure` action can create a configuration file. It needs a
+destination of the form `[[user@]host:]/path` to know where backups
+shall be stored. If a host is not provided, the backup is considered
+local.  Some options are available to create a configuration :
+
+    pitrery configure -?
+    configure_pitr configures pitrery
+    
+    Usage:
+        configure_pitr [options] [[user@]host:]/path/to/backups
+    
+    Options:
+        -o config_file         Output configuration file
+	-f                     Overwrite the destination file
+        -C                     Do not connect to PostgreSQL
+    
+    Configuration options:
+        -l label               Backup label
+        -s mode                Storage method, tar or rsync
+        -m count               Number of backups to keep
+        -g days                Remove backup older then this number of days
+        -D dir                 Path to $PGDATA
+        -a [[user@]host:]/dir  Place to store WAL archives
+    
+    Connection options:
+        -P psql                Path to the psql command
+        -h hostname            Database server host or socket directory
+        -p port                Database server port number
+        -U name                Connect as specified database user
+        -d database            Database to use for connection
+    
+        -?                     Print help
+
+Not all possible configuration options are provided, the purpose is to
+quickly set pitrery up, then a edit the configuration file created for
+further tuning.  It is worth noting that `-C` avoids making pitrery
+connect to PostgreSQL so that the correct parameters for WAL archiving
+are output. `-o` writes the configuration files if it does not exists,
+if only a keyword is given, the file is created in the default
+configuration directory.
 
 
 Checking the configuration file

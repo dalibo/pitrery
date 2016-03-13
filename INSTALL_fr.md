@@ -111,9 +111,11 @@ D'un autre côté, ajouter quelques options à la ligne de commande permet
 de modifier le comportement du script sans pour autant avoir à modifier
 systématiquement le fichier de configuration.
 
-Une cinguième action, `check` permet de vérifier le fichier de
+Deux actions supplémentaires permettent de simplifier
+l'administration. `check` permet de vérifier le fichier de
 configuration et si PostgreSQL est correctement configuré pour le
-PITR.
+PITR. `configure` permet de créer rapidement un fichier de
+configuration à partir de la ligne de commande.
 
 Le stockage des sauvegardes peut être fait sur un serveur distant ou
 en local.  Dans le cas d'un serveur distant, celui ci doit être
@@ -555,6 +557,7 @@ avec l'option `-?`
         restore
         purge
         check
+	configure
     
 
 Si l'on veut réaliser la sauvegarde de notre serveur "prod" donné en
@@ -1073,6 +1076,53 @@ Les options de purge sont :
  
 Comme précédement, si des doutes subsistent quant à la purge, lancez 
 l'action de purge avec l'option `-N` pour afficher ce qui serait purgé.   
+
+
+Configuration de pitrery en ligne de commande
+---------------------------------------------
+
+L'action `configure` permet de créer rapidement un fichier de
+configuartion depuis la ligne de commande. Il faut lui fournir la
+destination de stockage des backups, sous la forme
+`[[user@]host:]/path`. Si un host n'est pas fourni, les sauvegardes se
+font en local. Les options de configuration sont :
+
+    pitrery configure -?
+    configure_pitr configures pitrery
+    
+    Usage:
+        configure_pitr [options] [[user@]host:]/path/to/backups
+    
+    Options:
+        -o conf                Output configuration file
+	-f                     Overwrite the destination file
+        -C                     Do not connect to PostgreSQL
+    
+    Configuration options:
+        -l label               Backup label
+        -s mode                Storage method, tar or rsync
+        -m count               Number of backups to keep
+        -g days                Remove backup older then this number of days
+        -D dir                 Path to $PGDATA
+        -a [[user@]host:]/dir  Place to store WAL archives
+    
+    Connection options:
+        -P psql                Path to the psql command
+        -h hostname            Database server host or socket directory
+        -p port                Database server port number
+        -U name                Connect as specified database user
+        -d database            Database to use for connection
+    
+        -?                     Print help
+
+Seules le minimum nécessaire pour une configuration fonctionnelle est
+disponible, l'objectif étant de fournir un moyen de rapidement
+configurer l'outil, l'optimisation se fait par édition du fichiers de
+configuration produit. Parmi les options, `-C` évite de se connecter à
+PostgreSQL pour afficher les paramètres à modifier pour l'archivage
+des fichiers WAL. `-o` permet d'écrire le fichier de configuration,
+s'il ne s'agit pas d'un chemin, le fichier est créé dans le répertoire
+de configuration par défaut.
 
 
 Vérification de la configuration

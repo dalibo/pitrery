@@ -9,7 +9,8 @@ HELPERS = backup_pitr.bash \
 	list_pitr.bash \
 	purge_pitr.bash \
 	restore_pitr.bash \
-	check_pitr.bash
+	check_pitr.bash \
+	configure_pitr.bash
 SRCCONFS = pitr.conf.sample
 DOCS = COPYRIGHT INSTALL.md UPGRADE.md CHANGELOG
 SRCMANPAGES = pitrery.1.man archive_xlog.1.man restore_xlog.1.man
@@ -17,9 +18,10 @@ SRCMANPAGES = pitrery.1.man archive_xlog.1.man restore_xlog.1.man
 BINS = $(basename $(SRCS))
 LIBS = $(basename $(HELPERS))
 CONFS = $(basename $(SRCCONFS))
+TEMPLATES = $(addsuffix .template,$(basename $(SRCCONFS)))
 MANPAGES = $(basename $(SRCMANPAGES))
 
-all: options $(BINS) $(LIBS) $(CONFS) $(MANPAGES)
+all: options $(BINS) $(LIBS) $(CONFS) $(TEMPLATES) $(MANPAGES)
 
 options:
 	@echo ${NAME} ${VERSION} install options:
@@ -27,7 +29,9 @@ options:
 	@echo "BINDIR     = ${BINDIR}"
 	@echo "LIBDIR     = ${LIBDIR}/${NAME}"
 	@echo "SYSCONFDIR = ${SYSCONFDIR}"
+	@echo "SHAREDIR   = ${SHAREDIR}"
 	@echo "DOCDIR     = ${DOCDIR}"
+	@echo "MANDIR     = ${MANDIR}"
 	@echo
 
 $(BINS) $(LIBS): $(SRCS) $(HELPERS)
@@ -36,12 +40,17 @@ $(BINS) $(LIBS): $(SRCS) $(HELPERS)
 		-e "s%@VERSION@%${VERSION}%" \
 		-e "s%@BINDIR@%${BINDIR}%" \
 		-e "s%@SYSCONFDIR@%${SYSCONFDIR}%" \
-		-e "s%@LIBDIR@%${LIBDIR}/${NAME}%" $(addsuffix .bash,$@) > $@
+		-e "s%@LIBDIR@%${LIBDIR}/${NAME}%" \
+		-e "s%@SHAREDIR@%${SHAREDIR}%" $(addsuffix .bash,$@) > $@
 
 $(CONFS): $(SRCCONFS)
 	@echo translating paths in configuration files: $@
 	@sed -e "s%@SYSCONFDIR@%${SYSCONFDIR}%" \
 		-e "s%@LIBDIR@%${LIBDIR}/${NAME}%" $(addsuffix .sample,$@) > $@
+
+$(TEMPLATES): $(CONFS)
+	@echo preparing template: $@
+	@-cp $(basename $@) $@
 
 $(MANPAGES): $(SRCMANPAGES)
 	@echo translating paths in manual pages: $@
@@ -52,6 +61,7 @@ clean:
 	@-rm -f $(BINS)
 	@-rm -f $(LIBS)
 	@-rm -f $(CONFS)
+	@-rm -f $(TEMPLATES)
 	@-rm -f $(MANPAGES)
 
 install: all
@@ -66,6 +76,9 @@ install: all
 	@echo installing configuration to ${DESTDIR}${SYSCONFDIR}
 	@mkdir -p ${DESTDIR}${SYSCONFDIR}
 	@-cp -i $(CONFS) ${DESTDIR}${SYSCONFDIR} < /dev/null >/dev/null 2>&1
+	@echo installing templates to ${DESTDIR}${SHAREDIR}
+	@mkdir -p ${DESTDIR}${SHAREDIR}
+	@-cp $(TEMPLATES) ${DESTDIR}${SHAREDIR}
 	@echo installing docs to ${DESTDIR}${DOCDIR}
 	@mkdir -p ${DESTDIR}${DOCDIR}
 	@cp -f $(CONFS) $(DOCS) ${DESTDIR}${DOCDIR}

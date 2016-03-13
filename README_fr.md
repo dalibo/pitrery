@@ -27,14 +27,11 @@ INSTALLATION RAPIDE
 
 3. Lancer `make` et `make install`
 
-4. Créer un nouveau fichier de configuration en dupliquant `pitr.conf`
-   sous un nom correspondant à l'instance que vous voulez sauvegarder.
+4. Lancer `pitrery configure -o pitr -f [[user@]host:]/path/to/backups` (user@host étant optionnel)
 
-5. Modifier ce fichier pour l'adapter à votre configuration.
+5. Configurer l'archivage (`archive_command = 'archive_xlog -C pitr %p'`)
 
-6. Configurer l'archivage (`archive_command = 'archive_xlog -C pitr %p'`)
-
-7. Lancer `pitrery` pour réaliser vos sauvegardes et restaurations.
+6. Lancer `pitrery` pour réaliser vos sauvegardes et restaurations.
 
 
 DEVELOPPEMENT
@@ -44,5 +41,5 @@ Le code source est disponible sur github: https://github.com/dalibo/pitrery
 
 pitrery est developpé par Nicolas Thauvin sous licence BSD classique à 2 
 clauses. Référez-vous à la partie licence dans les scripts ou au fichier 
-COPYRIGHT
+COPYRIGHT.
 

@@ -30,16 +30,16 @@ The purpose of \fBpitrery\fP is to make it easy to manage the archiving of
 PostgreSQL WAL segments and automate the tasks of taking base backups and
 preparing a point in time recovery operation if or when that is needed.
 
-The \fBpitrery\fP script itself is a front end for five archive maintenance
+The \fBpitrery\fP script itself is a front end for six archive maintenance
 actions,
-.BR backup ", " restore ", " purge ", " list ", and " check ,
+.BR backup ", " restore ", " purge ", " list ", " check ", and " configure ,
 which create a new base backup, prepare the necessary files for
 initiating a recovery, clean up old base backup and WAL segments that
 are no longer wanted, display the available base backups, and check
-the configuration, respectively.  It is designed to be run on the same
-machine as the PostgreSQL cluster, but the base backups and WAL
-segments that it operates on can be archived either locally or on a
-remote server.
+and create the configuration, respectively.  It is designed to be run
+on the same machine as the PostgreSQL cluster, but the base backups
+and WAL segments that it operates on can be archived either locally or
+on a remote server.
 
 The \fBpitrery\fP package also provides two helper scripts,
 \fBarchive_xlog\fP(1) and \fBrestore_xlog\fP(1), which can help with the
@@ -242,10 +242,11 @@ option from the configuration file.
 
 .TP
 .BI "\-U " name
-The user name to use to query the database cluster.  It is passed as the
-\fB\-\-username\fP option to \fBpsql\fP(1).  This will override the
-\fBPGUSER\fP option from the configuration file.  This must be a superuser
-with permission to execute \fBpg_start_backup\fP() on the cluster.
+The user name to use to query the database cluster.  It is passed as
+the \fB\-\-username\fP option to \fBpsql\fP(1).  This will override
+the \fBPGUSER\fP option from the configuration file.  This role must
+be a superuser or have the replication attribute to execute
+\fBpg_start_backup\fP() on the cluster.
 
 .TP
 .BI "\-d " database
@@ -528,6 +529,137 @@ This will override the \fBBACKUP_HOST\fP option from the configuration file.
 
 .RE
 
+.SS configure
+
+The \fBconfigure\fP action creates a configuration file. It needs a
+destination of the form \fB[[user@]host:]/path\fP to know where backups
+shall be stored. If a host is not provided, the backup is considered
+local.
+
+.TP 4
+.B SYNOPSIS
+.B pitrery
+.RI [ options ]
+.B configure
+.RI [ configure-options ]
+.RI destination
+
+.TP 4
+.B CONFIGURE-OPTIONS
+The following options are available for the \fBconfigure\fP action:
+
+.RS
+
+.TP
+.BI "\-o " config_file
+The configuration file to create. If it is not a path, the file is
+created in the default configuration directory.
+
+.TP
+.B \-C
+Do not connect to check the configuration of PostgreSQL and output the
+parameters to modify in postgresql.conf for WAL archiving.
+
+.TP
+.B \-f
+If the output configuration file already exists, overwrite it.
+
+.TP
+.BI "\-l " label
+The label to use for the base backup. This makes the backups to be
+saved in a subdirectory of the \fBBACKUP_DIR\fP.  This will configure
+the \fBBACKUP_LABEL\fP option in the configuration file.
+
+.TP
+.BI "\-s " mode
+The storage mode to use for the base backup.  The \fImode\fP may be
+\fBtar\fP or \fBrsync\fP.  This will configure the \fBSTORAGE\fP
+option in the configuration file.
+
+.TP
+.BI "\-m " count
+Keep (at least) this number of base backups.  The \fBpurge\fP action
+will never reduce the number of backups to less than this count,
+regardless of their age.  This will configure the
+\fBPURGE_KEEP_COUNT\fP option in the configuration file. Defaults to
+2.
+
+.TP
+.BI "\-g " days
+Keep all base backups dating back to (at least) this number of days.  The
+\fBpurge\fP action will never remove backups that are more recent than this,
+regardless of the number of them which remain.  This will configure the
+\fBPURGE_OLDER_THAN\fP option in the configuration file.
+
+.TP
+.BI "\-D " dir
+The \fBPGDATA\fP path of the cluster to back up on the local machine.
+This will configure the \fBPGDATA\fP option from the configuration
+file.  When \-c is given, the configure action gets the the PGDATA
+from the \fBdata_directory\fP setting of the cluster, \-D overrides
+this, and it is mandatory when not checking the cluster. This will configure the
+\fBPGDATA\fP option in the configuration file.
+
+.TP
+.BI "\-a " [[user@]host:]/dir
+Place to store WAL files, used by \fBarchive_xlog\fP(1) and
+\fBrestore_xlog\fP(1). This will configure \fBARCHIVE_LOCAL\fP,
+\fBARCHIVE_USER\fP, \fBARCHIVE_HOST\fP and \fBARCHIVE_DIR\fP. When a host is missing,
+archiving is considered local thus ARCHIVE_LOCAL="yes". When not used,
+the configuration falls back to the destination provided for backups,
+and \fBARCHIVE_DIR\fP is configured to "$BACKUP_DIR/$BACKUP_LABEL/archived_xlog"
+
+.TP
+.BI "\-P " psql
+The \fBpsql\fP(1) command to use to run SQL statements on the database cluster.
+This will configure the \fBPGPSQL\fP option in the configuration file.
+
+You should avoid using this to pass extra options to \fBpsql\fP (and instead
+use the options below for that).  It is mostly for overriding the default
+\fBpsql\fP(1) that would otherwise be found in the system \fBPATH\fP.
+
+.TP
+.BI "\-h " host
+The host address to use to query the database cluster.  This may be an IP
+address for TCP connection or the path to a unix socket directory for a
+local peer connection.  It is passed as the \fB\-\-host\fP option to
+\fBpsql\fP(1).  This will configure the \fBPGHOST\fP option in the
+configuration file.
+
+.TP
+.BI "\-p " port
+The port to use to query the database cluster.  It is passed as the
+\fB\-\-port\fP option to \fBpsql\fP(1).  This will configure the \fBPGPORT\fP
+option in the configuration file.
+
+.TP
+.BI "\-U " name
+The user name to use to query the database cluster.  It is passed as
+the \fB\-\-username\fP option to \fBpsql\fP(1).  This will configure
+the \fBPGUSER\fP option in the configuration file.  This role must
+be a superuser or have the replication attribute to execute
+\fBpg_start_backup\fP() on the cluster.
+
+.TP
+.BI "\-d " database
+The database to use when querying the cluster.  It is passed as the
+\fB\-\-dbname\fP option to \fBpsql\fP(1).  This will configure the
+\fBPGDATABASE\fP option in the configuration file.  Note that this does not
+influence what is included in the base backup, point in time recovery is
+always for the entire cluster.
+
+.TP
+.B \-?
+Output the brief help summarising the \fBconfigure\fP options.
+
+.TP
+.I [[user@]host:]/path/to/backups
+Place where to store the backups. When host is given, backup is done
+over SSH, otherwise it is considered local and BACKUP_IS_LOCAL is set
+to "yes". This will configure the \fBBACKUP_IS_LOCAL\fP, \fBBACKUP_USER\fP,
+\fBBACKUP_HOST\fP and \fBBACKUP_DIR\fP options in the configuration file.
+
+.RE
 
 .SS check
 The \fBcheck\fP action is used to check if a configuration file is

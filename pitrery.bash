@@ -44,6 +44,7 @@ usage() {
     echo "    restore"
     echo "    purge"
     echo "    check"
+    echo "    configure"
     echo
     exit $1
 }
@@ -95,13 +96,14 @@ if [[ $config != */* ]]; then
     config="$config_dir/$(basename -- "$config" .conf).conf"
 fi
 
-# Load the configuration file
-if [ -f "$config" ]; then
-    . "$config"
-else
-    error "cannot access configuration file: $config"
-fi
-
+load_config() {
+    # Load the configuration file
+    if [ -f "$config" ]; then
+	. "$config"
+    else
+	error "cannot access configuration file: $config"
+    fi
+}
 
 select_cmd() {
     # Find the command to run
@@ -131,6 +133,7 @@ run_cmd() {
 opts=()
 case $action in
     list)
+	load_config
 	select_cmd "list_pitr"
 
 	# Parse args after action: they should take precedence over the configuration
@@ -156,6 +159,7 @@ case $action in
 	;;
 
     backup)
+	load_config
 	select_cmd "backup_pitr"
 
 	# Parse args after action: they should take precedence over the configuration
@@ -204,6 +208,7 @@ case $action in
 	;;
 
     restore)
+	load_config
 	select_cmd "restore_pitr"
 
 	# Parse args after action: they should take precedence over the configuration
@@ -258,6 +263,7 @@ case $action in
 	;;
 
     purge)
+	load_config
 	select_cmd "purge_pitr"
 
 	# Parse args after action: they should take precedence over the configuration
@@ -296,6 +302,7 @@ case $action in
 	;;
 
     check)
+	load_config
 	select_cmd "check_pitr"
 
 	while getopts "C:?" opt; do
@@ -312,6 +319,41 @@ case $action in
 	fi
 
         # Run the command
+	$dry_run "$cmd" "${opts[@]}"
+	exit $?
+	;;
+
+    configure)
+	# Here we do not load any configuration so that it does not
+	# change the output in the back of the user. This is important
+	# for PostgreSQL related environment variables that we do not
+	# want to overwrite. This is why the following loop getopts on
+	# get just pass in the command line.
+	select_cmd "configure_pitr"
+
+	while getopts "o:fCl:s:m:g:D:a:P:h:p:U:d:?" opt; do
+	    case $opt in
+		o) opts+=( "-o" "$OPTARG" );;
+		f) opts+=( "-f" );;
+		C) opts+=( "-C" );;
+		l) opts+=( "-l" "$OPTARG" );;
+		s) opts+=( "-s" "$OPTARG" );;
+		m) opts+=( "-m" "$OPTARG" );;
+		g) opts+=( "-g" "$OPTARG" );;
+		D) opts+=( "-D" "$OPTARG" );;
+		a) opts+=( "-a" "$OPTARG" );;
+
+		P) opts+=( "-P" "$OPTARG" );;
+		h) opts+=( "-h" "$OPTARG" );;
+		p) opts+=( "-p" "$OPTARG" );;
+		U) opts+=( "-U" "$OPTARG" );;
+		d) opts+=( "-d" "$OPTARG" );;
+
+		"?") "$cmd" '-?'; exit $?;;
+	    esac
+	done
+
+	[ -n "${@:$OPTIND:1}" ] && opts+=( "${@:$OPTIND:1}" )
 	$dry_run "$cmd" "${opts[@]}"
 	exit $?
 	;;

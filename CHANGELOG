@@ -1,7 +1,10 @@
 pitrery 1.11
 ============
 
-  * New check action to test configuration files
+  * New configure action to create a configuration file from the
+    command line.
+
+  * New check action to test configuration files.
 
   * Do not backup replication slots state files and produce an SQL
     file to recreate them after restore.
