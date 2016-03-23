@@ -430,7 +430,7 @@ else
     fi
 
     # Check configuration of PostgreSQL
-    info "checking the configuration:"
+    info "current configuration:"
     if (($pg_version >= 90000 )); then
 	if ! wal_level=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_level';" -- "$psql_condb"); then
 	    error "could not get the get the value of wal_level"
