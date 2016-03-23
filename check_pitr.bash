@@ -310,7 +310,7 @@ fi
 info "==> checking WAL files archiving configuration"
 
 arch_ok="yes"
-if [ "$ARCHIVE_LOCAL" = "no" ]; then
+if [[ "$ARCHIVE_LOCAL" == "no" ]]; then
     info "checking SSH connection for WAL archiving"
 
     target="$ARCHIVE_HOST"
@@ -338,12 +338,14 @@ else
 fi
 
 # Check the local rsync for WAL archiving
-info "checking rsync on the local host"
-if ! which rsync >/dev/null 2>&1; then
-    error "could not find rsync in the PATH of the local host"
-    arch_ok="no"
-else
-    info "rsync found on the local host"
+if [[ $STORAGE == "rsync" ]] || [[ $ARCHIVE_LOCAL == "no" ]]; then
+    info "checking rsync on the local host"
+    if ! which rsync >/dev/null 2>&1; then
+	error "could not find rsync in the PATH of the local host"
+	arch_ok="no"
+    else
+	info "rsync found on the local host"
+    fi
 fi
 
 # Archiving with archive_xlog is not mandatory, so tell the user that
