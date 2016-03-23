@@ -178,7 +178,7 @@ while getopts "Lu:b:l:D:x:d:O:t:nRc:e:r:C:T?" opt; do
 	c) uncompress_bin=$OPTARG;;
 	e) compress_suffix=$OPTARG;;
 	r) restore_command=$OPTARG;;
-	C) restore_xlog_config=$OPTARG;;
+	C) restore_xlog_config="$OPTARG";;
 	T) log_timestamp="yes";;
 	"?") usage 1;;
 	*) error "Unknown error while processing options";;
@@ -213,6 +213,7 @@ fi
 
 # When no restore_command is given, build it using restore_xlog
 if [ -z "$restore_command" ]; then
+    [[ "$restore_xlog_config" == */* ]] && restore_xlog_config=$(readlink -m "$restore_xlog_config")
     restore_command="@BINDIR@/restore_xlog${restore_xlog_config:+ -C $(qw "$restore_xlog_config")} %f %p"
 fi
 
@@ -275,7 +276,7 @@ else
     # get the latest
     # The test for list being empty here is just belt and braces,
     # we should have already failed with an error above if it is.
-    (( ${#list[@]} > 0 )) && backup_dir=$(dirname -- "${list[-1]}")
+    (( ${#list[@]} > 0 )) && backup_dir=$(dirname -- "${list[*]: -1}")
 fi
 
 [ -n "$backup_dir" ] || error "Could not find a backup${recovery_target_time:+ for $recovery_target_time}"
