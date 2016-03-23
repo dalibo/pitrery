@@ -104,7 +104,7 @@ while getopts "o:fCl:s:m:g:D:a:P:h:p:U:d:?" opt; do
 	s) storage=$OPTARG;;
 	m) max_count=$OPTARG;;
 	g) max_days=$OPTARG;;
-	D) pgdata=$OPTARG;;
+	D) pgdata=$(readlink -m -- "$OPTARG");;
 	a) archive_target=$OPTARG;;
 
 	P) psql=$OPTARG; psql_command=( "$OPTARG" );;
@@ -164,6 +164,17 @@ else
     archive_local=$backup_local
 fi
 
+# the configuration for archive_xlog must be an absolute path or
+# relative to PGDATA. Just convert it to a absolute path if needed,
+# because we cannot garantee what the user provides is relative to
+# PGDATA.
+if [ -n "$output" ]; then
+    if [[ "$output" == */* ]]; then
+	restore_xlog_config=$(readlink -m "$output")
+    else
+	restore_xlog_config="$output"
+    fi
+fi
 
 
 if [ "$connect" = "yes" ]; then
@@ -238,8 +249,8 @@ if [ "$connect" = "yes" ]; then
 	    info "archive_mode must be set to on"
 	fi
 
-	if [ -n "$output" ]; then
-	    info "please ensure archive_command includes 'archive_xlog -C $output %p'"
+	if [ -n "$restore_xlog_config" ]; then
+	    info "please ensure archive_command includes 'archive_xlog -C $restore_xlog_config %p'"
 	else
 	    info "please ensure archive_command includes a call to archive_xlog"
 	fi
@@ -258,8 +269,8 @@ if [ -z "$data_directory" ]; then
     info "==> PostgreSQL configuration to change in 'postgresql.conf':"
     info "  wal_level = archive # or higher (>= 9.0)"
     info "  archive_mode = on # (>= 8.3)"
-    if [ -n "$output" ]; then
-	info "  archive_command = 'archive_xlog -C $output %p'"
+    if [ -n "$restore_xlog_config" ]; then
+	info "  archive_command = 'archive_xlog -C $restore_xlog_config %p'"
     else
 	info "  archive_command = 'archive_xlog -C {your_conf} %p'"
     fi
@@ -345,8 +356,19 @@ output_param() {
 	# construct
 	v=$(qw "$value")
 
-	cat "$file" | sed -re "s,^#${param}=.*,${param}=\"${v//,/\\,}\"," > "$tmpfile" ||
-	    error "Cannot change parameter in configuration file"
+	# qw can output string starting with a $, sourcing the
+	# configuration file later will make the value ok, but if the
+	# sed that replaces the values inside the configuration puts
+	# double quote around the value it will prevent source from
+	# interpreting $ starting strings correctly.
+	echo "$v" | grep '^\$' >/dev/null 2>&1
+	if [ $? = 0 ]; then
+	    cat "$file" | sed -re "s/^#${param}=.*/${param}=${v//\//\\/}/" > "$tmpfile" ||
+		error "Cannot change parameter in configuration file"
+	else
+	    cat "$file" | sed -re "s/^#${param}=.*/${param}=\"${v//\//\\/}\"/" > "$tmpfile" ||
+		error "Cannot change parameter in configuration file"
+	fi
 
 	mv "$tmpfile" "$file" || error "Cannot rename tmpfile to configuration file"
     fi
