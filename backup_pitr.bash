@@ -331,7 +331,10 @@ trap stop_backup INT TERM KILL EXIT
 if [ "$storage" = "rsync" ]; then
     if [ "$local_backup" = "yes" ]; then
 	list=( "$backup_root/$label_prefix/"[0-9]*/ )
-	(( ${#list[@]} > 0 )) && prev_backup=${list[-1]%/}
+	if (( ${#list[@]} > 0 )); then
+	    _dir=${list[*]: -1}
+	    prev_backup=${_dir%/}
+	fi
     else
 	prev_backup=$(ssh -n -- "$ssh_target" "f=\$(find $(qw "$backup_root/$label_prefix") -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -rz | cut -d '' -f1) && printf '%s' \"\$f\"")
     fi
@@ -425,6 +428,7 @@ case $storage in
 	rsync_link=()
 	if [ -n "$prev_backup" ]; then
 	    # Link previous backup of pgdata
+	    info "backup with hardlinks from $prev_backup"
 	    if [ "$local_backup" = "yes" ]; then
 		rsync_link=( '--link-dest' "$prev_backup/pgdata" )
 	    else
@@ -556,10 +560,18 @@ while read -r -d '' f; do
 	fi
     fi
 done < <(
-    "${psql_command[@]}" -0 -Atc \
-	"SELECT setting FROM pg_settings WHERE name IN ('config_file', 'hba_file', 'ident_file');" \
-	-- "$psql_condb" \
-	|| warn "could not get the list of configuration files from PostgreSQL"
+    # The values of the settings is dependant of the user, it means
+    # those path can include characters such as newline, which can
+    # conflict with the record separator. We could use psql -0 but it
+    # is not available before 9.2, this is why we loop and build nul
+    # separated output this way.
+    for f in 'config_file' 'hba_file' 'ident_file'; do
+	"${psql_command[@]}" -Atc \
+            "SELECT setting FROM pg_settings WHERE name = '$f';" \
+	    -- "$psql_condb" \
+ 	    || warn "could not get the list of configuration files from PostgreSQL"
+	printf "\0"
+    done
 )
 
 # Compute the name of the backup directory from the stop time
