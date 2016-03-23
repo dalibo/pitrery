@@ -1,7 +1,14 @@
 TODO / Roadmap
 
 1.11:
-- Check if all archives are available with a new action "check"
+- use ISO 8601 timestamps for naming backups (with an option to keep former behaviour)
+- make remote access for xlog fallback to the ones of backups
+- check: rework display of environment variables to support newlines in values
+- backup: test directory for rsync --link-dest
+- backup: deference symlinks
 
+
+1.12:
+- check: Check if all archives are available
 
 
