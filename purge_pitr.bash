@@ -129,8 +129,10 @@ fi
 if [ -z "$xlog_host" ]; then
     local_xlog=$local_backup
     xlog_host=$target
+
+    [ -z "$xlog_ssh_user" ] && xlog_ssh_user=$ssh_user
 fi
-[ -z "$xlog_ssh_user" ] && xlog_ssh_user=$ssh_user
+
 
 # Prepare the IPv6 address for use with SSH
 [[ $target == *([^][]):*([^][]) ]] && target="[${target}]"
@@ -399,8 +401,8 @@ info "${#wal_purge_list[@]} old WAL file(s) to remove${target:+ from $target}"
 if (( ${#wal_purge_list[@]} > 0 )); then
     if [ "$dry_run" = "yes" ]; then
 	info "Would purge ${#wal_purge_list[@]} old WAL file(s):"
-	info " First: $(basename -- ${wal_purge_list[1]})"
-	info " Last: $(basename -- ${wal_purge_list[@]:(-1)})"
+	info " First: $(basename -- "${wal_purge_list[1]}")"
+	info " Last: $(basename -- "${wal_purge_list[@]:(-1)}")"
     else
 	info "purging old WAL files"
 
@@ -408,11 +410,11 @@ if (( ${#wal_purge_list[@]} > 0 )); then
 	# command without too many arguments.
 	if [ "$local_xlog" = "yes" ]; then
 	    for wal in "${wal_purge_list[@]}"; do
-		echo "rm -- $wal"
+		echo "rm -- $(qw "$wal")"
 	    done | @BASH@ || error "unable to remove wal files"
 	else
 	    for wal in "${wal_purge_list[@]}"; do
-		echo "rm -- $wal"
+		echo "rm -- $(qw "$wal")"
 	    done | ssh -- "$xlog_ssh_target" "cat | sh" || error "unable to remove wal files on $xlog_host"
 	fi
     fi
