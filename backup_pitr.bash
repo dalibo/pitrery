@@ -333,10 +333,16 @@ if [ "$storage" = "rsync" ]; then
 	list=( "$backup_root/$label_prefix/"[0-9]*/ )
 	if (( ${#list[@]} > 0 )); then
 	    _dir=${list[*]: -1}
-	    prev_backup=${_dir%/}
+
+	    # Since the previous backup can be in tar storage, check
+	    # that a pgdata subdirectory exists
+	    [ -d "${_dir%/}/pgdata" ] && prev_backup=${_dir%/}
 	fi
     else
-	prev_backup=$(ssh -n -- "$ssh_target" "f=\$(find $(qw "$backup_root/$label_prefix") -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -rz | cut -d '' -f1) && printf '%s' \"\$f\"")
+	_dir=$(ssh -n -- "$ssh_target" "f=\$(find $(qw "$backup_root/$label_prefix") -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -rz | cut -d '' -f1) && printf '%s' \"\$f\"")
+	if ssh -n -- "$ssh_target" "test -d $(qw "$_dir/pgdata")" 2>/dev/null; then
+	    prev_backup="$_dir"
+	fi
     fi
 fi
 
