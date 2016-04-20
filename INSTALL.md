@@ -402,6 +402,10 @@ through pitrery :
 * `LOG_TIMESTAMP` can be set to "yes" to prefix the messages with the
   date for backup, restore and purge actions.
 
+* `USE_ISO8601_TIMESTAMPS`, when set to "yes", names the backup
+  directories using ISO 8601 format. Defaults to "no" to keep the
+  backward compatibility, as mixing formats of backup names would
+  break the sorting of backups on restore.
 
 Hooks
 -----

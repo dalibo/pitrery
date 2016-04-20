@@ -472,6 +472,11 @@ Les paramètres suivants contrôlent les différentes actions.
    de log avec la date lors des opérations des sauvegarde,
    restauration ou purge.
 
+* `USE_ISO8601_TIMESTAMPS`, configuré à "yes", permet d'utiliser le
+  format ISO 8601 pour les noms de répertoire des backups. La valeur
+  par défaut reste "no" pour la compatibilité ascendante, mixer les
+  conventions de nommage empêche le tri des backups lors de la
+  restauration.
 
 Hooks
 -----

@@ -163,7 +163,7 @@ case $action in
 	select_cmd "backup_pitr"
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lb:l:u:D:s:P:h:p:U:d:c:e:T?" arg 2>/dev/null; do
+	while getopts "Lb:l:u:D:s:P:h:p:U:d:c:e:tT?" arg 2>/dev/null; do
 	    case $arg in
 		L) BACKUP_IS_LOCAL="yes";;
 		b) BACKUP_DIR=$OPTARG;;
@@ -178,6 +178,7 @@ case $action in
 		d) PGDATABASE=$OPTARG;;
 		c) BACKUP_COMPRESS_BIN=$OPTARG;;
 		e) BACKUP_COMPRESS_SUFFIX=$OPTARG;;
+                t) USE_ISO8601_TIMESTAMPS="yes";;
 		T) LOG_TIMESTAMP="yes";;
 
 		'?') "$cmd" '-?'; exit $?;;
@@ -185,20 +186,21 @@ case $action in
 	done
 
 	# Add relevant options coming from the configuration
-	[ "$BACKUP_IS_LOCAL" = "yes" ]	    && opts+=( "-L" )
-	[ -n "$BACKUP_DIR" ]		    && opts+=( "-b" "$BACKUP_DIR" )
-	[ -n "$BACKUP_LABEL" ]		    && opts+=( "-l" "$BACKUP_LABEL" )
-	[ -n "$BACKUP_USER" ]		    && opts+=( "-u" "$BACKUP_USER" )
-	[ -n "$PGDATA" ]		    && opts+=( "-D" "$PGDATA" )
-	[ -n "$STORAGE" ]		    && opts+=( "-s" "$STORAGE" )
-	[ -n "$PGPSQL" ]		    && opts+=( "-P" "$PGPSQL" )
-	[ -n "$PGHOST" ]		    && opts+=( "-h" "$PGHOST" )
-	[ -n "$PGPORT" ]		    && opts+=( "-p" "$PGPORT" )
-	[ -n "$PGUSER" ]		    && opts+=( "-U" "$PGUSER" )
-	[ -n "$PGDATABASE" ]		    && opts+=( "-d" "$PGDATABASE" )
-	[ -n "$BACKUP_COMPRESS_BIN" ]	    && opts+=( "-c" "$BACKUP_COMPRESS_BIN" )
-	[ -n "$BACKUP_COMPRESS_SUFFIX" ]    && opts+=( "-e" "$BACKUP_COMPRESS_SUFFIX" )
-	[ "$LOG_TIMESTAMP" = "yes" ]	    && opts+=( "-T" )
+	[ "$BACKUP_IS_LOCAL" = "yes" ]	      && opts+=( "-L" )
+	[ -n "$BACKUP_DIR" ]		      && opts+=( "-b" "$BACKUP_DIR" )
+	[ -n "$BACKUP_LABEL" ]		      && opts+=( "-l" "$BACKUP_LABEL" )
+	[ -n "$BACKUP_USER" ]		      && opts+=( "-u" "$BACKUP_USER" )
+	[ -n "$PGDATA" ]		      && opts+=( "-D" "$PGDATA" )
+	[ -n "$STORAGE" ]		      && opts+=( "-s" "$STORAGE" )
+	[ -n "$PGPSQL" ]		      && opts+=( "-P" "$PGPSQL" )
+	[ -n "$PGHOST" ]		      && opts+=( "-h" "$PGHOST" )
+	[ -n "$PGPORT" ]		      && opts+=( "-p" "$PGPORT" )
+	[ -n "$PGUSER" ]		      && opts+=( "-U" "$PGUSER" )
+	[ -n "$PGDATABASE" ]		      && opts+=( "-d" "$PGDATABASE" )
+	[ -n "$BACKUP_COMPRESS_BIN" ]	      && opts+=( "-c" "$BACKUP_COMPRESS_BIN" )
+	[ -n "$BACKUP_COMPRESS_SUFFIX" ]      && opts+=( "-e" "$BACKUP_COMPRESS_SUFFIX" )
+        [ "$USE_ISO8601_TIMESTAMPS" = "yes" ] && opts+=( "-t" )
+	[ "$LOG_TIMESTAMP" = "yes" ]	      && opts+=( "-T" )
 
 	# If hooks are defined export them
 	[ -n "$PRE_BACKUP_COMMAND" ] && export PRE_BACKUP_COMMAND

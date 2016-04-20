@@ -218,6 +218,12 @@ mode.  This will override the \fBBACKUP_COMPRESS_SUFFIX\fP option from the
 configuration file.
 
 .TP
+.B \-t
+When naming the backup directory from the stop time of the backup, use
+ISO 8601 format. This will override the \fBUSE_ISO8601_TIMESTAMPS\fP
+option from the configuration file.
+
+.TP
 .BI "\-P " psql
 The \fBpsql\fP(1) command to use to run SQL statements on the database cluster.
 This will override the \fBPGPSQL\fP option from the configuration file.
@@ -916,6 +922,12 @@ parameter or input piped to \fIstdin\fP, and support a \fB\-c\fP option to
 send output to \fIstdout\fP.  If not set, the default is to use
 .BR gunzip (1).
 
+.TP
+.B USE_ISO8601_TIMESTAMPS
+When naming the backup directory from the stop time of the backup, use
+ISO 8601 format. Defaults to "no" to keep the backward compatibility,
+as mixing formats of backup names would break the sorting of backups on
+restore.
 
 .SS Restore configuration
 These variables are used to configure the \fBrestore\fP action operation.

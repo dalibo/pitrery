@@ -39,6 +39,7 @@ usage() {
     echo "    -s mode              Storage method, tar or rsync"
     echo "    -c compress_bin      Compression command for tar method"
     echo "    -e compress_suffix   Suffix added by the compression program"
+    echo "    -t                   Use ISO 8601 format to name backups"
     echo
     echo "Connection options:"
     echo "    -P PSQL              path to the psql command"
@@ -110,10 +111,11 @@ compress_bin="gzip -4"
 compress_suffix="gz"
 psql_command=( "psql" "-X" )
 log_timestamp="no"
+use_iso8601_timestamps="no"
 
 
 # CLI options
-while getopts "Lb:l:u:D:s:c:e:P:h:p:U:d:T?" opt; do
+while getopts "Lb:l:u:D:s:c:e:tP:h:p:U:d:T?" opt; do
     case $opt in
         L) local_backup="yes";;
 	b) backup_root=$OPTARG;;
@@ -123,6 +125,7 @@ while getopts "Lb:l:u:D:s:c:e:P:h:p:U:d:T?" opt; do
 	s) storage=$OPTARG;;
 	c) compress_bin=$OPTARG;;
 	e) compress_suffix=$OPTARG;;
+        t) use_iso8601_timestamps="yes";;
 
 	P) psql_command=( "$OPTARG" );;
 	h) dbhost=$OPTARG;;
@@ -580,8 +583,14 @@ done < <(
     done
 )
 
-# Compute the name of the backup directory from the stop time
-backup_name=`echo $stop_time | awk '{ print $1"_"$2 }' | sed -e 's/[:-]/./g'`
+# Compute the name of the backup directory from the stop time, use
+# date to format the stop time as ISO 8601 if required. When we can have
+if [[ "$use_iso8601_timestamps" == "yes" ]]; then
+    backup_name=$(date -d "$stop_time" +"%FT%T%z") ||
+        error_and_hook "could not format stop time to a directory name"
+else
+    backup_name=$(echo $stop_time | awk '{ gsub(/[:-]/, "."); print $1"_"$2 }')
+fi
 new_backup_dir=$backup_root/$label_prefix/$backup_name
 
 # Finish the backup by copying needed files and rename the backup

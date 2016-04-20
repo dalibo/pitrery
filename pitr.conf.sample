@@ -91,6 +91,12 @@ STORAGE="tar"
 # Timestamp the messages.
 LOG_TIMESTAMP="no"
 
+# When naming the backup directory from the stop time of the backup,
+# use ISO 8601 format. Defaults to "no" to keep the backward
+# compatibility, as mixing formats of backup names would break the
+# sorting of backups on restore.
+USE_ISO8601_TIMESTAMPS="no"
+
 ####################
 # WAL archiving
 ####################
