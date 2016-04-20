@@ -370,9 +370,10 @@ psql_condb=${PGDATABASE:-postgres}
 info "psql command and connection options are: ${psql_command[@]}"
 info "connection database is: $psql_condb"
 info "environment variables (maybe overwritten by the configuration file):"
-env | grep "^PG" | while read v; do
+while read -r -d '' v; do
+    echo $v | grep -q "^PG" || continue
     info "  $v"
-done
+done < <(env -0 2>/dev/null || warn "could not read the environment: env -0 failed")
 
 # Get the complete version from PostgreSQL
 pg_dotted_version=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'server_version';" -- "$psql_condb" 2>/dev/null)
