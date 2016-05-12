@@ -135,8 +135,8 @@ fi
 
 
 # Prepare the IPv6 address for use with SSH
-[[ $target == *([^][]):*([^][]) ]] && target="[${target}]"
-[[ $xlog_host == *([^][]):*([^][]) ]] && xlog_host="[${xlog_host}]"
+echo $target | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && target="[${target}]"
+echo $xlog_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && xlog_host="[${xlog_host}]"
 ssh_target=${ssh_user:+$ssh_user@}$target
 xlog_ssh_target=${xlog_ssh_user:+$xlog_ssh_user@}$xlog_host
 

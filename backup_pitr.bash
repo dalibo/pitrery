@@ -163,7 +163,7 @@ fi
 current_time=`date +%Y.%m.%d-%H.%M.%S`
 
 # scp needs IPv6 between brackets
-[[ $target == *([^][]):*([^][]) ]] && target="[${target}]"
+echo $target | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && target="[${target}]"
 ssh_target=${ssh_user:+$ssh_user@}$target
 
 # Ensure failed globs will be empty, not left containing the literal glob pattern
@@ -477,9 +477,11 @@ case $storage in
 	    if [ -n "$prev_backup" ]; then
 	    	# Link previous backup of the tablespace
 		if [ "$local_backup" = "yes" ]; then
-		    rsync_link=( '--link-dest' "$prev_backup/tblspc/$_name" )
+		    [ -d "$prev_backup/tblspc/$_name" ] && rsync_link=( '--link-dest' "$prev_backup/tblspc/$_name" )
 		else
-		    rsync_link=( '--link-dest' "$(qw "$prev_backup/tblspc/$_name")" )
+                    if ssh -n -- "$ssh_target" "test -d $(qw "$prev_backup/tblspc/$_name")" 2>/dev/null; then
+		        rsync_link=( '--link-dest' "$(qw "$prev_backup/tblspc/$_name")" )
+                    fi
 		fi
 	    fi
 

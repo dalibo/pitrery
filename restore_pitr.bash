@@ -199,7 +199,7 @@ if [ -n "$source" ] && [ "$local_backup" = "yes" ]; then
     error "BACKUP_HOST and BACKUP_IS_LOCAL are set, it can't be both"
 fi
 
-[[ $source == *([^][]):*([^][]) ]] && source="[${source}]"
+echo $source | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && source="[${source}]"
 ssh_target=${ssh_user:+$ssh_user@}$source
 
 # Ensure failed globs will be empty, not left containing the literal glob pattern
@@ -336,13 +336,13 @@ info "  PGDATA -> $pgdata"
 
 [ -n "$pgxlog" ] && info "  PGDATA/pg_xlog -> $pgxlog"
 
-# Populate an associative array with the tablespace directory names.
-# We'll use this to check if any of them appear more than once after relocations are applied.
-declare -A tspc_dedup
+# Populate an array with tablespace directory to check we have duplicates
+declare -a tspc_dedup
 
+# Print the tablespace relocation information
 for (( i=0; i<$tspc_count; ++i )); do
     info "  tablespace \"${tspc_name[$i]}\" (${tspc_oid[$i]}) -> ${tspc_dir[$i]} (relocated: ${tspc_reloc[$i]})"
-    tspc_dedup[${tspc_dir[$i]}]=1
+    tspc_dedup+=( ${tspc_dir[$i]} )
 done
 
 info
@@ -353,7 +353,7 @@ info "  restore_command = '$restore_command'"
 info 
 
 # Check if tablespace relocation list have duplicates
-if (( ${#tspc_dedup[@]} < $tspc_count )); then
+if (( $(for o in "${tspc_dedup[@]}"; do echo $o; done | sort -u | wc -l) < $tspc_count )); then
     error "found duplicates in tablespace relocations. Check options and the list of tablespaces of the backup"
 fi
 

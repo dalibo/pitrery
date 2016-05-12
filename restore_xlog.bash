@@ -191,7 +191,7 @@ if [ "$ARCHIVE_LOCAL" = "yes" ]; then
     fi
 else
     # check if we have a IPv6, and put brackets for scp
-    [[ $ARCHIVE_HOST == *([^][]):*([^][]) ]] && ARCHIVE_HOST="[${ARCHIVE_HOST}]"
+    echo $ARCHIVE_HOST | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && ARCHIVE_HOST="[${ARCHIVE_HOST}]"
 
     if ! scp -- "${ARCHIVE_USER:+$ARCHIVE_USER@}$ARCHIVE_HOST:$(qw "$ARCHIVE_DIR/$xlog_file")" "$target_file" >/dev/null; then
 	error "could not copy $ARCHIVE_HOST:$ARCHIVE_DIR/$xlog_file to $target_file"

@@ -89,7 +89,7 @@ if [ -n "$host" ] && [ "$local_backup" = "yes" ]; then
     error "BACKUP_HOST and BACKUP_IS_LOCAL are set, it can't be both"
 fi
 
-[[ $host == *([^][]):*([^][]) ]] && host="[${host}]"
+echo $host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && host="[${host}]"
 ssh_target=${ssh_user:+$ssh_user@}$host
 
 

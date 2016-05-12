@@ -135,8 +135,8 @@ fi
 
 # Parse the target into user, host and path, deduce if backup is local
 backup_user="$(echo $target | grep '@' | cut -d'@' -f1 )"
-backup_host="$(echo $target | grep ':' | sed -Ee 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
-backup_dir="$(echo $target | sed -Ee 's/(.*):(.*)/\2/')"
+backup_host="$(echo $target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
+backup_dir="$(echo $target | sed -re 's/(.*):(.*)/\2/')"
 if [ -z "$backup_host" ]; then
     backup_local="yes"
 else
@@ -148,8 +148,8 @@ fi
 # Parse archive target the same way
 if [ -n "$archive_target" ]; then
     archive_user="$(echo $archive_target | grep '@' | cut -d'@' -f1 )"
-    archive_host="$(echo $archive_target | grep ':' | sed -Ee 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
-    archive_dir="$(echo $archive_target | sed -Ee 's/(.*):(.*)/\2/')"
+    archive_host="$(echo $archive_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
+    archive_dir="$(echo $archive_target | sed -re 's/(.*):(.*)/\2/')"
     if [ -z "$archive_host" ]; then
 	archive_local="yes"
     else
