@@ -267,7 +267,7 @@ fi
 # changed in postgresql.conf
 if [ -z "$data_directory" ]; then
     info "==> PostgreSQL configuration to change in 'postgresql.conf':"
-    info "  wal_level = archive # or higher (>= 9.0)"
+    info "  wal_level = archive # or higher (>= 9.0 and < 9.6), replica or higher >= 9.6"
     info "  archive_mode = on # (>= 8.3)"
     if [ -n "$restore_xlog_config" ]; then
 	info "  archive_command = 'archive_xlog -C $restore_xlog_config %p'"

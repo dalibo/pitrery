@@ -432,14 +432,14 @@ else
 
     # Check configuration of PostgreSQL
     info "current configuration:"
-    if (($pg_version >= 90000 )); then
+    if (( $pg_version >= 90000 )); then
 	if ! wal_level=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_level';" -- "$psql_condb"); then
 	    error "could not get the get the value of wal_level"
 	fi
 	info "  wal_level = $wal_level"
     fi
 
-    if (($pg_version >= 80300 )); then
+    if (( $pg_version >= 80300 )); then
 	if ! archive_mode=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'archive_mode';" -- "$psql_condb"); then
 	    error "could not get the get the value of archive_mode"
 	fi
@@ -453,7 +453,15 @@ else
 
     # wal_level must be different than minimal
     if [ -n "$wal_level" ] && [ $wal_level = "minimal" ]; then
-	error "wal_level must be at least set to archive"
+        if (( $pg_version >= 90000 )); then
+            if (( $pg_version < 90600 )); then
+	        error "wal_level must be set at least to archive"
+            else
+                # archive and hot_standby levels have been merged into
+                # replica starting from 9.6
+                error "wal_level must be set at least to replica"
+            fi
+        fi
     fi
 
     if [ -n "$archive_mode" ] && [ $archive_mode = "off" ]; then
