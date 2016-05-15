@@ -649,7 +649,7 @@ case $pgvers in
 	echo "#recovery_target_timeline = 'latest'"
 	echo "#pause_at_recovery_target = true"
 	;;
-    905)
+    905|906)
 	echo "#recovery_end_command = ''"
 	echo "#recovery_target_name = ''	# e.g. 'daily backup 2011-01-26'"
 	echo "#recovery_target_xid = ''"
@@ -730,11 +730,15 @@ info "please check directories and recovery.conf before starting the cluster"
 info "and do not forget to update the configuration of pitrery if needed"
 info
 
-if [ -f "$replslots_sql" ] && [[ $(cat "$replslots_sql" | wc -l) > 0 ]]; then
-    info "replication slots defined at the time of the backup can be restored"
-    info "with the SQL commands from:"
-    info "  $replslots_sql"
-    info
+if [ -f "$replslots_sql" ]; then
+    if [[ $(cat "$replslots_sql" | wc -l) > 0 ]]; then
+        info "replication slots defined at the time of the backup can be restored"
+        info "with the SQL commands from:"
+        info "  $replslots_sql"
+        info
+    else
+        rm -f -- "$replslots_sql"
+    fi
 fi
 
 if [ -f "$updsql" ]; then
