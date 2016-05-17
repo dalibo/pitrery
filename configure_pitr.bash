@@ -89,7 +89,6 @@ qw() {
 # Hard coded configuration
 config_dir="@SYSCONFDIR@"
 psql_command=( "psql" "-X" )
-label_prefix=$(hostname)
 storage="tar"
 connect="yes"
 overwrite_config="no"
@@ -173,6 +172,16 @@ if [ -n "$output" ]; then
 	restore_xlog_config=$(readlink -m "$output")
     else
 	restore_xlog_config="$output"
+    fi
+fi
+
+# if the label is not provided on the command line, deduce it from the
+# name of the configuration file, with a fallback to the hostname.
+if [ -z "$label_prefix" ]; then
+    if [ -n "$output" ]; then
+        label_prefix="$(basename -- "$output" .conf)"
+    else
+        label_prefix=$(hostname)
     fi
 fi
 
