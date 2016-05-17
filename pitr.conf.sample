@@ -25,7 +25,7 @@ PGHOST="/tmp"
 PGDATABASE="postgres"
 
 # Command line to invoke psql.
-#PGPSQL="psql -X"
+#PGPSQL="psql"
 
 # Target owner of the files when restoring with a different user
 # (e.g. one may need to restore as root to create some missing
