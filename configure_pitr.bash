@@ -191,6 +191,10 @@ if [ "$connect" = "yes" ]; then
     # purpose is to output what should be changed to configure WAL
     # archiving.
     info "==> checking access to PostgreSQL"
+
+    # Starting from 9.6 .psqlrc is sourced with psql -c or -f, so we
+    # force -X
+    psql_command+=( "-X" )
     [ -n "$dbhost" ] && psql_command+=( "-h" "$dbhost" )
     [ -n "$dbport" ] && psql_command+=( "-p" "$dbport" )
     [ -n "$dbuser" ] && psql_command+=( "-U" "$dbuser" )

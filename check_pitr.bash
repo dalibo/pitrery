@@ -358,7 +358,9 @@ fi
 # Check access to postgres
 info "==> checking access to PostgreSQL"
 
-# Prepare psql command line
+# Prepare psql command line. Starting from 9.6 .psqlrc is sourced with
+# psql -c or -f, so we force -X
+psql_command+=( "-X" )
 [ -n "$PGHOST" ] && psql_command+=( "-h" "$PGHOST" )
 [ -n "$PGPORT" ] && psql_command+=( "-p" "$PGPORT" )
 [ -n "$PGUSER" ] && psql_command+=( "-U" "$PGUSER" )

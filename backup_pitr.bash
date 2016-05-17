@@ -172,7 +172,9 @@ shopt -s nullglob
 # initialize the target path early, so that cleaning works best
 backup_dir=$backup_root/${label_prefix}/current
 
-# Prepare psql command line
+# Prepare psql command line. Starting from 9.6 .psqlrc is sourced with
+# psql -c or -f, so we force -X
+psql_command+=( "-X" )
 [ -n "$dbhost" ] && psql_command+=( "-h" "$dbhost" )
 [ -n "$dbport" ] && psql_command+=( "-p" "$dbport" )
 [ -n "$dbuser" ] && psql_command+=( "-U" "$dbuser" )
