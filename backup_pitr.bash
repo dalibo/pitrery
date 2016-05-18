@@ -150,7 +150,8 @@ fi
 # This shouldn't ever happen, but if we check it here we don't have to worry
 # about what might get confused in the logic below if it does.
 if [ -n "$target" ] && [ "$local_backup" = "yes" ]; then
-    error "BACKUP_HOST is set and BACKUP_IS_LOCAL=\"yes\", it can't be both"
+    echo "ERROR: BACKUP_HOST is set and BACKUP_IS_LOCAL=\"yes\", it can't be both" 1>&2
+    exit 1
 fi
 
 # Only tar or rsync are allowed as storage method
@@ -234,18 +235,20 @@ stop_backup() {
 # Get the version of the server
 if ! pg_version=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'server_version_num';" \
 				-- "$psql_condb"); then
-    error "could not get the version of the server"
+    echo "ERROR: could not get the version of the server" 1>&2
+    exit 1
 fi
 
 # Check if the server is in hot standby, it can happen from 9.0
 # otherwise we would have already exited on error.
 if (( 10#$pg_version >= 90000 )); then
     if ! standby=$("${psql_command[@]}" -Atc "SELECT pg_is_in_recovery();" -- "$psql_condb"); then
-	error "could not check if the server is in recovery"
+	echo "ERROR: could not check if the server is in recovery" 1>&2
+        exit 1
     fi
 
     if [ "$standby" = "t" ]; then
-	error "unable to perform a base backup on a server in recovery mode. Aborting"
+	echo "ERROR: unable to perform a base backup on a server in recovery mode. Aborting" 1>&2
 	exit 1
     fi
 fi
@@ -258,7 +261,8 @@ if [ "$local_backup" = "yes" ]; then
     # concurrent backup is running, the "current" temporary directory
     # acts as a lock.
     if [ -e "$backup_dir" ]; then
-	error "$backup_dir already exists, another backup may be in progress"
+	echo "ERROR: $backup_dir already exists, another backup may be in progress" 1>&2
+        exit 1
     fi
 
     if ! mkdir -p -- "$backup_dir/tblspc"; then
@@ -266,7 +270,8 @@ if [ "$local_backup" = "yes" ]; then
     fi
 else
     if ssh -n -- "$ssh_target" "test -e $(qw "$backup_dir")" 2>/dev/null; then
-	error "$backup_dir already exists, another backup may be in progress"
+	echo "ERROR: $backup_dir already exists, another backup may be in progress" 1>&2
+        exit 1
     fi
 
     if ! ssh -n -- "$ssh_target" "mkdir -p -- $(qw "$backup_dir/tblspc")" 2>/dev/null; then
