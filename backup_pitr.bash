@@ -84,6 +84,9 @@ cleanup() {
     fi
     [ -n "$tblspc_list" ] && rm -f -- "$tblspc_list"
     [ -n "$replslot_list" ] && rm -f -- "$replslot_list"
+    [ -n "$psql_stderr" ] && rm -f -- "$psql_stderr"
+    [ -n "$backup_label_file" ] && rm -f -- "$backup_label_file"
+    [ -n "$tablespace_map_file"  ] && rm -f -- "$tablespace_map_file"
 }
 
 error() {
@@ -224,8 +227,62 @@ stop_backup() {
 
     # Tell PostgreSQL the backup is done
     info "stopping the backup process"
-    if ! "${psql_command[@]}" -Atc "SELECT pg_stop_backup();" -- "$psql_condb" >/dev/null; then
-	error_and_hook "could not stop backup process"
+    if (( $pg_version >= 90600 )); then
+
+        # We have to parse the multiple column output of
+        # pg_stop_backup(), so change the field separator to , so that
+        # the pipe does not conflict with the output from
+        # get_psql_output, which uses pipes for newline (newlines get
+        # lost when storing the output as a string)
+        echo '\pset fieldsep ,' >&${copsql[1]}
+        get_psql_output > /dev/null
+
+        echo "select labelfile, spcmapfile from pg_stop_backup(false);" >&${copsql[1]}
+        if [ $? != 0 ]; then
+            check_psql_stderr || cat $psql_stderr
+            error_and_hook "could not stop backup process"
+        fi
+
+        result=$(get_psql_output)
+        if [ -z "$result" ]; then
+            check_psql_stderr || cat $psql_stderr
+            error_and_hook "error while stopping the backup process"
+        fi
+
+        echo '\pset fieldsep |' >&${copsql[1]}
+        get_psql_output > /dev/null
+
+        # We need a stop time for the backup to make the automatic
+        # time-based selection of the backup. The stop time is not
+        # part of the output of pg_stop_backup().
+        echo "select to_char(now(), 'IYYY-MM-DD HH24:MI:SS TZ');" >&${copsql[1]}
+        if [ $? != 0 ]; then
+            check_psql_stderr || cat $psql_stderr
+            error_and_hook "could not get the stop time of the backup"
+        fi
+
+        stop_time=$(get_psql_output)
+        if [ -z "$stop_time" ]; then
+            check_psql_stderr || cat $psql_stderr
+            error_and_hook "could not get the stop time of the backup"
+        fi
+
+        # Get the backup_label. We keep the contents in memory, so
+        # that thes signal handler does not create any temporary files
+        label_contents=$(cut -d',' -f1 <<< "$result")
+
+        # Add the stop time field usually found in the archived label
+        # file from exclusive backups
+        label_contents="${label_contents}STOP TIME: $stop_time"
+
+        # Get the tablespace map file
+        spcmap_contents=$(cut -d',' -f2- <<< "$result")
+
+
+    else
+        if ! "${psql_command[@]}" -Atc "SELECT pg_stop_backup();" -- "$psql_condb" >/dev/null; then
+	    error_and_hook "could not stop backup process"
+        fi
     fi
 
     # Reset the signal handler, this function should only be called once
@@ -248,8 +305,14 @@ if (( 10#$pg_version >= 90000 )); then
     fi
 
     if [ "$standby" = "t" ]; then
-	echo "ERROR: unable to perform a base backup on a server in recovery mode. Aborting" 1>&2
-	exit 1
+        # Starting from 9.6 it is possible to backup from a standby
+        # using an non-exclusive backup
+        if (( $pg_version < 90600 )); then
+            echo "ERROR: unable to perform a base backup on a server in recovery mode. Aborting" 1>&2
+	    exit 1
+        else
+            info "performing backup from hot standby server"
+        fi
     fi
 fi
 
@@ -315,20 +378,88 @@ fi
 # Start the backup
 info "starting the backup process"
 
-# Force a checkpoint for version >= 8.4. We add some parsing of the
-# result of pg_xlogfile_name_offset on the LSN returned by
-# pg_start_backup, so that we have the name of the backup_label that
-# will be archived after pg_stop_backup completes
-if (( $pg_version >= 80400 )); then
-    start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}', true)) as i;" $psql_condb`
-    rc=$?
-else
-    start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}')) as i;" $psql_condb`
-    rc=$?
-fi
+# Starting from 9.6, PostgreSQL support concurrent base backups, those
+# are names non-exclusive backups. The older behaviour of exclusive
+# backups may be deprecated.
+if (( $pg_version >= 90600 )); then
+    # When taking a base backup in non-exclusive mode, the session
+    # that issues the call to pg_start_backup() must stay connected
+    # during the whole operation. We start psql inside a coprocess and
+    # interact with it. Since the coprocess do not offer a pipe to
+    # capture stderr, we redirect it to a temporary file. Testing if
+    # this file is empty let us know that no error occured.
+    if ! psql_stderr=$(mktemp -t backup_pitr_psql_stderr.XXXXXXXXXX); then
+        error_and_hook "could not create temporary file"
+    fi
 
-if [ $rc != 0 ]; then
-    error_and_hook "could not start backup process"
+    coproc copsql {
+        ${psql_command[@]} -At $psql_condb
+    } 2>$psql_stderr
+
+    get_psql_output() {
+        # First wait for output to be ready on the fd. When there is
+        # an error, no output go to the fd
+        while ! read -t 0 -u ${copsql[0]}; do
+            if ! grep -E "^(ERROR|FATAL)" $psql_stderr >/dev/null 2>&1; then
+                sleep 1
+            else
+                return 1
+            fi
+        done
+
+        # When the fd has some data, read everything and change
+        # newlines to pipe characters, to pass through expansion of
+        # newline to space, when stored as a string.
+        while read -t 1 -u ${copsql[0]} line; do
+            [ -n "$line" ] && echo -n "$line|"
+        done
+        return 0
+    }
+
+    check_psql_stderr() {
+        if grep -E "^(ERROR|FATAL)" $psql_stderr >/dev/null 2>&1; then
+            return 1
+        else
+            return 0
+        fi
+    }
+
+    # Check if the connection works by getting the pid of the backend
+    echo 'select pg_backend_pid();' >&${copsql[1]} # 2>/dev/null
+    if [ $? != 0 ]; then
+        check_psql_stderr || cat $psql_stderr
+        error_and_hook "could not check connection to PostgreSQL"
+    fi
+    psql_pid=$(get_psql_output)
+
+    # Start the base backup
+    echo "select pg_start_backup('${label_prefix}_${current_time}', true, false);"  >&${copsql[1]}
+    if [ $? != 0 ]; then
+        check_psql_stderr || cat $psql_stderr
+        error_and_hook "could not start backup process (command sending)"
+    fi
+
+    start_backup_lsn=$(get_psql_output)
+    if [ -z "$start_backup_lsn" ]; then
+        check_psql_stderr || cat $psql_stderr
+        error_and_hook "could not start backup process (empty output)"
+    fi
+else
+    # Force a checkpoint for version >= 8.4. We add some parsing of the
+    # result of pg_xlogfile_name_offset on the LSN returned by
+    # pg_start_backup, so that we have the name of the backup_label that
+    # will be archived after pg_stop_backup completes
+    if (( $pg_version >= 80400 )); then
+        start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}', true)) as i;" $psql_condb`
+        rc=$?
+    else
+        start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_prefix}_${current_time}')) as i;" $psql_condb`
+        rc=$?
+    fi
+
+    if [ $rc != 0 ]; then
+        error_and_hook "could not start backup process"
+    fi
 fi
 
 # Add a signal handler to avoid leaving the cluster in backup mode when exiting on error
@@ -518,7 +649,6 @@ case $storage in
 	;;
 esac
 
-
 # Backup replication slots informations to a separate file. If we take
 # their status files and restore them, they would be restored as stale
 # slots. Instead we'll give the commands to recreate them after the
@@ -537,15 +667,52 @@ fi
 # Stop backup
 stop_backup
 
-# The complete backup_label is going to be archived. We put it in the
-# backup, just in case and also use the stop time from the file to
-# name the backup directory and have the minimum datetime required to
-# select this backup on restore.
-backup_file="$pgdata/pg_xlog/$start_backup_label_file"
+if (( $pg_version >= 90600 )); then
+    # In non-exclusive mode, we have to write the backup_label files
+    # ourselves. When using the tar storage, we cannot add the file to
+    # PGDATA inside the tarball, so we just create files locally, and
+    # copy them to the backup directory later. It is the job of the
+    # restore to put them back in the correct location ($PGDATA) when
+    # restoring.
 
-# Get the stop date of the backup and convert it to UTC, this make
-# it easier when searching for a proper backup when restoring
-stop_time=$(sed -n 's/STOP TIME: //p' -- "$backup_file")
+    # Create the backup_label as a temporary file and put its contents
+    if ! backup_label_file=$(mktemp -t backup_pitr_backup_label.XXXXXXXXXX); then
+        error_and_hook "could not create temporary file"
+    fi
+
+    # Use an alternative name so we do not have to check the version
+    # to remove this temp file
+    backup_file=$backup_label_file
+    
+    echo -n $label_contents | tr '|' '\n' > $backup_file
+    if [ $? != 0 ]; then
+        error_and_hook "could not write temporary backup_label file"
+    fi
+
+    # Same goes for the tablespace mapfile (tablespace_map)
+    if [ -n "$spcmap_contents" ]; then
+        if ! tablespace_map_file=$(mktemp -t backup_pitr_tablespace_map.XXXXXXXXXX); then
+            error_and_hook "could not create temporary file"
+        fi
+
+        echo -n $spcmap_contents | tr '|' '\n' > $tablespace_map_file
+        if [ $? != 0 ]; then
+            error_and_hook "could not write temporary tablespace_map file"
+        fi
+    fi
+else
+    # The complete backup_label is going to be archived. We put it in the
+    # backup, just in case and also use the stop time from the file to
+    # name the backup directory and have the minimum datetime required to
+    # select this backup on restore.
+    backup_file="$pgdata/pg_xlog/$start_backup_label_file"
+
+    # Get the stop date of the backup. 
+    stop_time=$(sed -n 's/STOP TIME: //p' -- "$backup_file")
+fi
+
+# Convert the stop time to UTC, this make it easier when searching for
+# a proper backup when restoring
 if [ -n "$stop_time" ]; then
     timestamp=$(${psql_command[@]} -Atc "SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '${stop_time}');" $psql_condb) ||
         warn "could not get the stop time timestamp from PostgreSQL"
@@ -620,6 +787,17 @@ if [ "$local_backup" = "yes" ]; then
 	error_and_hook "could not copy backup history file to $backup_dir"
     fi
 
+    # Copy the tablespace mapfile from pg_stop_backup() in
+    # non-exclusive mode
+    if (( $pg_version >= 90600 )); then
+        if [ -n "$tablespace_map_file" ]; then
+            info "copying the tablespace_map file"
+            if ! cp -- "$tablespace_map_file" "$backup_dir/tablespace_map"; then
+                error_and_hook "could not copy tablespace_map to $backup_dir"
+            fi
+        fi
+    fi
+
     # Save the end of backup timestamp to a file
     if [ -n "$timestamp" ]; then
 	echo "$timestamp" > "$backup_dir/backup_timestamp" || warn "could not save timestamp"
@@ -662,6 +840,17 @@ else
 	error_and_hook "could not copy backup history file to $target:$backup_dir"
     fi
 
+    # Copy the tablespace mapfile from pg_stop_backup() in
+    # non-exclusive mode
+    if (( $pg_version >= 90600 )); then
+        if [ -n "$tablespace_map_file" ]; then
+            info "copying the tablespace_map file"
+            if ! scp -- $tablespace_map_file "$ssh_target:$(qw "$backup_dir/tablespace_map")" > /dev/null; then
+                error_and_hook "could not copy tablespace_map to $target:$backup_dir"
+            fi
+        fi
+    fi
+
     # Add the name and location of the tablespace to an helper file for
     # the restoration script
     info "copying the tablespaces list"
@@ -687,5 +876,10 @@ post_backup_hook
 # Cleanup
 rm -f -- "$tblspc_list"
 [ -n "$replslot_list" ] && rm -f -- "$replslot_list"
+[ -n "$psql_stderr" ] && rm -f -- "$psql_stderr"
+[ -n "$backup_label_file" ] && rm -f -- "$backup_label_file"
+[ -n "$tablespace_map_file"  ] && rm -f -- "$tablespace_map_file"
+
 
 info "done"
+

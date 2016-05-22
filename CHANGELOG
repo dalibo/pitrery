@@ -28,6 +28,8 @@ pitrery 1.11
     exists before archiving, when set to "no" or -O is on the command
     line.
 
+  * Make use of the new backup API of PostgreSQL 9.6
+
 
 pitrery 1.10
 ============
