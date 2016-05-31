@@ -88,7 +88,7 @@ ARCHIVE_COMPRESS_SUFFIX="gz"
 ARCHIVE_OVERWRITE="yes"
 
 # Command line options
-while getopts "LC:u:d:h:XOc:s:Sf:t:?"  opt; do
+while getopts "LC:u:d:h:XOc:s:Sf:t:T?"  opt; do
     case $opt in
 	L) CLI_ARCHIVE_LOCAL="yes";;
 	C) CONFIG=$OPTARG;;
