@@ -207,6 +207,18 @@ configured:
   reduces performance when archiving over SSH, it is set to "yes" by
   default.
 
+* `ARCHIVE_CHECK` can be set to "yes" to check the md5 of the archived
+  file to the md5 of the original WAL file. It is useful when the
+  storage and the network is not relaiable. If overwriting is
+  disabled, the md5 check enabled and the archive already exists, the
+  archiving returns success if the md5 check is successful. This
+  option does not apply on local archiving.
+
+* `ARCHIVE_FLUSH` can be set to "yes" to force an immediate flush of
+  the archived file to disk before returning success. It may slow down
+  the archiving process but ensure archives are not corrupted in case of
+  a power loss on the destination.
+
 * `SYSLOG` can be set to "yes" to log messages to syslog, otherwise
   stderr is used for messages.  `SYSLOG_FACILITY` and `SYSLOG_IDENT`
   can then by used to store messages in the log file of PostgreSQL

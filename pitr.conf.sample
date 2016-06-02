@@ -124,6 +124,18 @@ ARCHIVE_COMPRESS="yes"
 # performance overhead, the option is enabled by default.
 ARCHIVE_OVERWRITE="yes"
 
+# Check the md5 of the archived file to the md5 of the original WAL file.
+# Useful if you are paranoid or don't trust the remote storage reliability.
+# Note that you can not check the archive if compression is enabled.
+# If overwriting is disabled, the md5 check enabled and the archive already
+# exists, the archiving returns success if the md5 check is successful.
+ARCHIVE_CHECK="no"
+
+# Force an immediate flush of the archived file to disk before returning
+# success. This is often a life saver on power loss to get ALL the archive back
+# and clean.
+ARCHIVE_FLUSH="no"
+
 # Logging options.  When SYSLOG is no, messages are written to stderr,
 # to allow the logging collector or redirection to catch them. These
 # parameters are intended to match their counterparts in
@@ -139,7 +151,7 @@ SYSLOG_IDENT="postgres"
 # The following options allow to customize compression tools for WAL
 # archiving. The program used in COMPRESS_BIN must support a -c option
 # to output to stdout and access data from stdin (tested with gzip, pigz,
-# bzip2, pbzip2).  Defaults to "gzip -4"
+# bzip2, pbzip2, xz).  Defaults to "gzip -4"
 #ARCHIVE_COMPRESS_BIN=
 
 # The suffix added by the compression tool (needed for

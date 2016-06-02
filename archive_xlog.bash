@@ -64,6 +64,8 @@ usage() {
     echo "    -d dir         target directory"
     echo "    -X             do not compress"
     echo "    -O             do not overwrite the destination file"
+    echo "    -H             check the hash of the destination file (remote only)"
+    echo "    -F             flush the destination file to disk"
     echo "    -c command     compression command"
     echo "    -s suffix      compressed file suffix (ex: gz)"
     echo "    -S             send messages to syslog"
@@ -76,6 +78,20 @@ usage() {
     exit $1
 }
 
+check_md5() {
+    [ "$ARCHIVE_CHECK" != "yes" ] && return 0
+
+    local ARCHIVE_MD5=$1
+
+    LOCAL_MD5=$(md5sum "$xlog")
+
+    if [ "${LOCAL_MD5%% *}" != "${ARCHIVE_MD5%% *}" ]; then
+        error "md5 mismatch between local and remote file" 4
+    fi
+
+    return 0
+}
+
 # Configuration defaults
 CONFIG=pitr.conf
 CONFIG_DIR=@SYSCONFDIR@
@@ -86,25 +102,29 @@ ARCHIVE_COMPRESS="yes"
 ARCHIVE_COMPRESS_BIN="gzip -f -4"
 ARCHIVE_COMPRESS_SUFFIX="gz"
 ARCHIVE_OVERWRITE="yes"
+ARCHIVE_CHECK="no"
+ARCHIVE_FLUSH="no"
 
 # Command line options
-while getopts "LC:u:d:h:XOc:s:Sf:t:T?"  opt; do
+while getopts "LC:u:d:h:XOHFc:s:Sf:t:T?"  opt; do
     case $opt in
-	L) CLI_ARCHIVE_LOCAL="yes";;
-	C) CONFIG=$OPTARG;;
-	u) CLI_ARCHIVE_USER=$OPTARG;;
-	h) CLI_ARCHIVE_HOST=$OPTARG;;
-	d) CLI_ARCHIVE_DIR=$OPTARG;;
-	X) CLI_ARCHIVE_COMPRESS="no";;
-	O) CLI_ARCHIVE_OVERWRITE="no";;
-	c) CLI_ARCHIVE_COMPRESS_BIN=$OPTARG;;
-	s) CLI_ARCHIVE_COMPRESS_SUFFIX=$OPTARG;;
-	S) CLI_SYSLOG="yes";;
-	f) CLI_SYSLOG_FACILITY=$OPTARG;;
-	t) CLI_SYSLOG_IDENT=$OPTARG;;
-	T) CLI_LOG_TIMESTAMP="yes";;
+        L) CLI_ARCHIVE_LOCAL="yes";;
+        C) CONFIG=$OPTARG;;
+        u) CLI_ARCHIVE_USER=$OPTARG;;
+        h) CLI_ARCHIVE_HOST=$OPTARG;;
+        d) CLI_ARCHIVE_DIR=$OPTARG;;
+        X) CLI_ARCHIVE_COMPRESS="no";;
+        O) CLI_ARCHIVE_OVERWRITE="no";;
+        H) CLI_ARCHIVE_CHECK="yes";;
+        F) CLI_ARCHIVE_FLUSH="yes";;
+        c) CLI_ARCHIVE_COMPRESS_BIN=$OPTARG;;
+        s) CLI_ARCHIVE_COMPRESS_SUFFIX=$OPTARG;;
+        S) CLI_SYSLOG="yes";;
+        f) CLI_SYSLOG_FACILITY=$OPTARG;;
+        t) CLI_SYSLOG_IDENT=$OPTARG;;
+        T) CLI_LOG_TIMESTAMP="yes";;
         "?") usage 1;;
-	*) error "Unknown error while processing options";;
+        *) error "Unknown error while processing options";;
     esac
 done	
 
@@ -121,12 +141,12 @@ if [ -f "$CONFIG" ]; then
 
     # Check for renamed parameters between versions
     if [ -n "$COMPRESS_BIN" ] && [ -z "$CLI_ARCHIVE_COMPRESS_BIN" ]; then
-	ARCHIVE_COMPRESS_BIN=$COMPRESS_BIN
-	warn "archive_xlog: COMPRESS_BIN is deprecated. please use ARCHIVE_COMPRESS_BIN."
+        ARCHIVE_COMPRESS_BIN=$COMPRESS_BIN
+        warn "archive_xlog: COMPRESS_BIN is deprecated. please use ARCHIVE_COMPRESS_BIN."
     fi
     if [ -n "$COMPRESS_SUFFIX" ] && [ -z "$CLI_ARCHIVE_COMPRESS_SUFFIX" ]; then
-	ARCHIVE_COMPRESS_SUFFIX=$COMPRESS_SUFFIX
-	warn "archive_xlog: COMPRESS_SUFFIX is deprecated. please use ARCHIVE_COMPRESS_SUFFIX."
+        ARCHIVE_COMPRESS_SUFFIX=$COMPRESS_SUFFIX
+        warn "archive_xlog: COMPRESS_SUFFIX is deprecated. please use ARCHIVE_COMPRESS_SUFFIX."
     fi
 fi
 
@@ -139,6 +159,8 @@ fi
 [ -n "$CLI_ARCHIVE_COMPRESS_BIN" ] && ARCHIVE_COMPRESS_BIN=$CLI_ARCHIVE_COMPRESS_BIN
 [ -n "$CLI_ARCHIVE_COMPRESS_SUFFIX" ] && ARCHIVE_COMPRESS_SUFFIX=$CLI_ARCHIVE_COMPRESS_SUFFIX
 [ -n "$CLI_ARCHIVE_OVERWRITE" ] && ARCHIVE_OVERWRITE=$CLI_ARCHIVE_OVERWRITE
+[ -n "$CLI_ARCHIVE_CHECK" ] && ARCHIVE_CHECK=$CLI_ARCHIVE_CHECK
+[ -n "$CLI_ARCHIVE_FLUSH" ] && ARCHIVE_FLUSH=$CLI_ARCHIVE_FLUSH
 [ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
 [ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
 [ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
@@ -174,6 +196,13 @@ if [ ! -r "$xlog" ]; then
     error "Input file '$xlog' does not exist or is not readable"
 fi
 
+# Set dd flush mode if needed
+if [ "$ARCHIVE_FLUSH" = "yes" ]; then
+    ARCHIVE_FLUSH='conv=fsync'
+else
+    ARCHIVE_FLUSH=''
+fi
+
 check_local_dest_exists()
 {
     [ $ARCHIVE_OVERWRITE = "yes" ] && return 0
@@ -181,94 +210,113 @@ check_local_dest_exists()
     [ ! -e "$1" ] || error "$1 already exists, refusing to overwrite it."
 }
 
-check_remote_dest_exists()
-{
-
-    [ $ARCHIVE_OVERWRITE = "yes" ] && return 0
-
-    local dest_host=$1
-    local dest_file=$2
-    local dest_exists
-
-    # We need to check this here, since [ ! -e ] will not do what you might expect
-    # and we can't safely single or double quote it for an arbitrary $dest_file.
-    # It would be better if we could use [[ ! -e ]] instead, but that would depend
-    # on the remote shell also being bash.
-    [ -n "$dest_file" ] || error "check_remote_dest_exists: no dest_file passed"
-
-    dest_exists=$(ssh -n -- "$dest_host" "[ ! -e $(qw "$dest_file") ] || echo 'oops'") ||
-	error "Failed to check if '$dest_file' exists on $dest_host"
-
-    [ ! -n "$dest_exists" ] ||
-	error "'$dest_file' already exists on $dest_host, refusing to overwrite it."
-}
-
 # Copy the wal locally
 if [ "$ARCHIVE_LOCAL" = "yes" ]; then
+    dd_rc=0
     mkdir -p -- "$ARCHIVE_DIR" 1>&2 ||
-	error "Unable to create target directory '$ARCHIVE_DIR'" $?
+        error "Unable to create target directory '$ARCHIVE_DIR'" $?
 
     if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
-	dest_path=$ARCHIVE_DIR/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
-	check_local_dest_exists "$dest_path"
+        dest_path=$ARCHIVE_DIR/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
+        check_local_dest_exists "$dest_path"
 
-	if ! $ARCHIVE_COMPRESS_BIN -c < "$xlog" > "$dest_path"; then
-	    rm -f -- "$dest_path"
-	    error "Compressing $xlog to $dest_path failed"
-	fi
+        $ARCHIVE_COMPRESS_BIN -c < "$xlog" | dd $ARCHIVE_FLUSH of="$dest_path" 2>/dev/null
+        rc=( ${PIPESTATUS[@]} )
+        x_rc=${rc[0]}
+        dd_rc=${rc[1]}
+        if [ $x_rc != 0 ]; then
+            rm -f -- "$dest_path"
+            error "Compressing $xlog to $dest_path failed"
+        fi
     else
-	dest_path=$ARCHIVE_DIR/$(basename -- "$xlog")
-	check_local_dest_exists "$dest_path"
+        dest_path=$ARCHIVE_DIR/$(basename -- "$xlog")
+        check_local_dest_exists "$dest_path"
 
-	cp -- "$xlog" "$dest_path" 1>&2 ||
-	    error "Unable to copy $xlog to $ARCHIVE_DIR" $?
+        dd $ARCHIVE_FLUSH if="$xlog" of="$dest_path" 2>/dev/null
+        dd_rc=$?
     fi
+
+    if [ $dd_rc != 0 ] ; then
+        rm -f -- "$dest_path"
+        error "Copying $xlog to $dest_path failed"
+    fi
+
 else
     # Compress and copy with rsync
     echo $ARCHIVE_HOST | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && ARCHIVE_HOST="[${ARCHIVE_HOST}]" # Dummy test for IPv6
 
     dest_host=${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}
 
-    ssh -n -- "$dest_host" "mkdir -p -- $(qw "$ARCHIVE_DIR")" ||
-	error "Unable to create target directory" $?
+    dest_file="$ARCHIVE_DIR/$(basename -- "$xlog")"
+    tmp_file=""
+    src_file="$xlog"
 
+    # Depending on the options, we may check different things on the
+    # remote host. To avoid many connections, we build a command to be
+    # run one time on the remote host.
+
+    # Create remote folder if needed. Return 2 on error.
+    REMOTE_CMD="mkdir -p -- $(qw "$ARCHIVE_DIR") || exit 2"
+
+    # Compress the file to a temporary location
     if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
-	dest_file=$ARCHIVE_DIR/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
-	tmpfile=$(mktemp -t pitr_wal.XXXXXXXXXX) ||
-	    error "Failed to create temporary file for compressed WAL" $?
+        dest_file=$ARCHIVE_DIR/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
+        tmp_file=$(mktemp -t pitr_wal.XXXXXXXXXX) ||
+            error "Failed to create temporary file for compressed WAL" $?
 
-	# We take no risk, pipe the content to the compression program
-	# and save output elsewhere: the compression program never
-	# touches the input file
-	$ARCHIVE_COMPRESS_BIN -c < "$xlog" > "$tmpfile" ||
-	    error "Compressing $xlog to $tmpfile failed" $?
+        src_file="$tmp_file"
 
-	# We delay this check until after compression is completed.
-	# There is still a race where something else could create it between when
-	# we test this and when rsync completes, but this at least keeps it as
-	# small as we reasonably can.  There is no option for rsync to request
-	# "fail if the destination file already exists".
-	check_remote_dest_exists "$dest_host" "$dest_file"
-
-	# Using a temporary file is mandatory for rsync. Rsync is the
-	# safest way to archive, the file is transfered under a
-	# another name then moved to the target name when complete,
-	# partly copied files should not happen.
-	rsync -a -- "$tmpfile" "$dest_host:$(qw "$dest_file")" ||
-	    error "Unable to rsync the compressed file to ${ARCHIVE_HOST}:${ARCHIVE_DIR}" $?
-
-	# Don't return a failure result for this, we don't want postgres to keep
-	# accumulating WAL files that we have successfully archived just because
-	# of this (or we'll just fill the disk twice as fast!).
-	rm -- "$tmpfile" ||
-	    warn "Unable to remove temporary compressed file '$tmpfile'"
-    else
-	dest_file=$ARCHIVE_DIR/$(basename -- "$xlog")
-	check_remote_dest_exists "$dest_host" "$dest_file"
-
-	rsync -a -- "$xlog" "$dest_host:$(qw "$dest_file")" ||
-	    error "Unable to rsync $xlog to ${ARCHIVE_HOST}:${ARCHIVE_DIR}" $?
+        # We take no risk, pipe the content to the compression program
+        # and save output elsewhere: the compression program never
+        # touches the input file
+        $ARCHIVE_COMPRESS_BIN -c < "$xlog" > "$tmp_file" ||
+            error "Compressing $xlog to $tmp_file failed" $?
     fi
+
+    # Check if the file exists on the remote host. If the file exists
+    # on the remote host and we do not overwrite it, we just get its
+    # md5 sum and exit. Later the check of the md5 will exit on error
+    # if the sum a different
+    if [ "$ARCHIVE_OVERWRITE" != "yes"  ] && [ "$ARCHIVE_CHECK" = "yes" ]; then
+        REMOTE_CMD="$REMOTE_CMD; [ -e $(qw "$dest_file") ] && echo \$(md5sum -- $(qw "$dest_file")) && exit 0"
+    elif [ "$ARCHIVE_OVERWRITE" != "yes" ]; then
+        REMOTE_CMD="$REMOTE_CMD; [ ! -e $(qw "$dest_file") ] || exit 3"
+    fi
+
+    # Copy the file with dd
+    REMOTE_CMD="$REMOTE_CMD; dd $ARCHIVE_FLUSH of=$(qw "$dest_file") 2>/dev/null || exit 1"
+
+    if [ "$ARCHIVE_CHECK" = "yes" ]; then
+        REMOTE_CMD="$REMOTE_CMD; md5sum -- $(qw "$dest_file")"
+    fi
+
+    # Actually execute the remote commands
+    remote_md5=$(dd if="$src_file" 2>/dev/null|ssh -- "$dest_host" "$REMOTE_CMD")
+    rc=$?
+
+    case $rc in
+        0) ;;
+        1) error "Unable to copy $xlog to ${ARCHIVE_HOST}:${ARCHIVE_DIR}" $rc;;
+        2) error "Unable to create target directory" $rc;;
+        3) error "'$dest_file' already exists on $dest_host, refusing to overwrite it" $rc;;
+        255) error "SSH error on ${ARCHIVE_HOST}" $rc;;
+        *) error "Unexpected return code while copying the file" 100
+    esac
+
+    if [ "$ARCHIVE_CHECK" = "yes" ]; then
+        local_md5=$(md5sum -- "$src_file")
+
+        if [ "${local_md5%% *}" != "${remote_md5%% *}" ]; then
+            error "md5 mismatch between local and remote file" 4
+        fi
+    fi
+
+    # Remove temp file if exists
+    if [ -n "$tmp_file" ] && [ -s "$tmp_file" ]; then
+        rm -- "$tmp_file" ||
+            warn "Unable to remove temporary compressed file '$tmp_file'"
+    fi
+
 fi
 
 exit 0

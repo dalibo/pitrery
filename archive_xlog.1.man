@@ -73,6 +73,27 @@ Do not compress WAL segment files.  This will override the
 "no").
 
 .TP
+.B \-O
+Do not overwrite the destination file if it exists.  This will force
+the \fBARCHIVE_OVERWRITE\fP option from the configuration file to "no".
+
+.TP
+.B \-H
+Check the md5 of the archived file to the md5 of the original WAL
+file. While adds the overhead of computing the checksums of the source
+and destination files, it is useful if the network or the remote
+storage is not considered reliable. This will force the
+\fBARCHIVE_CHECK\fP option from the configuration file to "yes". This
+option does not apply on local archiving.
+
+.TP
+.B \-F
+Force an immediate flush of the archived file to disk before returning
+success. It may slow down the archiving process but ensure archives
+are not corrupted in case of a power loss on the destination. This will force the
+\fARCHIVE_FLUSH\fP option from the configuration file to "yes".
+
+.TP
 .BI "\-c " command
 The command to use for compressing WAL segment files.  This will override
 the \fBARCHIVE_COMPRESS_BIN\fP option from the configuration file.
@@ -120,9 +141,10 @@ A minimal \fIpostgresql.conf\fP configuration for WAL archiving with
 .nh
 .nf
   # If using PostgreSQL >= 9.0,
-  # wal_level must be set to archive or hot_standby.
-  # Changing this requires a restart.
-  wal_level = hot_standby
+  # wal_level must be set to archive or higher.
+  # Changing this requires a restart. If using PostgreSQL >= 9.6,
+  # wal_level must be set to replica or higher
+  wal_level = archive
 
   # If using PostgreSQL >= 8.3, archiving must be enabled.
   # Changing this requires a restart.

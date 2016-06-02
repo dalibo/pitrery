@@ -247,6 +247,19 @@ Les paramètres suivants peuvent être configurés :
    performances lorsque l'archivage se fait par SSH, il est positionné
    à "yes" par défaut (pas de vérification).
 
+* `ARCHIVE_CHECK` configuré à "yes" permet de vérifier la somme md5 du
+   fichier archivé. Cela permet une vérification d'intégrité dans le
+   cas d'un réseau ou stockage distant peu fiable. Si le écrasement du
+   fichier est autorisé en même temps que la vérification et le fichier
+   de destination existe, l'archivage est réussi si la vérification md5
+   fonctionne.
+
+* `ARCHIVE_FLUSH` configuré à "yes" force la synchronisation des
+   données du fichier archivé sur disque à la destination. Malgré
+   l'impact négatif sur les performances, cette opération évite les
+   corruptions en cas de coupure d'électricité notament sur les
+   système de stockage peu fiable.
+
 * `SYSLOG` peut être positionné à "yes" pour envoyer les messages vers
    syslog.  Dans le cas contraire, c'est stderr qui est utilisé.
    `SYSLOG_FACILITY` et `SYSLOG_IDENT` peuvent être utilisés pour
