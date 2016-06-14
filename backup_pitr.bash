@@ -227,7 +227,7 @@ stop_backup() {
 
     # Tell PostgreSQL the backup is done
     info "stopping the backup process"
-    if (( $pg_version >= 90600 )); then
+    if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
 
         # We have to parse the multiple column output of
         # pg_stop_backup(), so change the field separator to , so that
@@ -310,6 +310,12 @@ if (( 10#$pg_version >= 90000 )); then
         if (( $pg_version < 90600 )); then
             echo "ERROR: unable to perform a base backup on a server in recovery mode. Aborting" 1>&2
 	    exit 1
+        fi
+
+        # We use a coprocess for non-exclusive backups, the feature is
+        # available in bash 4 and later.
+        if (( ${BASH_VERSINFO[0]} >= 4 )); then
+            echo "ERROR: bash version is too old to perform a non-exclusive backup. Aborting" 1>&2
         else
             info "performing backup from hot standby server"
         fi
@@ -381,7 +387,8 @@ info "starting the backup process"
 # Starting from 9.6, PostgreSQL support concurrent base backups, those
 # are names non-exclusive backups. The older behaviour of exclusive
 # backups may be deprecated.
-if (( $pg_version >= 90600 )); then
+if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
+    info "performing a non-exclusive backup"
     # When taking a base backup in non-exclusive mode, the session
     # that issues the call to pg_start_backup() must stay connected
     # during the whole operation. We start psql inside a coprocess and
@@ -392,9 +399,7 @@ if (( $pg_version >= 90600 )); then
         error_and_hook "could not create temporary file"
     fi
 
-    coproc copsql {
-        ${psql_command[@]} -At $psql_condb
-    } 2>$psql_stderr
+    coproc copsql { ${psql_command[@]} -At $psql_condb } 2>$psql_stderr
 
     get_psql_output() {
         # First wait for output to be ready on the fd. When there is
@@ -667,7 +672,7 @@ fi
 # Stop backup
 stop_backup
 
-if (( $pg_version >= 90600 )); then
+if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
     # In non-exclusive mode, we have to write the backup_label files
     # ourselves. When using the tar storage, we cannot add the file to
     # PGDATA inside the tarball, so we just create files locally, and
@@ -789,7 +794,7 @@ if [ "$local_backup" = "yes" ]; then
 
     # Copy the tablespace mapfile from pg_stop_backup() in
     # non-exclusive mode
-    if (( $pg_version >= 90600 )); then
+    if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
         if [ -n "$tablespace_map_file" ]; then
             info "copying the tablespace_map file"
             if ! cp -- "$tablespace_map_file" "$backup_dir/tablespace_map"; then
@@ -842,7 +847,7 @@ else
 
     # Copy the tablespace mapfile from pg_stop_backup() in
     # non-exclusive mode
-    if (( $pg_version >= 90600 )); then
+    if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
         if [ -n "$tablespace_map_file" ]; then
             info "copying the tablespace_map file"
             if ! scp -- $tablespace_map_file "$ssh_target:$(qw "$backup_dir/tablespace_map")" > /dev/null; then
