@@ -1,7 +1,7 @@
 Introduction
 ============
 
-pitrery est un ensemble de sripts bash permettant de gérer les sauvegardes
+pitrery est un ensemble de scripts bash permettant de gérer les sauvegardes
 PITR (Point In Time Recovery) dans PostgresSQL.
 Cette documentation vous expliquera comment installer cet outil, ainsi
 que les différentes subtilités de mise en oeuvre pour réaliser au mieux
@@ -12,7 +12,7 @@ Point In Time Recovery
 ======================
 
 Ce chapître présente les principes de la "restauration à un instant donné"
-(PITR) dans PostgreSQL
+(PITR) dans PostgreSQL.
 
 En premier lieu, il est important de comprendre que PostgreSQL réalise
 toutes ses écritures en double.  Chaque transaction est écrite dans
@@ -58,7 +58,7 @@ la position d'où la restauration des archives doit commencer.  Cette
 opération est apellée "sauvegarde de base" (basebackup).
 
 Une fois ces deux pré-requis opérationnels (sauvegarde de base +
-WAl archivés) l'utilisateur est en mesure d'indiquer précisément à
+WAL archivés) l'utilisateur est en mesure d'indiquer précisément à
 PostreSQL à quel moment il doit arrêter d'appliquer les modifications
 enregistrées dans les journaux de transactions archivés.
 
@@ -1037,7 +1037,7 @@ Les options de l'action restore sont :
 
 
 
-Suppression des ancinnes sauvegardes
+Suppression des anciennes sauvegardes
 ------------------------------------
 
 L'opération de purge permet de supprimer les sauvegardes obsolètes en
