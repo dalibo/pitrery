@@ -839,6 +839,11 @@ if [ "$local_backup" = "yes" ]; then
 	    error_and_hook "could not copy the replication slots list to $backup_dir"
     fi
 
+    # Copy the PG_VERSION file
+    info "copying PG_VERSION"
+    if ! cp -- "$pgdata/PG_VERSION" "$backup_dir"; then
+        error_and_hook "could not copy PG_VERSION to $backup_dir"
+    fi
 else
     if ssh -n -- "$ssh_target" "test -e $(qw "$new_backup_dir")" 2>/dev/null; then
 	error_and_hook "backup directory '$target:$new_backup_dir' already exists"
@@ -885,6 +890,12 @@ else
 	info "copying the replication slots list"
 	scp -- "$replslot_list" "$ssh_target:$(qw "$backup_dir/replslot_list")" >/dev/null ||
 	    error_and_hook "could not copy the replication slots list to $backup_dir"
+    fi
+
+    # Copy the PG_VERSION file
+    info "copying PG_VERSION"
+    if ! scp -- "$pgdata/PG_VERSION" "$ssh_target:$(qw "$backup_dir")" >/dev/null; then
+	error_and_hook "could not copy PG_VERSION to $target:$backup_dir"
     fi
 fi
 
