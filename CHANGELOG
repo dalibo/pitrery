@@ -28,7 +28,19 @@ pitrery 1.11
     exists before archiving, when set to "no" or -O is on the command
     line.
 
+  * New ARCHIVE_CHECK (-H) and ARCHIVE_FLUSH (-F) for archive_xlog. The
+    first one check md5 sum of the archived WAL file, the second force
+    a flush to disk.
+
   * Make use of the new backup API of PostgreSQL 9.6
+
+  * Optionally name backups dir with ISO 8601 timestamps, with config
+    option USE_ISO8601_TIMESTAMPS and command line switch -t for the
+    backup action.
+
+  * French translation of the documentation.
+
+  * Bugfixes and better handling of unusual characters in paths
 
 
 pitrery 1.10

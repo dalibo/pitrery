@@ -1,3 +1,10 @@
+pitrery (1.11-1) unstable; urgency=low
+
+  * New upstream release
+  * see CHANGELOG
+
+ -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Mon, 20 Jun 2016 22:28:58 +0200
+
 pitrery (1.10-1) unstable; urgency=low
 
   * New upstream release
