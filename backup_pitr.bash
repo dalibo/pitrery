@@ -234,10 +234,10 @@ stop_backup() {
         # the pipe does not conflict with the output from
         # get_psql_output, which uses pipes for newline (newlines get
         # lost when storing the output as a string)
-        echo '\pset fieldsep ,' >&${copsql[1]}
+        echo '\pset fieldsep ,' >&${COPROC[1]}
         get_psql_output > /dev/null
 
-        echo "select labelfile, spcmapfile from pg_stop_backup(false);" >&${copsql[1]}
+        echo "select labelfile, spcmapfile from pg_stop_backup(false);" >&${COPROC[1]}
         if [ $? != 0 ]; then
             check_psql_stderr || cat $psql_stderr
             error_and_hook "could not stop backup process"
@@ -249,13 +249,13 @@ stop_backup() {
             error_and_hook "error while stopping the backup process"
         fi
 
-        echo '\pset fieldsep |' >&${copsql[1]}
+        echo '\pset fieldsep |' >&${COPROC[1]}
         get_psql_output > /dev/null
 
         # We need a stop time for the backup to make the automatic
         # time-based selection of the backup. The stop time is not
         # part of the output of pg_stop_backup().
-        echo "select to_char(now(), 'IYYY-MM-DD HH24:MI:SS TZ');" >&${copsql[1]}
+        echo "select to_char(now(), 'IYYY-MM-DD HH24:MI:SS TZ');" >&${COPROC[1]}
         if [ $? != 0 ]; then
             check_psql_stderr || cat $psql_stderr
             error_and_hook "could not get the stop time of the backup"
@@ -314,7 +314,7 @@ if (( 10#$pg_version >= 90000 )); then
 
         # We use a coprocess for non-exclusive backups, the feature is
         # available in bash 4 and later.
-        if (( ${BASH_VERSINFO[0]} >= 4 )); then
+        if (( ${BASH_VERSINFO[0]} < 4 )); then
             echo "ERROR: bash version is too old to perform a non-exclusive backup. Aborting" 1>&2
         else
             info "performing backup from hot standby server"
@@ -399,12 +399,12 @@ if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
         error_and_hook "could not create temporary file"
     fi
 
-    coproc copsql { ${psql_command[@]} -At $psql_condb } 2>$psql_stderr
+    coproc ${psql_command[@]} -At $psql_condb 2>$psql_stderr
 
     get_psql_output() {
         # First wait for output to be ready on the fd. When there is
         # an error, no output go to the fd
-        while ! read -t 0 -u ${copsql[0]}; do
+        while ! read -t 0 -u ${COPROC[0]}; do
             if ! grep -E "^(ERROR|FATAL)" $psql_stderr >/dev/null 2>&1; then
                 sleep 1
             else
@@ -415,7 +415,7 @@ if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
         # When the fd has some data, read everything and change
         # newlines to pipe characters, to pass through expansion of
         # newline to space, when stored as a string.
-        while read -t 1 -u ${copsql[0]} line; do
+        while read -t 1 -u ${COPROC[0]} line; do
             [ -n "$line" ] && echo -n "$line|"
         done
         return 0
@@ -430,7 +430,7 @@ if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
     }
 
     # Check if the connection works by getting the pid of the backend
-    echo 'select pg_backend_pid();' >&${copsql[1]} # 2>/dev/null
+    echo 'select pg_backend_pid();' >&${COPROC[1]} # 2>/dev/null
     if [ $? != 0 ]; then
         check_psql_stderr || cat $psql_stderr
         error_and_hook "could not check connection to PostgreSQL"
@@ -438,7 +438,7 @@ if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
     psql_pid=$(get_psql_output)
 
     # Start the base backup
-    echo "select pg_start_backup('${label_prefix}_${current_time}', true, false);"  >&${copsql[1]}
+    echo "select pg_start_backup('${label_prefix}_${current_time}', true, false);"  >&${COPROC[1]}
     if [ $? != 0 ]; then
         check_psql_stderr || cat $psql_stderr
         error_and_hook "could not start backup process (command sending)"
@@ -667,6 +667,23 @@ if (( $pg_version >= 90400 )); then
 	"SELECT slot_name,plugin,slot_type,database FROM pg_replication_slots;" \
 	-- "$psql_condb" 2>/dev/null > "$replslot_list" ||
 	error_and_hook "could not get the list of replication slots from PostgreSQL"
+fi
+
+# Starting from 9.6 and when the backup is from a standby server,
+# PostgreSQL relies on the pg_control file being backed up last to
+# find the backend end location in the WAL. In this case, backup the
+# pg_control file just before ending the backup.
+if (( $pg_version >= 90600 )) && [ "$standby" = "t" ]; then
+    info "backup it taken from a standby server, copying the pg_control file"
+    if [ "$local_backup" = "yes" ]; then
+        if ! cp -- "$pgdata/global/pg_control" "$backup_dir/"; then
+            error_and_hook "could not copy the pg_control file to $backup_dir"
+        fi
+    else
+        if ! scp -- "$pgdata/global/pg_control" "$ssh_target:$(qw "$backup_dir/")" > /dev/null; then
+	    error_and_hook "could not copy the pg_control file to $target:$backup_dir"
+        fi
+    fi
 fi
 
 # Stop backup

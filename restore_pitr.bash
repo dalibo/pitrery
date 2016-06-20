@@ -570,6 +570,26 @@ for (( i=0; i<$tspc_count; ++i )); do
     fi
 done
 
+# Starting from 9.6 and when the backup is from a standby server,
+# PostgreSQL relies on the pg_control file being backed up last to
+# find the backend end location in the WAL. If we find the pg_control
+# file at the root of the backup directory, resore it.
+if [ "$local_backup" = "yes" ]; then
+    if [ -f "$backup_dir/pg_control" ]; then
+        info "pg_control file found in $backup_dir, restoring it"
+        if ! cp -- "$backup_dir/pg_control" "$pgdata/global/pg_control"; then
+            error "could not restore pg_control file to $pgdata/global/"
+        fi
+    fi
+else
+    if ssh -n -- "$ssh_target" "test -f $(qw "$backup_dir/pg_control")"; then
+        info "pg_control file found in $backup_dir, restoring it"
+        if ! scp -- "$ssh_target:$(qw "$backup_dir/pg_control")" "$pgdata/global/pg_control" >/dev/null; then
+            error "could not restore pg_control file to $pgdata/global/"
+        fi
+    fi
+fi
+
 # Create or symlink pg_xlog directory if needed
 if [ -d "$pgxlog" ]; then
     info "creating symbolic link pg_xlog to $pgxlog"
