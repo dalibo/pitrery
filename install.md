@@ -9,7 +9,7 @@ Introduction
 pitrery is a set of Bash scripts to manage Point In Time Recovery
 (PITR) backups for PostgreSQL. This is the user manual of pitrery
 which, hopefully, will guide you in the process of setting up the
-tools to perform you backups.
+tools to perform your backups.
 
 
 Point In Time Recovery
@@ -63,35 +63,36 @@ How pitrery works
 
 The purpose of pitrery is to manage the archiving of WAL segments and
 automate the base backup along with restoring the files and preparing
-the recovery to a date and time.  Those two job are independent in the
+the recovery to a date and time.  Those two jobs are independent in the
 design of pitrery. This means that you can decide not to use the
 archiving script to put WAL files in a safe place, which can be
 interesting if you already have WAL based replication set up and you
 do not want to replace you archiving script with the one provided by
 pitrery.
 
-The `archive_xlog` script takes care of WAL archiving.  It can use a
-configuration file to find where to archive WAL files.  As of version
-1.3, `archive_xlog` no longer try to archive to many places.  Instead,
-the user has to integrate it in a already existing archiving script or
-simply modify the `archive_command` parameter of `postgresql.conf` to make
-it archive the WAL files.  `archive_xlog` can copy and compress WAL
-files locally or to another server reachable using SSH.  A
+The `archive_xlog` script takes care of WAL archiving.  If you need to
+archive WAL to many places, you can integrate it with an already
+existing archiving script or simply modify the `archive_command`
+parameter of `postgresql.conf`.  `archive_xlog` can copy and compress
+WAL files locally or to another server reachable using SSH.  A
 configuration file can be used to reduce the size of the command line
 defined in the configuration file of PostgreSQL.
 
-As of version 1.4, options of `archive_xlog.conf` have been merged to
-the configuration file of pitrery.
-
-The management of base backups is divided in four parts, each one using
-a standalone script to perform an action: `backup`, `restore`, `purge` and
-`list`.  These action can then be called by `pitrery`, a wrapper around
-those scripts that uses a configuration file to define the backup
-options.  The purpose of `pitrery` and its configuration file is reduce
-and simplify the commands needed to perform a particular action.  If
-it is well configured, then restore is possible from a simple command
-with a few switchs, because the pressure on the person running it can
-be high at a time when end-users cannot access the database.
+The management of base backups is divided in four main parts, each one
+using a standalone script to perform an action: `backup`, `restore`,
+`purge` and `list`.  These action can then be called by `pitrery`, a
+wrapper around those scripts that uses a configuration file to define
+the backup options.  The purpose of `pitrery` and its configuration
+file is reduce and simplify the commands needed to perform a
+particular action.  If it is well configured, then restore is possible
+from a simple command with a few switchs, because the pressure on the
+person running it can be high at a time when end-users cannot access
+the database. On the other side, adding command line switches at run
+time will easily modify the behaviour of the action to avoid modifying
+the configuration all the time.  To more actions are available to ease
+the administration : `check` can be used to ensure the configuration
+file is correct and PostgreSQL properly configured and `configure` can
+be used to easily create a configuration file from the command line.
 
 The storage place can be a remote server or the local machine. If is a
 remote server, it must accessible using SSH in batch mode (One needs
@@ -123,7 +124,7 @@ Installation
 Prerequisites
 -------------
 
-pitrery is a set of bash scripts, so bash is needed. Apart from bash,
+pitrery is a set of bash scripts, so bash is required. Apart from bash,
 standard tools found on any Linux server are needed: `grep`, `sed`, `awk`,
 `tar`, `gzip`, `ssh`, `scp`...
 
@@ -165,6 +166,8 @@ By default, the files are installed in `/usr/local`:
 
 * configuration samples are installed in `/usr/local/etc/pitrery`
 
+* manual pages are installed in `/usr/local/share/man`
+
 
 WAL Archiving
 =============
@@ -190,9 +193,7 @@ configured:
 
 * `ARCHIVE_LOCAL` controls whether local copy is performed. When this parameter
   is set to "yes", archive_xlog uses cp to copy the file on a local
-  path. This path maybe a local filesystem or a remote filesystem mounted
-  locally.  This parameter can be overridden on the command line with
-  the `-L` option.
+  path.
 
 * `ARCHIVE_HOST` is the target hostname or IP address used when copying over
   an SSH connection.
@@ -206,12 +207,32 @@ configured:
   server doing a lot write transaction, this can avoid contention on
   archiving.
 
-* `SYSLOG` can be set to "yes" to log messages to syslog, otherwise
-  stderr is used for messages.  `SYSLOG_FACILITY` and `SYSLOG_IDENT` can
-  then by used to store messages in the log file of PostgreSQL when it
-  is configured to use syslog.
+* `ARCHIVE_OVERWRITE` can be set to "no" to check if the file to
+  archive already exists in the destination directory. Since it
+  reduces performance when archiving over SSH, it is set to "yes" by
+  default.
 
-If archiving is set up to a remote host, this host must be accessible
+* `ARCHIVE_CHECK` can be set to "yes" to check the md5 of the archived
+  file to the md5 of the original WAL file. It is useful when the
+  storage and the network is not relaiable. If overwriting is
+  disabled, the md5 check enabled and the archive already exists, the
+  archiving returns success if the md5 check is successful. This
+  option does not apply on local archiving.
+
+* `ARCHIVE_FLUSH` can be set to "yes" to force an immediate flush of
+  the archived file to disk before returning success. It may slow down
+  the archiving process but ensure archives are not corrupted in case of
+  a power loss on the destination.
+
+* `SYSLOG` can be set to "yes" to log messages to syslog, otherwise
+  stderr is used for messages.  `SYSLOG_FACILITY` and `SYSLOG_IDENT`
+  can then by used to store messages in the log file of PostgreSQL
+  when it is configured to use syslog. This should match the
+  configuration of PostgreSQL so that the messages of `archive_xlog`
+  are written to the logfile of PostgreSQL, otherwise they would be
+  lost.
+
+If archiving is set up to a remote host, this host must be reachable
 using SSH in batch mode, meaning that passphraseless access using keys
 is to be configured for the system user running PostgreSQL to the
 remote host.
@@ -228,7 +249,7 @@ dependent parameters:
     # Changing this requires a restart
     archive_mode = on
     
-    # The archive command using the defaults
+    # The archive command using the defaults from pitr.conf
     archive_command = '/usr/local/bin/archive_xlog %p'
     
     # The archive command with parameters
@@ -308,21 +329,23 @@ cluster. pitrery command syntax is:
     pitrery [options] action [action-specific options]
 
 
-Each action that can be performed by pitr_migr executes the
-corresponding script stored by default in
-`/usr/local/lib/pitrery`. These scripts are standalone, they perform the
-action based on the options given on the command line at execution
-time.  The purpose of `pitrery` is to wrap there scripts and provide
-them with their command line options based on a configuration file.
-This reduces the command line size and try to avoid mistakes at
-runtime.
+Each action that can be performed by `pitrery` executes the
+corresponding script stored by default in `/usr/local/lib/pitrery`.
+These scripts are standalone, they perform the action based on the
+options given on the command line at execution time.  The purpose of
+`pitrery` is to wrap there scripts and provide them with their command
+line options based on a configuration file. Those options can be
+overridden at runtime.
 
 Before using `pitrery` to backup and manage backups for a specific
 PostgreSQL cluster, a configuration file shall be created in the
 configuration directory, `/usr/local/etc/pitrery` by default. This
-configuration holds all the information necessary to manage backups for
-this cluster. The default configuration file is `pitr.conf`, containing
-all the default parameters.
+configuration holds all the information necessary to manage backups
+for this cluster. Having a dedicated configuration file for each
+cluster is recommended.
+
+The default configuration file is `pitr.conf`, containing all the
+default parameters.
 
 The easiest way to configure pitrery is to copy the default
 configuration file to new name meaningful to our setup:
@@ -350,7 +373,9 @@ variables as the tools of PostgreSQL :
 If `psql` is in the PATH, the variable can be commented out to use the
 one found in the PATH. If other variables are defined in the
 environment, they can be commented out in the file to have pitrery use
-them.
+them. Please note that it is usually safer to configure them in the
+configuration file as environment variables may not be set when
+running commands using cron.
 
 The following parameters control the different actions accessible
 through pitrery :
@@ -382,8 +407,7 @@ through pitrery :
   mode. It is useful when WAL archiving is not performed by
   pitrery. When archive_xlog is used, e.g. `RESTORE_COMMAND` is left
   empty, it defaults to a call to `restore_xlog` and it is not necessary
-  to set it up here, unless archived WAL files are stored on a
-  different host than `BACKUP_HOST`.
+  to set it up here.
 
 * `PURGE_KEEP_COUNT` controls how many backups must be kept when purging
   old backups.
@@ -392,15 +416,13 @@ through pitrery :
   purging. If `PURGE_KEEP_COUNT` is also set, age based purge will
   always leave at least `PURGE_KEEP_COUNT` backups.
 
-* `ARCHIVE_*` and `SYSLOG_*` are passed to `restore_xlog` when
-  `RESTORE_COMMAND` is empty. They define the location (either local
-  or through SSH) where the WAL files are stored. As of version 1.9,
-  only the path to the configuration file is passed to `restore_xlog`
-  when`RESTORE_COMMAND` is empty.
-
-* `LOG_TIMESTAMP` can be set to yes to prefix the messages with the
+* `LOG_TIMESTAMP` can be set to "yes" to prefix the messages with the
   date for backup, restore and purge actions.
 
+* `USE_ISO8601_TIMESTAMPS`, when set to "yes", names the backup
+  directories using ISO 8601 format. Defaults to "no" to keep the
+  backward compatibility, as mixing formats of backup names would
+  break the sorting of backups on restore.
 
 Hooks
 -----
@@ -410,10 +432,10 @@ following configuration variables:
 
 * `PRE_BACKUP_COMMAND` is run before the backup is started.
 
-* `POST_BACKUP_COMMAND` is run after the backup is finished. Starting
-  with version 1.7, the command is run even if the backup fails, but
-  not if the backup fails because of the `PRE_BACKUP_COMMAND` or
-  earlier (e.g. the order "pre -- base backup -- post" is ensured).
+* `POST_BACKUP_COMMAND` is run after the backup is finished. The
+  command is run even if the backup fails, but not if the backup fails
+  because of the `PRE_BACKUP_COMMAND` or earlier (e.g. the order "pre
+  -- base backup -- post" is ensured).
 
 The following variables are then available, to access the PostgreSQL
 or the current backup:
@@ -427,9 +449,9 @@ or the current backup:
 
 * `PITRERY_BACKUP_DIR` is the full path to the directory of the backup
 
-* `PITRERY_BACKUP_LOCAL` can be used to know is SSH is required to access the backup directory
+* `PITRERY_BACKUP_LOCAL` can be used to know if SSH is required to access the backup directory
 
-* `PITRERY_SSH_TARGET` the user@host part needed to access to backup server
+* `PITRERY_SSH_TARGET` the user@host part needed to access the backup server
 
 * `PITRERY_EXIT_CODE` is the exit code of the backup. 0 for success, 1 for failure
 
@@ -437,18 +459,19 @@ or the current backup:
 Backup storage
 --------------
 
-As of version 1.5, pitrery offers two storage technics for the base backup.
+pitrery offers two storage technics for the base backup.
 
 The first, and historical, is `tar`, where it creates one compressed
-tarball (with `gzip` by default) for `PGDATA` and each tablespace. The
-`tar` method is quite slow and can become difficult to use with bigger
-database clusters, however the compression saves a lot of space.
+tarball (with `gzip` by default) for `PGDATA` and one for each
+tablespace. The `tar` method is quite slow and can become difficult to
+use with bigger database clusters, however the compression saves a lot
+of space.
 
 The second is `rsync`. It synchronizes PGDATA and each tablespace to a
 directory inside the backup, and try to optimize data transfer by
 hardlinking the files of the previous backup (provided it was done
 with the "rsync" method). This method should offer the best speed for
-the base backup, and is recommanded for big databases clusters (more
+the base backup, and is recommanded for bigger databases clusters (more
 than several hundreds of gigabytes).
 
 The default method is `tar`. It can be configured by setting the
@@ -461,7 +484,7 @@ Usage
 
 Note: all commands have a `-?` switch to show their usage details.
 
-The help for `pitrery` is available by running it with the `-h` option :
+The help for `pitrery` is available by running it with the `-?` option :
 
     $ pitrery -?
     usage: pitrery [options] action [args]
@@ -469,6 +492,7 @@ The help for `pitrery` is available by running it with the `-h` option :
         -c file      Path to the configuration file
         -n           Show the command instead of executing it
         -l           List configuration files in the default directory
+        -V           Display the version and exit
         -?           Print help
     
     actions:
@@ -476,6 +500,8 @@ The help for `pitrery` is available by running it with the `-h` option :
         backup
         restore
         purge
+        check
+	configure
     
 
 If we want to backup our example production server, the name of the
@@ -507,8 +533,8 @@ configuration file `pitr.conf` :
 
     $ pitrery -n backup 192.168.0.50
     /usr/local/lib/pitrery/backup_pitr -b /var/lib/pgsql/backups \
-      -l pitr -D /var/lib/pgsql/data -P psql -h /tmp -p 5432 \
-      -U postgres -d postgres 192.168.0.50
+      -l pitr -D /var/lib/pgsql/data -s tar -h /tmp -p 5432 -U postgres \
+      -d postgres 192.168.0.50
 
 
 Finally, every configuration parameter defined in the configuration
@@ -518,8 +544,8 @@ switch after the action. For example, if the port of the PostgreSQL is
 
     $ pitrery -n backup -p 5433 192.168.0.50
     /usr/local/lib/pitrery/backup_pitr -b /var/lib/pgsql/backups \
-      -l pitr -D /var/lib/pgsql/data -P psql -h /tmp -p 5433 \
-      -U postgres -d postgres 192.168.0.50
+      -l pitr -D /var/lib/pgsql/data -s tar -h /tmp -p 5433 -U postgres \
+      -d postgres 192.168.0.50
 
 
 Note: the `BACKUP_HOST` is not defined in the configuration file used
@@ -562,21 +588,19 @@ action is:
         -d DATABASE          database to use for connection
     
         -T                   Timestamp log messages
-        -?                   Print help   
+        -?                   Print help
 
 
 For example, the configuration file for our example production server
 is the following:
 
-    PGDATA="/home/postgres/postgresql-9.2.4/data"
-    PGPSQL="/home/postgres/postgresql-9.2.4/bin/psql"
-    PGUSER="postgres"
-    PGPORT=5432
+    PGDATA="/home/pgsql/postgresql-9.4.5/data"
+    PGUSER="orgrim"
+    PGPORT=5945
     PGHOST="/tmp"
     PGDATABASE="postgres"
-    PGOWNER=$PGUSER
     BACKUP_IS_LOCAL="no"
-    BACKUP_DIR="/home/postgres/backups"
+    BACKUP_DIR="/backup/postgres"
     BACKUP_LABEL="prod"
     BACKUP_HOST=10.100.0.16
     BACKUP_USER=
@@ -586,65 +610,56 @@ is the following:
     PRE_BACKUP_COMMAND=
     POST_BACKUP_COMMAND=
     STORAGE="tar"
+    LOG_TIMESTAMP="no"
     ARCHIVE_LOCAL="no"
     ARCHIVE_HOST=10.100.0.16
     ARCHIVE_USER=
-    ARCHIVE_DIR="/home/postgres/backups/prod/xlog"
+    ARCHIVE_DIR="$BACKUP_DIR/$BACKUP_LABEL/archived_xlog"
     ARCHIVE_COMPRESS="yes"
+    ARCHIVE_OVERWRITE="yes"
     SYSLOG="no"
     SYSLOG_FACILITY="local0"
     SYSLOG_IDENT="postgres"
-    STORAGE="tar"
-
 
 With those options, pitrery can run a backup:
 
     $ pitrery -c prod backup
-    INFO: preparing directories in 10.100.0.16:/home/postgres/backups/prod
+    INFO: preparing directories in 10.100.0.16:/backup/postgres/prod
     INFO: listing tablespaces
     INFO: starting the backup process
     INFO: backing up PGDATA with tar
-    INFO: archiving /home/postgres/postgresql-9.0.4/data
-    INFO: backup of PGDATA successful
-    INFO: backing up tablespace "ts2" with tar
-    INFO: archiving /home/postgres/postgresql-9.0.4/ts2
-    INFO: backup of tablespace "ts2" successful
+    INFO: archiving /home/pgsql/postgresql-9.4.5/data
+    INFO: backing up tablespace "ts1" with tar
+    INFO: archiving /home/pgsql/postgresql-9.4.5/tblspc/ts1
     INFO: stopping the backup process
     NOTICE:  pg_stop_backup complete, all required WAL segments have been archived
     INFO: copying the backup history file
     INFO: copying the tablespaces list
-    INFO: backup directory is 10.100.0.16:/home/postgres/backups/prod/2013.08.28-11.16.30
+    INFO: backup directory is 10.100.0.16:/backup/postgres/prod/2015.12.22_17.13.54
     INFO: done
 
-
-
-If we have a look at the contents of the `/home/postgres/backups`
+If we have a look at the contents of the `/backup/postgres`
 directory on the backup host:
 
-    /home/postgres/backups
+    /backup/postgres
     └── prod
-        ├── 2013.08.28-11.16.30
-        │   ├── backup_label
-        │   ├── backup_timestamp
-        │   ├── pgdata.tar.gz
-        │   ├── tblspc
-        │   │   └── t2.tar.gz
-        │   └── tblspc_list
-        └── xlog
-            ├── 000000010000000000000036.gz
-            ├── 000000010000000000000037.gz
-            ├── 000000010000000000000038.gz
-            ├── 000000010000000000000039.gz
-            ├── 00000001000000000000003A.gz
-            ├── 00000001000000000000003B.gz
-            ├── 00000001000000000000003C.00000078.backup.gz
-            ├── 00000001000000000000003C.gz
-            └── 00000001000000000000003D.gz
+        ├── 2015.12.22_17.13.54
+        │   ├── backup_label
+        │   ├── backup_timestamp
+        │   ├── pgdata.tar.gz
+        │   ├── tblspc
+        │   │   └── ts1.tar.gz
+        │   └── tblspc_list
+        └── archived_xlog
+            ├── 00000001000000000000000D.gz
+            ├── 00000001000000000000000E.gz
+            ├── 00000001000000000000000F.gz
+            ├── 000000010000000000000010.00000090.backup.gz
+            └── 000000010000000000000010.gz
 
-
-The backup is stored in the `prod/2013.08.28-11.16.30` diretory of
+The backup is stored in the `prod/2015.12.22_17.13.54` diretory of
 `BACKUP_DIR`, "prod" being the label defined by `BACKUP_LABEL`. The backup
-directory is named with the start date and time of the backup. The
+directory is named with the stop date and time of the backup. The
 `backup_timestamp` file contains the timestamp value of the stop time
 of the backup, which is used by the restore action to find the best
 candidate when restoring to a specific date and time and by the purge
@@ -656,8 +671,9 @@ database cluster (`postgresql.conf`, `pg_hba.conf` and
 `pg_ident.conf`) when they are not located inside `PGDATA`.
 
 Notes:
-* Here we have configured `archive_xlog` to store the WAL files in
-  `prod/xlog` to have them close to the base backups.
+* Here we have left the default configuration for `archive_xlog` to
+  store the WAL files in `prod/archived_xlog`. This keep them close to
+  the base backups.
 * When using the `rsync` storage method, tarballs are replaced with
   directory with the same base name.
 
@@ -665,9 +681,9 @@ Notes:
 Listing backups
 ---------------
 
-The list action allow to find the backups for a particular label on
-the backup host. By default, it prints a parsable list of backups, with
-one backups on each line:
+The list action allow to find the backups the backup host or the
+localhost depending on the configuration. By default, it prints a
+parsable list of backups, with one backups on each line:
 
     $ pitrery -c pitr15_local93 list
     List of local backups
@@ -732,10 +748,16 @@ Restore
 
 The restore action takes a backup and prepares the recovery to restore
 to a particular point in time. The target date must be given on the
-command line using the -d option. Its format is the one expected by
-PostgreSQL: `YYYY-mm-DD HH:MM:SS [+-]TZTZ`. The `'[+-]TZTZ'` is the
-timezone offset, it must given as `HHMM`, .e.g +2h30 would be +0230 and
--7h would be -0700.
+command line using the `-d` option.
+
+The best format is the one expected by PostgreSQL: `YYYY-mm-DD HH:MM:SS [+-]TZTZ`.
+The `'[+-]TZTZ'` is the timezone offset, it must given as `HHMM`, .e.g
++2h30 would be +0230 and -7h would be -0700. This work best with the
+`date` command found on most Unix systems.
+
+Depending on the local `date` command, the target date can be
+anything it can parse, for example, offsets like `1 day ago` work with
+GNU date.
 
 This action perform the following steps:
 
@@ -749,15 +771,18 @@ This action perform the following steps:
   `PGDATA/restored_config_files` if they were outside PGDATA at the time
   of the backup.
 
+* Create a script which can be used to optionally restore any replication
+  slots that were active (or inactive) at the time of the base backup.
+
 * Optionally, create a script to update the catalog when paths to
   tablespaces have changed, for PostgreSQL <= 9.1.
 
 The restore will only work if the target destination directory (PGDATA
 in the configuration file of pitrery) and the directories used by
 tablespaces exist or can be created, are writable and empty. It is
-important to prepare those directories before running the restore. As
-of version 1.8, it is possible to overwrite contents of target
-directories with the `-R` option.
+important to prepare those directories before running the restore. It
+is possible to overwrite contents of target directories with the `-R`
+option.
 
 When specifiying a target date, it will be used in the
 `$PGDATA/recovery.conf` file as value for the `recovery_target_time`
@@ -772,10 +797,10 @@ controlled from its command line options, for example:
     restore_xlog -h HOST -d ARCHIVE_DIR %f %p
 
 The restore script uses options values from the configuration, which
-can be passed by the restore action to restore_xlog, using the `-C`
-option, starting from 1.9. If options, different from the configuration,
-must be given to `restore_xlog`, the complete command must be provided
-to the restore action with `-r`.
+is passed by the restore action to `restore_xlog`, using the `-C`
+option. If options, different from the configuration, must be given to
+`restore_xlog`, the complete command must be provided to the restore
+action with `-r`.
 
 Let's say the target directories are ready for a restore run by the
 `postgres` user, the restore can be started with pitrery on an example
@@ -900,7 +925,7 @@ The options of restore are:
         -x dir               Path to the xlog directory (only if outside $PGDATA)
         -d date              Restore until this date
         -O user              If run by root, owner of the files
-        -t tblspc:dir        Change the target directory of tablespace "ts"
+        -t tblspc:dir        Change the target directory of tablespace "tblspc"
                                this switch can be used many times
         -n                   Dry run: show restore information only
         -R                   Overwrite destination directories
@@ -936,9 +961,11 @@ one, while `PURGE_KEEP_COUNT=2`:
 
     $ pitrery -c prod purge -m 1
     INFO: searching backups
-    INFO: purging /home/postgres/backups/prod/2011.08.17-11.16.30
-    INFO: purging WAL files older than 000000020000000000000060
-    INFO: 75 old WAL file(s) removed
+    INFO: purging the following backups:
+    INFO:  /backup/postgres/prod/2015.12.22_17.13.54
+    INFO: listing WAL files older than 000000010000000000000013
+    INFO: 4 old WAL file(s) to remove from 10.100.0.16
+    INFO: purging old WAL files
     INFO: done
 
 Note that if there are no backups but archived WAL files, the purge
@@ -960,9 +987,131 @@ The options of purge are:
     
         -m count     Keep this number of backups
         -d days      Purge backups older than this number of days
+        -N           Dry run: show what would be purged only
     
         -T           Timestamp log messages
         -?           Print help
-    
 
+If unsure about the configuration of the purge, the `-N` switch can be
+used to display what whould be done.
+
+
+Configuring pitrery from the command line
+-----------------------------------------
+
+The `configure` action can create a configuration file. It needs a
+destination of the form `[[user@]host:]/path` to know where backups
+shall be stored. If a host is not provided, the backup is considered
+local.  Some options are available to create a configuration :
+
+    pitrery configure -?
+    configure_pitr configures pitrery
+    
+    Usage:
+        configure_pitr [options] [[user@]host:]/path/to/backups
+    
+    Options:
+        -o config_file         Output configuration file
+	-f                     Overwrite the destination file
+        -C                     Do not connect to PostgreSQL
+    
+    Configuration options:
+        -l label               Backup label
+        -s mode                Storage method, tar or rsync
+        -m count               Number of backups to keep
+        -g days                Remove backup older then this number of days
+        -D dir                 Path to $PGDATA
+        -a [[user@]host:]/dir  Place to store WAL archives
+    
+    Connection options:
+        -P psql                Path to the psql command
+        -h hostname            Database server host or socket directory
+        -p port                Database server port number
+        -U name                Connect as specified database user
+        -d database            Database to use for connection
+    
+        -?                     Print help
+
+Not all possible configuration options are provided, the purpose is to
+quickly set pitrery up, then a edit the configuration file created for
+further tuning.  It is worth noting that `-C` avoids making pitrery
+connect to PostgreSQL so that the correct parameters for WAL archiving
+are output. `-o` writes the configuration files if it does not exists,
+if only a keyword is given, the file is created in the default
+configuration directory.
+
+
+Checking the configuration file
+-------------------------------
+
+The `check` action can check if a configuration file is correct.  The
+action tests if the backup directory is reachable, if WAL archiving
+can be done with `archive_xlog`, if PostgreSQL is up and properly
+configured for PITR and if the current user can actually backup the
+files.
+
+For example, the following commands checks the `local.conf`
+configuration file:
+
+    INFO: Configuration file is: /usr/local/etc/pitrery/local.conf
+    INFO: loading configuration
+    INFO: the configuration file contains:
+    PGDATA="/home/pgsql/postgresql-9.5.1/data"
+    PGUSER="orgrim"
+    PGPORT=5951
+    PGHOST="/tmp"
+    PGDATABASE="postgres"
+    BACKUP_IS_LOCAL="yes"
+    BACKUP_DIR="/home/pgsql/pitrery"
+    BACKUP_LABEL="local"
+    BACKUP_HOST=
+    BACKUP_USER=
+    RESTORE_COMMAND=
+    PURGE_KEEP_COUNT=2
+    PURGE_OLDER_THAN=
+    PRE_BACKUP_COMMAND=
+    POST_BACKUP_COMMAND=
+    STORAGE="tar"
+    LOG_TIMESTAMP="no"
+    ARCHIVE_LOCAL="yes"
+    ARCHIVE_HOST=
+    ARCHIVE_USER=
+    ARCHIVE_DIR="$BACKUP_DIR/$BACKUP_LABEL/archived_xlog"
+    ARCHIVE_COMPRESS="yes"
+    ARCHIVE_OVERWRITE="yes"
+    SYSLOG="no"
+    SYSLOG_FACILITY="local0"
+    SYSLOG_IDENT="postgres"
+    
+    INFO: ==> checking the configuration for inconsistencies
+    INFO: configuration seems correct
+    INFO: ==> checking backup configuration
+    INFO: backups are local, not checking SSH
+    INFO: target directory '/home/pgsql/pitrery' exists
+    INFO: target directory '/home/pgsql/pitrery' is writable
+    INFO: ==> checking WAL files archiving configuration
+    INFO: WAL archiving is local, not checking SSH
+    INFO: checking WAL archiving directory: /home/pgsql/pitrery/local/archived_xlog
+    INFO: target directory '/home/pgsql/pitrery/local/archived_xlog' exists
+    INFO: target directory '/home/pgsql/pitrery/local/archived_xlog' is writable
+    INFO: checking rsync on the local host
+    INFO: rsync found on the local host
+    INFO: ==> checking access to PostgreSQL
+    INFO: psql command and connection options are: psql -X -h /tmp -p 5951 -U orgrim
+    INFO: connection database is: postgres
+    INFO: environment variables (maybe overwritten by the configuration file):
+    INFO:   PGPORT=5951
+    INFO:   PGDATABASE=postgres
+    INFO:   PGDATA=/home/pgsql/postgresql-9.5.1/data
+    INFO: PostgreSQL version is: 9.5.1
+    INFO: connection role can run backup functions
+    INFO: checking the configuration:
+    INFO:   wal_level = hot_standby
+    INFO:   archive_mode = on
+    INFO:   archive_command = 'archive_xlog -C local %p'
+    INFO: ==> checking access to PGDATA
+    INFO: PostgreSQL and the configuration reports the same PGDATA
+    INFO: permissions of PGDATA ok
+    INFO: owner of PGDATA is the current user
+    INFO: access to the contents of PGDATA ok
 
