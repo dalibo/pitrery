@@ -1,5 +1,5 @@
 Name:           pitrery
-Version:        1.11
+Version:        1.12dev
 Release:        1%{?dist}
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
@@ -53,6 +53,9 @@ make install DESTDIR=%{buildroot}
 %doc %{_mandir}/man1/restore_xlog.1.gz
 
 %changelog
+* Wed Jun 22 2016 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.12dev-1
+- Bump to dev version
+
 * Mon Jun 20 2016 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.11-1
 - Update to 1.11
 
