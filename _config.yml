@@ -1,5 +1,5 @@
 name: pitrery
-pygments: true
+hightlighter: rouge
 baseurl: /pitrery
 safe: true
 lsi: false
