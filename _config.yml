@@ -1,5 +1,4 @@
 name: pitrery
-markdown: redcarpet
 pygments: true
 baseurl: /pitrery
 safe: true
