@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: page_with_toc
 title: pitrery - Installation
 ---
 

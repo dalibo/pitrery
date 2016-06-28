@@ -1,0 +1,23 @@
+---
+layout: default
+---
+<script type="text/javascript">
+    $(function() {
+      $('#pagewithtoc').toc({
+        showAlways:true,
+        renderIn:'#tocdiv',
+        contentsText:"Table of contents",
+        hideText:'Collapse',
+        showText:'Expand',
+        showCollapsed:true
+      });
+    });
+</script>
+
+<section id="pagewithtoc">
+  <div id="tocdiv"></div>
+  <div>
+    {{ content }}
+  </div>
+</section>
+
