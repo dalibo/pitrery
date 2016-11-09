@@ -109,7 +109,7 @@ Archiving
 ---------
 
 Compression options are only available in the configuration file,
-customizing this forces to use `-C` option of `archive_xlog`.
+customising this forces to use `-C` option of `archive_xlog`.
 
 
 Upgrade to 1.4

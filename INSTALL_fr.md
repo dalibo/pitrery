@@ -11,7 +11,7 @@ vos sauvegardes.
 Point In Time Recovery
 ======================
 
-Ce chapître présente les principes de la "restauration à un instant donné"
+Ce chapitre présente les principes de la "restauration à un instant donné"
 (PITR) dans PostgreSQL.
 
 En premier lieu, il est important de comprendre que PostgreSQL réalise
@@ -22,11 +22,11 @@ correspondants. Ceci avant que PostgreSQL n'informe l'utilisateur que
 sa transaction a été validée.
 
 Les journaux de transactions sont divisés en segments.  Les segments
-sont des fichiers de 16Mo, nommés par un nombre hexadecimal, ce qui
+sont des fichiers de 16Mo, nommés par un nombre hexadécimal, ce qui
 permet de garder ces fichiers ordonnés.  Une fois que PostgreSQL a
-rempli suffisament de fichiers WAL ou qu'un super-utilisateur le
+rempli suffisamment de fichiers WAL ou qu'un super-utilisateur le
 demande ou que le time-out est atteint, le moteur va déclencher un
-point de contrôle (Checkpoint).  Le checkpoint dans postgreSQL réalise
+point de contrôle (Checkpoint).  Le checkpoint dans PostgreSQL réalise
 l'écriture des transactions enregistrées dans les WAL dans les
 fichiers de données de la base de données.  C'est ce mécanisme qui
 implique que les données sont écrites deux fois, d'abord dans les WAL
@@ -55,14 +55,14 @@ archivage.
 
 Il faut aussi une copie des fichiers de données avec l'information sur
 la position d'où la restauration des archives doit commencer.  Cette
-opération est apellée "sauvegarde de base" (basebackup).
+opération est appelée "sauvegarde de base" (basebackup).
 
 Une fois ces deux pré-requis opérationnels (sauvegarde de base +
 WAL archivés) l'utilisateur est en mesure d'indiquer précisément à
 PostreSQL à quel moment il doit arrêter d'appliquer les modifications
 enregistrées dans les journaux de transactions archivés.
 
-Cette fonctionnalité de postgreSQL est également à la base de la
+Cette fonctionnalité de PostgreSQL est également à la base de la
 réplication. Lorsque les archives sont appliquées en continu sur une
 sauvegarde de base, on obtient une seconde instance en réplication.
 Même s'il est possible de mettre en place de la réplication avec
@@ -99,7 +99,7 @@ utilisant un script indépendant pour réaliser ces actions :
   * Purge : `purge`
   * Liste : `list`
 
-Ces actions sont appellées par `pitrery`, un wrapper qui permet
+Ces actions sont appelées par `pitrery`, un wrapper qui permet
 d'appeler chaque action en lui passant les options correctes,
 centralisées dans un fichier de configuration pour simplifier
 l'utilisation.
@@ -152,7 +152,7 @@ Installation
 Pré-requis
 ----------
 
-pitrery est un ensemble de scripts bash, bash est donc indispenable.
+pitrery est un ensemble de scripts bash, bash est donc indispensable.
 Les outils tels que `grep`, `sed`, `awk`,`tar`, `gzip`, `ssh`,
 `scp`...  que l'on peut trouver sur n'importe quel serveur linux sont
 également nécessaires.
@@ -257,7 +257,7 @@ Les paramètres suivants peuvent être configurés :
 * `ARCHIVE_FLUSH` configuré à "yes" force la synchronisation des
    données du fichier archivé sur disque à la destination. Malgré
    l'impact négatif sur les performances, cette opération évite les
-   corruptions en cas de coupure d'électricité notament sur les
+   corruptions en cas de coupure d'électricité notamment sur les
    système de stockage peu fiable.
 
 * `SYSLOG` peut être positionné à "yes" pour envoyer les messages vers
@@ -311,13 +311,13 @@ Fichiers WAL archivés
 Par défaut, `archive_xlog` utilise `gzip -4` pour compresser les
 fichiers WAL, lorsque la compression est activée
 (`ARCHIVE_COMPRESS="yes"`).  Il est possible d'augmenter le taux de
-compression et/ou d'accélerer celle-ci en utilisant d'autres outils de
+compression et/ou d'accélérer celle-ci en utilisant d'autres outils de
 compression tel que `bzip2` ou `pigz`.  Il faut néanmoins que ces
 outils supportent l'option `-c` pour envoyer les données compressées
 vers la sortie standard et que les données à compresser proviennent de
 l'entrée standard.  L'outil de compression peut être défini grâce au
 paramètre `ARCHIVE_COMPRESS_BIN` dans le fichier de configuration.  Le
-nom du fichier possedant une extension selon le type d'outil utilisé
+nom du fichier possédant une extension selon le type d'outil utilisé
 pour la compression (par exemple "gz" or "bz2", etc), il doit être
 spécifié en utilisant le paramètre `ARCHIVE_COMPRESS_SUFFIX` (sans le
 ".")  Cette extension est souvent obligatoire lors de l'opération
@@ -354,7 +354,7 @@ grâce aux paramètres suivants :
 
 * `BACKUP_UNCOMPRESS_BIN` : spécifie la commande à utiliser pour la
   décompression de l'archive créée par la commande définie précédemment.
-  Cette commande doit pouvoir utliser des pipes (|) et que le
+  Cette commande doit pouvoir utiliser des pipes (|) et que le
   paramètre `-c` renvoie la sortie de la commande sur la sortie standard
   (stdout). Les outils comme `gzip`, `bzip2`, `pigz`, `pbzip2`, `xz`
   fonctionnent de cette manière.
@@ -381,7 +381,7 @@ correspondant se trouvant par défaut dans le répertoire
 l'action basée sur les options données dans la ligne de commande au
 moment de l'exécution.  L'objectif de `pitrery` est d'encapsuler ces
 scripts sous un seul appel en gérant les options définies dans le
-fichier de configuration. Les options de cahque actions peuvent être
+fichier de configuration. Les options de chaque actions peuvent être
 surchargées à l'exécution.
 
 Avant d'utiliser `pitrery` pour sauvegarder et gérer vos sauvegardes
@@ -401,7 +401,7 @@ l'associer facilement à votre instance :
     cp pitr.conf prod.conf
 
 
-Nous venons de créer un fichier de paramètrage spécifique à l'instance
+Nous venons de créer un fichier de paramétrage spécifique à l'instance
 de production. Il reste à modifier ce fichier pour l'adapter à la
 configuration de l'instance en question.
 
@@ -413,7 +413,7 @@ Il est nécessaire de pouvoir lancer les `pg_start_backup()` and
 cours. `pitrery` utilise les mêmes variables que les outils de
 PostgreSQL.
 
-* `PGDATA` chemin d'accès au repertoire des fichiers de données de l'instance.
+* `PGDATA` chemin d'accès au répertoire des fichiers de données de l'instance.
 
 * `PGPSQL` chemin d'accès au binaire `psql`
 
@@ -423,7 +423,7 @@ PostgreSQL.
 Si `psql` est contenu dans le PATH de l'utilisateur, la variable
 associée peut être commentée, le binaire trouvé dans le $PATH sera
 automatiquement utilisé.  De la même manière si d'autres variables
-sont définies dans l'environnemnt, elles peuvent être commentées dans
+sont définies dans l'environnement, elles peuvent être commentées dans
 le fichier de configuration.  Notez qu'il est en général plus sûr de
 configurer ces variables au niveau du fichier de configuration qu'en
 tant que variables d'environnement qui pourraient ne pas être
@@ -434,11 +434,11 @@ Les paramètres suivants contrôlent les différentes actions.
 
 * `PGOWNER` est l'utilisateur système propriétaire des fichiers de l'instance.
   La définition de cet utilisateur est utile par exemple dans le cas où
-  la restauration est réalisée avec l'utilisateur root et que les fihciers
+  la restauration est réalisée avec l'utilisateur root et que les fichiers
   doivent être restaurés sous l'identité d'un autre utilisateur.
 
 * `PGXLOG` spécifie le chemin ou les journaux de transactions sont stockés
-   suite à la restauration, pg_xlog peut être un lien symbolic vers ce
+   suite à la restauration, pg_xlog peut être un lien symbolique vers ce
    répertoire comme lorsque l'option -X est utilisée avec initdb.
 
 * `BACKUP_IS_LOCAL` signifie à pitrery que les sauvegardes sont
@@ -450,7 +450,7 @@ Les paramètres suivants contrôlent les différentes actions.
 
 * `BACKUP_LABEL` défini l'étiquetage (label) utilisé pour le jeu de
    sauvegardes.  Toutes les sauvegardes vont être stockées dans un
-   sous-répertoire nommé avec l'etiquette définie à cet endroit.  Cela
+   sous-répertoire nommé avec l'étiquette définie à cet endroit.  Cela
    permet de stocker dans BACKUP_DIR, grâce à la même installation de
    pitrery des sauvegardes d'instances différentes sans risquer de
    mélanger les fichiers.  Cette valeur est aussi utilisée lors de
@@ -524,7 +524,7 @@ variables suivantes :
    accéder au serveur de sauvegarde.
 
 * `PITRERY_EXIT_CODE` code retour de la sauvegarde. 0 pour réussi,
-   1 pour echec.
+   1 pour échec.
 
 
 Stockage des sauvegardes
@@ -533,14 +533,14 @@ Stockage des sauvegardes
 pitrery propose deux manières de stocker les sauvegardes de base.
 
 La première, historique, s'appuie sur `tar` en créant une archive
-compressée (avec `gzip` par défaut) pour le répéroire `PGDATA` ainsi
+compressée (avec `gzip` par défaut) pour le répertoire `PGDATA` ainsi
 que pour tous les tablespaces. Cette méthode est relativement lente et
 difficile à utiliser avec des instances volumineuses, même si la
 compression permet de gagner beaucoup d'espace.
 
 La seconde s'appuie sur `rsync`. Elle réalise la synchronisation de
 `PGDATA` ainsi que tous les tablespaces dans un répertoire à
-l'interieur de la sauvegarde.  Elle essaie d'optimiser le transfert
+l'intérieur de la sauvegarde.  Elle essaie d'optimiser le transfert
 des données en créant des hardlinks du précédent backup (si il a été
 réalisé par la même méthode). Cette méthode permet en général de
 meilleurs taux de transfert pour la sauvegarde et est fortement
@@ -555,9 +555,9 @@ Utilisation
 -----------
 
 Notez: toutes les commandes possèdent l'option `-?` qui affiche les
-spécifités d'utilisation.
+spécificités d'utilisation.
 
-L'aide de `pitrery` est de ce fait disponible en lancant la commande
+L'aide de `pitrery` est de ce fait disponible en lançant la commande
 avec l'option `-?`
 
     $ pitrery -?
@@ -586,7 +586,7 @@ fichiers dont l'extension est `.conf`, par exemple :
 
     $ pitrery -c prod action
 
-L'option `-l` affiche tous les fichiers de configration trouvés dans le
+L'option `-l` affiche tous les fichiers de configuration trouvés dans le
 répertoire par défaut (`/usr/local/etc/pitrery`):
 
     $ pitrery -l
@@ -622,13 +622,13 @@ de 5432):
       -d postgres 192.168.0.50
 
 Notez : le paramètre `BACKUP_HOST` n'est pas défini dans le fichier de
-configuration utilisé pour cet exemple, c'est pour ca que l'on ajoute
+configuration utilisé pour cet exemple, c'est pour ça que l'on ajoute
 l'adresse IP après l'action "backup".
 
 Sauvegarde
 ----------
 
-**Prennez garde au fait que la sauvegarde doit s'exécuter sur le
+**Prenez garde au fait que la sauvegarde doit s'exécuter sur le
 serveur PostgreSQL**, la connexion SSH est utilisée pour __pousser__
 les données sur un serveur de sauvegarde, et les connexions à
 PostgreSQL pour s'exécuter en __local__.
@@ -647,7 +647,7 @@ suivante :
     Backup options:
         -L                   Réalise la sauvegarde en local
         -b dir               Répertoire de sauvegarde
-        -l label             Etiquette liée au backup réalisé
+        -l label             Étiquette liée au backup réalisé
         -u username          Nom d'utilisateur pour la connexion SSH
         -D dir               Chemin vers $PGDATA
         -s mode              Méthode de sauvegarde, tar ou rsync
@@ -821,7 +821,7 @@ affichées grâce à -?
         -L              Listing depuis le stockage local.
         -u username     Nom de l'utilisateur utilisé pour la connexion SSH.
         -b dir          Répertoire de stockage des sauvegardes.
-        -l label        Etiquette apposée lors de la réalisation de la sauvegarde.
+        -l label        Étiquette apposée lors de la réalisation de la sauvegarde.
         -v              Affiche les informations détaillées.
 
         -?              Affiche l'aide.
@@ -852,7 +852,7 @@ L'opération de restauration se déroule de la façon suivante :
 
 * Créer un fichier `recovery.conf` pour PostgreSQL.
 
-* Eventuellement, restaurater les fichiers de configurations dans un
+* Éventuellement, restaurer les fichiers de configurations dans un
   répertoire `PGDATA/restored_config_files`, s'ils se trouvaient
   ailleurs que dans PGDATA au moment de la sauvegarde.
 
@@ -865,7 +865,7 @@ L'opération de restauration se déroule de la façon suivante :
 
 La restauration fonctionnera uniquement si le répertoire cible (PGDATA
 défini dans le fichier de configuration de pitrery) ainsi que les
-repértoires utilisés pour les tablespaces existent ou peuvent être
+répertoires utilisés pour les tablespaces existent ou peuvent être
 créés, modifiés et sont vides.  Il est important d'avoir préparé ces
 répertoires avant de lancer la restauration.  Il est possible
 d'écraser le contenu du répertoire cible grâce à l'option `-R`
@@ -891,7 +891,7 @@ différentes de la configuration initiale doivent être communiquées à
 restauration grace à l'option `-r`.
 
 Imaginons que le répertoire cible soit prêt à ce qu'une restauration soit
-éxecutée pas l'utilisateur `postgres` , la restauration peut commencer
+exécutée pas l'utilisateur `postgres` , la restauration peut commencer
 avec pitrery sur notre serveur "prod" :
 
     $ pitrery -c prod restore -d '2013-06-01 13:00:00 +0200'
@@ -1016,7 +1016,7 @@ Les options de l'action restore sont :
         -L                   Restauration depuis un stockage local.
         -u username          Nom d'utilisateur utilisé pour la connexion SSH.
         -b dir               Répertoire où sont stockées les sauvegardes.
-        -l label             Etiquette définie lors de la sauvegarde
+        -l label             Étiquette définie lors de la sauvegarde
         -D dir               Chemin vers $PGDATA cible
         -x dir               Chemin vers le repertoire xlog (uniquement si extérieur à PGDATA.)
         -d date              Restauration jusqu'à cette date.
@@ -1078,7 +1078,7 @@ Les options de purge sont :
     usage: purge_pitr [options] [hostname]
     options:
         -L           Purge dans un stockage local
-        -l label     Etiquette pour identifier les données à purger.
+        -l label     Étiquette pour identifier les données à purger.
         -b dir       Répertoire de sauvegarde
         -u username  Nom d'utilisateur utilisé dans la connexion SSH
         -n host      Nom du serveur où se trouvent les WAL archivés.
@@ -1092,7 +1092,7 @@ Les options de purge sont :
         -T           Horodatage des messages dans les logs.
         -?           Affiche l'aide.
 
-Comme précédement, si des doutes subsistent quant à la purge, lancez
+Comme précédemment, si des doutes subsistent quant à la purge, lancez
 l'action de purge avec l'option `-N` pour afficher ce qui serait purgé.
 
 
@@ -1100,7 +1100,7 @@ Configuration de pitrery en ligne de commande
 ---------------------------------------------
 
 L'action `configure` permet de créer rapidement un fichier de
-configuartion depuis la ligne de commande. Il faut lui fournir la
+configuration depuis la ligne de commande. Il faut lui fournir la
 destination de stockage des backups, sous la forme
 `[[user@]host:]/path`. Si un host n'est pas fourni, les sauvegardes se
 font en local. Les options de configuration sont :
@@ -1146,7 +1146,7 @@ de configuration par défaut.
 Vérification de la configuration
 --------------------------------
 
-L'action `check` permet de vérifier un fichier de configuration. The
+L'action `check` permet de vérifier un fichier de configuration. Les
 tests consistent à vérifier si le répertoire de stockage des backups
 est utilisable, si l'archivage est possible avec `archive_xlog`, si
 PostgreSQL est accessible et correctement configuré pour le PITR et

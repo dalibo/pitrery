@@ -43,7 +43,7 @@ DEVELOPMENT
 
 The source code is available on Github: https://github.com/dalibo/pitrery
 
-pitrery is developped by Nicolas Thauvin under a classic 2 clauses BSD
+pitrery is developed by Nicolas Thauvin under a classic 2 clauses BSD
 license. See license block in the scripts or the COPYRIGHT file.
 
 HOW TO CONTRIBUTE
