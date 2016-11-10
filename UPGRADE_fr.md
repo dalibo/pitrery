@@ -61,7 +61,7 @@ Utilisation
 * Lancer pitrery en utilisant `pitr_mgr` n'est plus possible.
   Le lien symbolique a été supprimé après 2 versions de rétro-compatibilité.
 
-* Le script additionnel (hook) post-sauvegarde, paramètrable grâce à 
+* Le script additionnel (hook) post-sauvegarde, paramétrable grâce à 
   `POST_BACKUP_COMMAND`, est désormais exécuté après le script additionnel
   pré-sauvegarde même si la sauvegarde a planté. 
   La variable `PITRERY_EXIT_CODE` est définie avec le code retour de la 
@@ -100,7 +100,7 @@ Configuration
 Les nouveaux paramètres de configuration sont définis avec les valeurs 
 par défaut suivantes :
 
-* `PGXLOG` (vide). Chemin vers le réperoire pg_xlog s'ils sont restaurés
+* `PGXLOG` (vide). Chemin vers le répertoire pg_xlog s'ils sont restaurés
    ailleurs que dans PGDATA.
 * `PRE_BACKUP_COMMAND` (vide) et `POST_BACKUP_COMMAND`. Commande à lancer
    avant et après la sauvegarde de base.

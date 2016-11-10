@@ -2,7 +2,7 @@ pitrery: Outils de sauvegarde-restauration Point-In-Time Recovery (PITR) pour Po
 ========================================================================================
 
 
-FONCTIONNALITES
+FONCTIONNALITÉS
 ---------------
 
 pitrery est un ensemble d'outils permettant de faciliter la gestion des 
@@ -38,12 +38,12 @@ La documentation complète est disponible dans les pages de man, INSTALL_fr.md e
 http://dalibo.github.io/pitrery/
 
 
-DEVELOPPEMENT
+DÉVELOPPEMENT
 -------------
 
 Le code source est disponible sur github: https://github.com/dalibo/pitrery
 
-pitrery est developpé par Nicolas Thauvin sous licence BSD classique à 2 
+pitrery est développé par Nicolas Thauvin sous licence BSD classique à 2 
 clauses. Référez-vous à la partie licence dans les scripts ou au fichier 
 COPYRIGHT.
 
