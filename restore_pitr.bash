@@ -457,6 +457,22 @@ case $storage in
 	;;
 esac
 
+# On PostgreSQL >= 9.6 restore the backup_label file produced outside
+# of the PGDATA. It is always in the backup and it is mandatory for
+# PITR, so we just have to check if the file is in PGDATA and restore
+# it when missing.
+if [ ! -f "$pgdata/backup_label" ]; then
+    if [ "$local_backup" = "yes" ]; then
+        if ! cp -- "$backup_dir/backup_label" "$pgdata/backup_label"; then
+            error "could not restore the backup_label file to $pgdata"
+        fi
+    else
+        if ! scp -- "$ssh_target:$backup_dir/backup_label" "$pgdata/backup_label"; then
+            error "could not restore the backup_label file to $pgdata"
+        fi
+    fi
+fi
+
 # Restore the configuration file in a subdirectory of PGDATA
 restored_conf=$pgdata/restored_config_files
 
