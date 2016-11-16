@@ -136,6 +136,9 @@ ARCHIVE_CHECK="no"
 # and clean.
 ARCHIVE_FLUSH="no"
 
+# Change the permission mode of the archived file to this octal value.
+#ARCHIVE_FILE_CHMOD=
+
 # Logging options.  When SYSLOG is no, messages are written to stderr,
 # to allow the logging collector or redirection to catch them. These
 # parameters are intended to match their counterparts in

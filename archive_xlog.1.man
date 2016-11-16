@@ -125,6 +125,11 @@ An identifier to prefix \fBsyslog\fP output with.  This will override the
 string "postgres" if not otherwise explicitly set.
 
 .TP
+.BI "\-m " mode
+Set the permissions of the archived file to this mode (e.g. chmod).  The value
+must be in octal form.
+
+.TP
 .B \-T
 Timestamp the log messages.  This will override the \fBLOG_TIMESTAMP\fP option
 from the configuration file (forcing it to be "yes").

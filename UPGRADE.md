@@ -1,3 +1,13 @@
+Upgrade to 1.12
+===============
+
+
+
+Upgrade to 1.11
+===============
+
+Nothing to do.
+
 Upgrade to 1.10
 ===============
 

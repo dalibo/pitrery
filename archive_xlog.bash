@@ -71,6 +71,7 @@ usage() {
     echo "    -S             send messages to syslog"
     echo "    -f facility    syslog facility"
     echo "    -t ident       syslog ident"
+    echo "    -m mode        destination file permission mode in octal (e.g. chmod)"
     echo
     echo "    -T             Timestamp log messages"
     echo "    -?             print help"
@@ -104,9 +105,10 @@ ARCHIVE_COMPRESS_SUFFIX="gz"
 ARCHIVE_OVERWRITE="yes"
 ARCHIVE_CHECK="no"
 ARCHIVE_FLUSH="no"
+ARCHIVE_FILE_CHMOD=""
 
 # Command line options
-while getopts "LC:u:d:h:XOHFc:s:Sf:t:T?"  opt; do
+while getopts "LC:u:d:h:XOHFc:s:Sf:t:m:T?"  opt; do
     case $opt in
         L) CLI_ARCHIVE_LOCAL="yes";;
         C) CONFIG=$OPTARG;;
@@ -122,6 +124,7 @@ while getopts "LC:u:d:h:XOHFc:s:Sf:t:T?"  opt; do
         S) CLI_SYSLOG="yes";;
         f) CLI_SYSLOG_FACILITY=$OPTARG;;
         t) CLI_SYSLOG_IDENT=$OPTARG;;
+        m) CLI_ARCHIVE_FILE_CHMOD=$OPTARG;;
         T) CLI_LOG_TIMESTAMP="yes";;
         "?") usage 1;;
         *) error "Unknown error while processing options";;
@@ -164,6 +167,7 @@ fi
 [ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
 [ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
 [ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
+[ -n "$CLI_ARCHIVE_FILE_CHMOD" ] && ARCHIVE_FILE_CHMOD=$CLI_ARCHIVE_FILE_CHMOD
 [ -n "$CLI_LOG_TIMESTAMP" ] && LOG_TIMESTAMP=$CLI_LOG_TIMESTAMP
 
 # Redirect output to syslog if configured
@@ -241,6 +245,18 @@ if [ "$ARCHIVE_LOCAL" = "yes" ]; then
         error "Copying $xlog to $dest_path failed"
     fi
 
+    # Chmod if required
+    if [ -n "$ARCHIVE_FILE_CHMOD" ]; then
+        echo "$ARCHIVE_FILE_CHMOD" | grep -qE '^[0-7]{3,4}$'
+        if [ $? = 0 ]; then
+            if ! chmod $ARCHIVE_FILE_CHMOD "$dest_path"; then
+                warn "Could not change mode of $dest_path to $ARCHIVE_FILE_CHMOD"
+            fi
+        else
+            warn "ARCHIVE_FILE_CHMOD is not in octal form, mode not changed"
+        fi
+    fi
+
 else
     # Compress and copy with rsync
     echo $ARCHIVE_HOST | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && ARCHIVE_HOST="[${ARCHIVE_HOST}]" # Dummy test for IPv6
@@ -290,6 +306,16 @@ else
         REMOTE_CMD="$REMOTE_CMD; md5sum -- $(qw "$dest_file")"
     fi
 
+    # Chmod if required
+    if [ -n "$ARCHIVE_FILE_CHMOD" ]; then
+        echo "$ARCHIVE_FILE_CHMOD" | grep -qE '^[0-7]{3,4}$'
+        if [ $? = 0 ]; then
+            REMOTE_CMD="$REMOTE_CMD; chmod $ARCHIVE_FILE_CHMOD $(qw "$dest_file") || exit 4"
+        else
+            warn "ARCHIVE_FILE_CHMOD is not in octal form, mode not changed"
+        fi
+    fi
+
     # Actually execute the remote commands
     remote_md5=$(dd if="$src_file" 2>/dev/null|ssh -- "$dest_host" "$REMOTE_CMD")
     rc=$?
@@ -299,6 +325,7 @@ else
         1) error "Unable to copy $xlog to ${ARCHIVE_HOST}:${ARCHIVE_DIR}" $rc;;
         2) error "Unable to create target directory" $rc;;
         3) error "'$dest_file' already exists on $dest_host, refusing to overwrite it" $rc;;
+        4) warn "Could not change mode of $dest_path to $ARCHIVE_FILE_CHMOD";;
         255) error "SSH error on ${ARCHIVE_HOST}" $rc;;
         *) error "Unexpected return code while copying the file" 100
     esac

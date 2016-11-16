@@ -260,6 +260,12 @@ Les paramètres suivants peuvent être configurés :
    corruptions en cas de coupure d'électricité notamment sur les
    système de stockage peu fiable.
 
+* `ARCHIVE_FILE_CHMOD` permet de spécifier les permissions du fichier
+   archivé. La valeur doit sous forme octale comme attendu par
+   `chmod`. Cela permet de contourner des problèmes de mapping
+   d'uid/gid sur NFS, notamment, et n'est pas nécessaire dans la
+   plupart des cas.
+
 * `SYSLOG` peut être positionné à "yes" pour envoyer les messages vers
    syslog.  Dans le cas contraire, c'est stderr qui est utilisé.
    `SYSLOG_FACILITY` et `SYSLOG_IDENT` peuvent être utilisés pour

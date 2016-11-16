@@ -219,6 +219,11 @@ configured:
   the archiving process but ensure archives are not corrupted in case of
   a power loss on the destination.
 
+* `ARCHIVE_FILE_CHMOD` can be used to configure the permission of the
+  archived file. The value must be in octal form as understood by
+  `chmod`. It can help with uid/gid issues on NFS shares used by
+  different hosts, and should not be necessary in most of the cases.
+
 * `SYSLOG` can be set to "yes" to log messages to syslog, otherwise
   stderr is used for messages.  `SYSLOG_FACILITY` and `SYSLOG_IDENT`
   can then by used to store messages in the log file of PostgreSQL
