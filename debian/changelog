@@ -1,8 +1,9 @@
-pitrery (1.12dev-1) unstable; urgency=low
+pitrery (1.12-1) unstable; urgency=low
 
-  * Dev version for the upcoming 1.12
+  * New upstream release
+  * see CHANGELOG
 
- -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Wed, 22 Jun 2016 15:32:34 +0200
+ -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Fri, 18 Nov 2016 15:46:56 +0100
 
 pitrery (1.11-1) unstable; urgency=low
 

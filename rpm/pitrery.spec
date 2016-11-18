@@ -1,11 +1,16 @@
-Name:           pitrery
-Version:        1.12dev
-Release:        1%{?dist}
+%global pkgname pitrery
+%global confdir %{_sysconfdir}/%{pkgname}
+%{!?pkgversion: %global pkgversion 1.12}
+%{!?pkgrevision: %global pkgrevision 1}
+
+Name:           %{pkgname}
+Version:        %{pkgversion}
+Release:        %{pkgrevision}%{?dist}
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
 Group:          Applications/Databases
 URL:            https://github.com/dalibo/pitrery
-Source0:        pitrery-%{version}.tar.gz
+Source0:        %{pkgname}-%{version}.tar.gz
 Patch1:         pitrery.config.patch
 BuildArch:      noarch
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -53,8 +58,8 @@ make install DESTDIR=%{buildroot}
 %doc %{_mandir}/man1/restore_xlog.1.gz
 
 %changelog
-* Wed Jun 22 2016 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.12dev-1
-- Bump to dev version
+* Wed Nov 18 2016 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.12-1
+- Update to 1.12
 
 * Mon Jun 20 2016 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.11-1
 - Update to 1.11
