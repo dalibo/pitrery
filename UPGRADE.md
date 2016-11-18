@@ -1,12 +1,15 @@
 Upgrade to 1.12
 ===============
 
+Ensure the new name of archiving compression parameters are used, older
+names are no longer supported. See 1.9 upgrade instructions.
 
 
 Upgrade to 1.11
 ===============
 
 Nothing to do.
+
 
 Upgrade to 1.10
 ===============

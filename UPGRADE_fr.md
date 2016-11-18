@@ -1,6 +1,8 @@
 Mise à jour 1.12
 ================
 
+Assurez vous d'utiliser les nouveaux nom de paramètres de compression
+pour l'archivage, introduits en 1.9. Les anciens ne sont plus supportés.
 
 
 Mise à jour 1.11
@@ -8,10 +10,12 @@ Mise à jour 1.11
 
 Rien à faire.
 
+
 Mise à jour 1.10
 ================
 
 Rien à faire.
+
 
 Mise à jour 1.9
 ================

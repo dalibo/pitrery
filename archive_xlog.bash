@@ -141,16 +141,6 @@ fi
 # Load configuration file
 if [ -f "$CONFIG" ]; then
     . "$CONFIG"
-
-    # Check for renamed parameters between versions
-    if [ -n "$COMPRESS_BIN" ] && [ -z "$CLI_ARCHIVE_COMPRESS_BIN" ]; then
-        ARCHIVE_COMPRESS_BIN=$COMPRESS_BIN
-        warn "archive_xlog: COMPRESS_BIN is deprecated. please use ARCHIVE_COMPRESS_BIN."
-    fi
-    if [ -n "$COMPRESS_SUFFIX" ] && [ -z "$CLI_ARCHIVE_COMPRESS_SUFFIX" ]; then
-        ARCHIVE_COMPRESS_SUFFIX=$COMPRESS_SUFFIX
-        warn "archive_xlog: COMPRESS_SUFFIX is deprecated. please use ARCHIVE_COMPRESS_SUFFIX."
-    fi
 fi
 
 # Overwrite configuration with cli options
