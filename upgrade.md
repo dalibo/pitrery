@@ -3,6 +3,13 @@ layout: default
 title: pitrery - Upgrade
 ---
 
+Upgrade to 1.12
+===============
+
+Ensure the new name of archiving compression parameters are used, older
+names are no longer supported. See 1.9 upgrade instructions.
+
+
 Upgrade to 1.11
 ===============
 
@@ -120,7 +127,7 @@ Archiving
 ---------
 
 Compression options are only available in the configuration file,
-customizing this forces to use `-C` option of `archive_xlog`.
+customising this forces to use `-C` option of `archive_xlog`.
 
 
 Upgrade to 1.4

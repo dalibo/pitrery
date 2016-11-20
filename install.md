@@ -20,7 +20,7 @@ PostgreSQL.
 
 Firstly, it is necessary to know that PostgreSQL always write data
 twice.  Every transaction is written to the Write Ahead Log (or WAL)
-and the corresponding file is synchronized to disk before PostgreSQL
+and the corresponding file is synchronised to disk before PostgreSQL
 answers to the user when it is committed.
 
 The Write Ahead Log is divided in segments: these are files of 16MB
@@ -100,7 +100,7 @@ the setup passphraseless SSH keys to do so).  Using the local machine
 as storage space can be useful to backup on a filer, whose filesystems
 are mounted locally.
 
-On the backup host, pitrery organizes backed up files the following
+On the backup host, pitrery organises backed up files the following
 way:
 
 * A backup root directory is used to store everything
@@ -214,7 +214,7 @@ configured:
 
 * `ARCHIVE_CHECK` can be set to "yes" to check the md5 of the archived
   file to the md5 of the original WAL file. It is useful when the
-  storage and the network is not relaiable. If overwriting is
+  storage and the network is not reliable. If overwriting is
   disabled, the md5 check enabled and the archive already exists, the
   archiving returns success if the md5 check is successful. This
   option does not apply on local archiving.
@@ -223,6 +223,11 @@ configured:
   the archived file to disk before returning success. It may slow down
   the archiving process but ensure archives are not corrupted in case of
   a power loss on the destination.
+
+* `ARCHIVE_FILE_CHMOD` can be used to configure the permission of the
+  archived file. The value must be in octal form as understood by
+  `chmod`. It can help with uid/gid issues on NFS shares used by
+  different hosts, and should not be necessary in most of the cases.
 
 * `SYSLOG` can be set to "yes" to log messages to syslog, otherwise
   stderr is used for messages.  `SYSLOG_FACILITY` and `SYSLOG_IDENT`
@@ -282,7 +287,7 @@ this suffix is most of the time mandatory for decompression. The
 decompression program is then configured using `ARCHIVE_UNCOMPRESS_BIN`, this
 command must accept a compressed file as its first argument.
 
-For example, the fastest compression is achived with `pigz`, a
+For example, the fastest compression is archived with `pigz`, a
 multithreaded implementation of gzip:
 
     ARCHIVE_COMPRESS_BIN="pigz"
@@ -459,7 +464,7 @@ or the current backup:
 Backup storage
 --------------
 
-pitrery offers two storage technics for the base backup.
+pitrery offers two storage techniques for the base backup.
 
 The first, and historical, is `tar`, where it creates one compressed
 tarball (with `gzip` by default) for `PGDATA` and one for each
@@ -467,11 +472,11 @@ tablespace. The `tar` method is quite slow and can become difficult to
 use with bigger database clusters, however the compression saves a lot
 of space.
 
-The second is `rsync`. It synchronizes PGDATA and each tablespace to a
-directory inside the backup, and try to optimize data transfer by
+The second is `rsync`. It synchronises PGDATA and each tablespace to a
+directory inside the backup, and try to optimise data transfer by
 hardlinking the files of the previous backup (provided it was done
 with the "rsync" method). This method should offer the best speed for
-the base backup, and is recommanded for bigger databases clusters (more
+the base backup, and is recommended for bigger databases clusters (more
 than several hundreds of gigabytes).
 
 The default method is `tar`. It can be configured by setting the
@@ -526,7 +531,7 @@ the `-?` switch after the action name, pitrery outputs the help of the
 action.
 
 The `-n` option of `pitrery` can be used to show the action script
-command line that would be runned, but without running it. It is
+command line that would be run, but without running it. It is
 useful to check if the parameters configured in a particular
 configuration file are correct. For example, with the default
 configuration file `pitr.conf` :
@@ -657,7 +662,7 @@ directory on the backup host:
             ├── 000000010000000000000010.00000090.backup.gz
             └── 000000010000000000000010.gz
 
-The backup is stored in the `prod/2015.12.22_17.13.54` diretory of
+The backup is stored in the `prod/2015.12.22_17.13.54` directory of
 `BACKUP_DIR`, "prod" being the label defined by `BACKUP_LABEL`. The backup
 directory is named with the stop date and time of the backup. The
 `backup_timestamp` file contains the timestamp value of the stop time
@@ -774,7 +779,7 @@ This action perform the following steps:
 * Create a script which can be used to optionally restore any replication
   slots that were active (or inactive) at the time of the base backup.
 
-* Optionally, create a script to update the catalog when paths to
+* Optionally, create a script to update the catalogue when paths to
   tablespaces have changed, for PostgreSQL <= 9.1.
 
 The restore will only work if the target destination directory (PGDATA
@@ -784,14 +789,14 @@ important to prepare those directories before running the restore. It
 is possible to overwrite contents of target directories with the `-R`
 option.
 
-When specifiying a target date, it will be used in the
+When specifying a target date, it will be used in the
 `$PGDATA/recovery.conf` file as value for the `recovery_target_time`
 parameter.
 
 Unless `RESTORE_COMMAND` is defined to something else, the `restore_xlog`
 script will be used by PostgreSQL to retrieve archived WAL files. The
 purpose of this script is to find, copy on PostgreSQL server, and
-uncompress the archived WAL file asked by PostgreSQL.  its behavior is
+uncompress the archived WAL file asked by PostgreSQL.  its behaviour is
 controlled from its command line options, for example:
 
     restore_xlog -h HOST -d ARCHIVE_DIR %f %p
@@ -843,7 +848,7 @@ The restore script finds that the backup to be restored is located in
 server. It then extracts everything, including the tablespaces
 and prepares the `recovery.conf` at the root of `$PGDATA`. The script asks
 the user to check everything before starting the PostgreSQL cluster:
-This behavior is intentionnal, it allows the user to modify parameters
+This behaviour is intentional, it allows the user to modify parameters
 of PostgreSQL or change how the recovery is configured in
 `recovery.conf`.
 
@@ -852,7 +857,7 @@ the archived WAL files until the target date is reached or until all
 archived WAL files are consumed if no target date was specified.
 
 If unsure about the options to give for a restore, use the `-n` switch
-of the restore action to make it stop after showing the informations.
+of the restore action to make it stop after showing the information.
 
 Furthermore, it possible choose the target directories when restoring,
 use `-D` switch to set the target directory for PGDATA, and one to many
@@ -993,7 +998,7 @@ The options of purge are:
         -?           Print help
 
 If unsure about the configuration of the purge, the `-N` switch can be
-used to display what whould be done.
+used to display what would be done.
 
 
 Configuring pitrery from the command line
