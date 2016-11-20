@@ -1,6 +1,13 @@
 pitrery 1.12
 ============
 
+  * New -m option for archive_xlog to chmod the archived file to the
+    specified octal permission bits
+
+  * Fix the restore so that the backup_label is restore whan used with
+    PostgreSQL 9.6
+
+  * Remove support of deprecated compression parameters, renamed in 1.9
 
 
 pitrery 1.11

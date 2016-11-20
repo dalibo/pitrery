@@ -55,7 +55,7 @@ BACKUP_LABEL="pitr"
 # When performing non local backups, a target host with a batch SSH
 # access is needed (e.g. create passwordless SSH key pairs).  Be aware
 # that commands will be run by the scripts through SSH, so this should
-# be allowed. Only specify an IP address here.
+# be allowed.
 BACKUP_HOST=
 
 # User to use when accessing BACKUP_HOST through SSH.  If blank, the
