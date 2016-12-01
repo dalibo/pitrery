@@ -606,6 +606,19 @@ else
     fi
 fi
 
+# As of PostgreSQL 9.5, as map of tablespaces is created in the
+# tablespace_map file during the basebackup. The postmaster use the
+# file recreate the symlinks in pg_tblspc when starting a
+# recovery. This ensure symlinks are correctly restored on Windows but
+# it interferes with our tablespace relocation feature. So we just
+# remove the tablespace_map file, because our implementation works for
+# versions older than 9.5.
+if [ -f "$pgdata/tablespace_map" ]; then
+    if ! rm -- "$pgdata/tablespace_map"; then
+        error "could not remove the tablespace_map file"
+    fi
+fi
+
 # Create or symlink pg_xlog directory if needed
 if [ -d "$pgxlog" ]; then
     info "creating symbolic link pg_xlog to $pgxlog"
