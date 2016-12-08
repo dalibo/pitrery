@@ -1,5 +1,5 @@
 NAME = pitrery
-VERSION = 1.12
+VERSION = 1.13-dev
 
 # Customize below to fit your system
 

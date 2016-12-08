@@ -1,3 +1,10 @@
+pitrery 1.13
+============
+
+  * Fix tablespaces links being overwritten by postmaster on 9.5 due
+    to tablespace_map. This conflicted with our tablespace relocation
+
+
 pitrery 1.12
 ============
 
