@@ -6,8 +6,6 @@ configure_pitr
 list_pitr
 pitr.conf
 pitr.conf.template
-pitr_mgr
-pitrery
 purge_pitr
 restore_pitr
 restore_xlog

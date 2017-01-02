@@ -3,7 +3,6 @@
 include config.mk
 
 SRCS = archive_xlog.bash \
-	pitrery.bash \
 	restore_xlog.bash
 HELPERS = backup_pitr.bash \
 	list_pitr.bash \
