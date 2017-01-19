@@ -34,13 +34,15 @@ BACKUP_HOST=
 BACKUP_USER=
 BACKUP_COMPRESS_BIN="gzip -4"
 BACKUP_COMPRESS_SUFFIX="gz"
-BACKUP_UNCOMPRESS_BIN=
+BACKUP_UNCOMPRESS_BIN="gunzip"
 PGPSQL="psql"
 PRE_BACKUP_COMMAND=
 POST_BACKUP_COMMAND=
 LOG_TIMESTAMP="no"
 USE_ISO8601_TIMESTAMPS="no"
 
+PGOWNER=`id -un`
+OVERWRITE="no"
 
 config_dir="/etc/pitrery"
 config="pitr2.conf"
@@ -91,7 +93,7 @@ usage() {
             echo
             echo "usage: `basename $0` restore [options] [[user@]host:]/path/to/backups"
             echo
-            echo" options:"
+            echo " options:"
             echo "    -D dir               Path to target \$PGDATA"
             echo "    -x dir               Path to the xlog directory (only if outside \$PGDATA)"
             echo "    -d date              Restore until this date"
@@ -442,6 +444,66 @@ stop_backup() {
     trap - INT TERM KILL EXIT
 }
 
+# Restore related functions
+check_and_fix_directory() {
+    [ $# = 1 ] || die "check_and_fix_directory called with $# arguments"
+    local dir=$1
+
+    [ -n "$dir" ] || die "check_and_fix_directory called with empty dir argument"
+
+    # Check if directory exists
+    if [ ! -d "$dir" ]; then
+	info "creating $dir with permission 0700"
+	# Note that if this creates any parent directories, their mode will be set
+	# according to the current umask, only the final leaf dir will be set 0700.
+	mkdir -p -m 700 -- "$dir" || die "could not create $dir"
+    else
+        # Check if directory is empty
+	info "checking if $dir is empty"
+	if [ -n "$(ls -A -- "$dir")" ]; then
+	    [ "$OVERWRITE" = "yes" ] || die "$dir is not empty. Contents won't be overwritten"
+
+	    # Cancel in case there may be a postmaster running.
+	    if [ -e "$dir/postmaster.pid" ]; then
+		die "Found $dir/postmaster.pid. A postmaster may be running. Aborting."
+	    fi
+
+	    info "$dir is not empty, its contents will be overwritten"
+	    # This is called after we know the storage
+	    # method. When using "tar", we must clean the target
+	    # directory. When using "rsync", we just let it do its
+	    # diffs.
+	    if [ "$STORAGE" = "tar" ]; then
+		info "Removing contents of $dir"
+		rm -rf -- "$dir/"*
+	    fi
+	else
+	    # make rsync copy the whole files because target
+	    # directories are empty
+	    rsync_opts="$rsync_opts --whole-file"
+	fi
+
+	# Check permissions
+	dperms=`stat -c %a -- "$dir" 2>/dev/null` || die "Unable to get permissions of $dir"
+
+	if [ "$dperms" != "700" ]; then
+	    info "setting permissions of $dir"
+	    chmod -- 700 "$dir" || die "$dir must have 0700 permission"
+	fi
+    fi
+    
+    # Check owner
+    downer=`stat -c %U -- "$dir" 2>/dev/null` || die "Unable to get owner of $dir"
+
+    if [ "$downer" != "$PGOWNER" ]; then
+	if [ "`id -u`" = 0 ]; then
+	    info "setting owner of $dir"
+	    chown -- "$PGOWNER:" "$dir" || die "could not change owner of $dir to $PGOWNER"
+	else
+	    die "$dir must be owned by $PGOWNER"
+	fi
+    fi
+}
 
 
 while getopts "c:lV?" opt; do
@@ -510,179 +572,179 @@ case $action in
 	    esac
 	done
 
-       parse_target_uri ${@:$OPTIND:1}
+        parse_target_uri ${@:$OPTIND:1}
 
-       if [ "$backup_local" = "yes" ]; then
-           list=( "$backup_dir/"[0-9]*/ )
+        if [ "$backup_local" = "yes" ]; then
+            list=( "$backup_dir/"[0-9]*/ )
 
-           (( ${#list[@]} > 0 )) || die "could not find any backups in $backup_dir/"
+            (( ${#list[@]} > 0 )) || die "could not find any backups in $backup_dir/"
 
-           # Print a header
-           echo "List of local backups"
-       else
-           list=()
-           while read -r -d '' d; do
-	       list+=("$d")
-           done < <(
-	       ssh -n -- "$backup_ssh_target" \
-	    "find $(qw "$backup_dir") -mindepth 1 -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -z"
-           )
+            # Print a header
+            echo "List of local backups"
+        else
+            list=()
+            while read -r -d '' d; do
+	        list+=("$d")
+            done < <(
+	        ssh -n -- "$backup_ssh_target" \
+	            "find $(qw "$backup_dir") -mindepth 1 -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -z"
+            )
 
-           (( ${#list[@]} > 0 )) || die "could not find any backups in $backup_dir/ on $backup_host"
+            (( ${#list[@]} > 0 )) || die "could not find any backups in $backup_dir/ on $backup_host"
 
-           # Print a header
-           echo "List of backups on $backup_host"
-       fi
+            # Print a header
+            echo "List of backups on $backup_host"
+        fi
 
-       # Print the directory and stop time of each backup
-       for dir in "${list[@]%/}"; do
-           # Print the details of the backup dir
-           if [ -n "$verbose" ]; then
-	       echo "----------------------------------------------------------------------"
-	       echo -e "Directory:\n  $dir"
-           else
-	       echo -ne "$dir\t"
-           fi
+        # Print the directory and stop time of each backup
+        for dir in "${list[@]%/}"; do
+            # Print the details of the backup dir
+            if [ -n "$verbose" ]; then
+	        echo "----------------------------------------------------------------------"
+	        echo -e "Directory:\n  $dir"
+            else
+	        echo -ne "$dir\t"
+            fi
 
-           # Get the exact stop date from the backup label
-           if [ "$backup_local" = "yes" ]; then
-	       # Compute the size of full backup
-	       backup_size=( $(du -sh -- "$dir") )
-	       if [ -n "$verbose" ]; then
-	           echo "  space used: $backup_size"
-	       else
-	           echo -ne "$backup_size\t"
-	       fi
+            # Get the exact stop date from the backup label
+            if [ "$backup_local" = "yes" ]; then
+	        # Compute the size of full backup
+	        backup_size=( $(du -sh -- "$dir") )
+	        if [ -n "$verbose" ]; then
+	            echo "  space used: $backup_size"
+	        else
+	            echo -ne "$backup_size\t"
+	        fi
 
-	       # Find the storage method of the backup, with compression suffix for tar
-	       if [ -n "$verbose" ]; then
-	           if [ -d "$dir/pgdata" ]; then
-		       echo "  storage: rsync"
-	           else
-		       prefix=$dir/pgdata.tar.
-		       tarfile=( "$prefix"* )
-		       if (( ${#tarfile[@]} != 1 )); then
-		           error "no rsync dir and ${#tarfile[@]} pgdata.tar files found"
-		       else
-		           suffix=${tarfile#$prefix}
-		           [ -z "$suffix" ] && suffix="unknown"
-		           echo "  storage: tar with $suffix compression"
-		       fi
-	           fi
-	       fi
+	        # Find the storage method of the backup, with compression suffix for tar
+	        if [ -n "$verbose" ]; then
+	            if [ -d "$dir/pgdata" ]; then
+		        echo "  storage: rsync"
+	            else
+		        prefix=$dir/pgdata.tar.
+		        tarfile=( "$prefix"* )
+		        if (( ${#tarfile[@]} != 1 )); then
+		            error "no rsync dir and ${#tarfile[@]} pgdata.tar files found"
+		        else
+		            suffix=${tarfile#$prefix}
+		            [ -z "$suffix" ] && suffix="unknown"
+		            echo "  storage: tar with $suffix compression"
+		        fi
+	            fi
+	        fi
 
-               # Print the minimum recovery target time with this backup
-	       if [ -f "$dir/backup_label" ]; then
-	           [ -n "$verbose" ] && echo "Minimum recovery target time:"
-	           if stop_time=$(sed -n 's/STOP TIME: /  /p' -- "$dir/backup_label") && [ -n "$stop_time" ]; then
-		       echo "$stop_time"
-	           else
-		       error "could not get \"stop time\" from $dir/backup_label"
-	           fi
-	       else
-	           error "could not find the backup_label file"
-	       fi
+                # Print the minimum recovery target time with this backup
+	        if [ -f "$dir/backup_label" ]; then
+	            [ -n "$verbose" ] && echo "Minimum recovery target time:"
+	            if stop_time=$(sed -n 's/STOP TIME: /  /p' -- "$dir/backup_label") && [ -n "$stop_time" ]; then
+		        echo "$stop_time"
+	            else
+		        error "could not get \"stop time\" from $dir/backup_label"
+	            fi
+	        else
+	            error "could not find the backup_label file"
+	        fi
 
-               if [ -n "$verbose" ]; then
-	           # Display name, path and sizes of PGDATA and tablespaces
-	           if [ -f "$dir/tblspc_list" ]; then
-		       # Only show sizes of PGDATA if available
-		       if [ -n "`awk -F'|' '{ print $4 }' "$dir/tblspc_list"`" ]; then
-		           echo "PGDATA:"
-		           if ! awk -F'|' '$2 == "" { print "  "$1" "$4 }' "$dir/tblspc_list"; then
-			       error "could not display the list of tablespaces"
-		           fi
-		       fi
-		       echo "Tablespaces:"
-		       if ! awk -F'|' '$2 != "" { print "  \""$1"\" "$2" ("$3") "$4 }' "$dir/tblspc_list"; then
-		           error "could not display the list of tablespaces"
-		       fi
-		       echo
-	           else
-		       error "could not find the list of tablespaces (tblspc_list)"
-	           fi
-	       fi
-           else
-	       # Backup size
-	       backup_size=( $(ssh -n -- "$backup_ssh_target" "du -sh -- $(qw "$dir") 2>/dev/null" 2>/dev/null) )
-	       if [ -n "$backup_size" ]; then
-	           if [ -n "$verbose" ]; then
-		       echo "  space used: $backup_size"
-	           else
-		       echo -ne "$backup_size\t"
-	           fi
-	       else
-	           error "could not find size of $backup_host:$dir"
-	       fi
+                if [ -n "$verbose" ]; then
+	            # Display name, path and sizes of PGDATA and tablespaces
+	            if [ -f "$dir/tblspc_list" ]; then
+		        # Only show sizes of PGDATA if available
+		        if [ -n "`awk -F'|' '{ print $4 }' "$dir/tblspc_list"`" ]; then
+		            echo "PGDATA:"
+		            if ! awk -F'|' '$2 == "" { print "  "$1" "$4 }' "$dir/tblspc_list"; then
+			        error "could not display the list of tablespaces"
+		            fi
+		        fi
+		        echo "Tablespaces:"
+		        if ! awk -F'|' '$2 != "" { print "  \""$1"\" "$2" ("$3") "$4 }' "$dir/tblspc_list"; then
+		            error "could not display the list of tablespaces"
+		        fi
+		        echo
+	            else
+		        error "could not find the list of tablespaces (tblspc_list)"
+	            fi
+	        fi
+            else
+	        # Backup size
+	        backup_size=( $(ssh -n -- "$backup_ssh_target" "du -sh -- $(qw "$dir") 2>/dev/null" 2>/dev/null) )
+	        if [ -n "$backup_size" ]; then
+	            if [ -n "$verbose" ]; then
+		        echo "  space used: $backup_size"
+	            else
+		        echo -ne "$backup_size\t"
+	            fi
+	        else
+	            error "could not find size of $backup_host:$dir"
+	        fi
 
-               # Storage method with compression suffix for tar
-	       if [ -n "$verbose" ]; then
-	           if ssh -n -- "$backup_ssh_target" "test -d $(qw "$dir/pgdata")" 2>/dev/null; then
-		       echo "  storage: rsync"
-	           else
-		       prefix=$dir/pgdata.tar.
-		       tarfile=()
-		       while read -r -d '' d; do
-		           tarfile+=("$d")
-		       done < <(
-		           ssh -n -- "$backup_ssh_target" "find $(qw "$dir") -maxdepth 1 -name 'pgdata.tar.*' -type f -print0"
-		       )
+                # Storage method with compression suffix for tar
+	        if [ -n "$verbose" ]; then
+	            if ssh -n -- "$backup_ssh_target" "test -d $(qw "$dir/pgdata")" 2>/dev/null; then
+		        echo "  storage: rsync"
+	            else
+		        prefix=$dir/pgdata.tar.
+		        tarfile=()
+		        while read -r -d '' d; do
+		            tarfile+=("$d")
+		        done < <(
+		            ssh -n -- "$backup_ssh_target" "find $(qw "$dir") -maxdepth 1 -name 'pgdata.tar.*' -type f -print0"
+		        )
 
-		       if (( ${#tarfile[@]} != 1 )); then
-		           error "no rsync dir and ${#tarfile[@]} pgdata.tar files found in $backup_host:$dir"
-		       else
-		           suffix=${tarfile#$prefix}
-		           [ -z "$suffix" ] && suffix="unknown"
-		           echo "  storage: tar with $suffix compression"
-		       fi
-	           fi
-	       fi
+		        if (( ${#tarfile[@]} != 1 )); then
+		            error "no rsync dir and ${#tarfile[@]} pgdata.tar files found in $backup_host:$dir"
+		        else
+		            suffix=${tarfile#$prefix}
+		            [ -z "$suffix" ] && suffix="unknown"
+		            echo "  storage: tar with $suffix compression"
+		        fi
+	            fi
+	        fi
 
-               # Minimum recovery target time
-	       if ssh -n -- "$backup_ssh_target" "test -f $(qw "$dir/backup_label")" 2>/dev/null; then
-	           [ -n "$verbose" ] && echo "Minimum recovery target time:"
-	           if stop_time=$(ssh -n -- "$backup_ssh_target" "sed -n 's/STOP TIME: /  /p' -- $(qw "$dir/backup_label")") \
-	                   && [ -n "$stop_time" ]; then
-		       echo "$stop_time"
-	           else
-		       error "could not get \"stop time\" from $backup_host:$dir/backup_label"
-	           fi
-	       else
-	           error "could find the backup_label file"
-	       fi
+                # Minimum recovery target time
+	        if ssh -n -- "$backup_ssh_target" "test -f $(qw "$dir/backup_label")" 2>/dev/null; then
+	            [ -n "$verbose" ] && echo "Minimum recovery target time:"
+	            if stop_time=$(ssh -n -- "$backup_ssh_target" "sed -n 's/STOP TIME: /  /p' -- $(qw "$dir/backup_label")") \
+	                    && [ -n "$stop_time" ]; then
+		        echo "$stop_time"
+	            else
+		        error "could not get \"stop time\" from $backup_host:$dir/backup_label"
+	            fi
+	        else
+	            error "could find the backup_label file"
+	        fi
 
-               # Name, path and space used at backup time of PGDATA and tablespaces
-	       if [ -n "$verbose" ]; then
-	           if ssh -n -- "$backup_ssh_target" "test -f $(qw "$dir/tblspc_list")" 2>/dev/null; then
-		       if [ -n "$(ssh -n -- "$backup_ssh_target" "awk -F'|' '{ print \$4 }' $(qw "$dir/tblspc_list")")" ]; then
-		           echo "PGDATA:"
-		           if ts=$(ssh -n -- "$backup_ssh_target" \
-			               "awk -F'|' '\$2 == \"\" { print \"  \"\$1\" \"\$4 }' $(qw "$dir/tblspc_list")"); then
-			       [ -n "$ts" ] && echo "$ts"
-		           else
-			       error "could not display the list of tablespaces"
-		           fi
-		       fi
+                # Name, path and space used at backup time of PGDATA and tablespaces
+	        if [ -n "$verbose" ]; then
+	            if ssh -n -- "$backup_ssh_target" "test -f $(qw "$dir/tblspc_list")" 2>/dev/null; then
+		        if [ -n "$(ssh -n -- "$backup_ssh_target" "awk -F'|' '{ print \$4 }' $(qw "$dir/tblspc_list")")" ]; then
+		            echo "PGDATA:"
+		            if ts=$(ssh -n -- "$backup_ssh_target" \
+			                "awk -F'|' '\$2 == \"\" { print \"  \"\$1\" \"\$4 }' $(qw "$dir/tblspc_list")"); then
+			        [ -n "$ts" ] && echo "$ts"
+		            else
+			        error "could not display the list of tablespaces"
+		            fi
+		        fi
 
-		       echo "Tablespaces:"
-		       if ts=$(ssh -n -- "$backup_ssh_target" \
-			           "awk -F'|' '"'$2 != "" { print "  \""$1"\" "$2" ("$3") "$4 }'"' $(qw "$dir/tblspc_list")"); then
-		           [ -n "$ts" ] && echo "$ts"
-		       else
-		           error "could not display the list of tablespaces"
-		       fi
-		       echo
-	           else
-		       error "could not find the list of tablespaces (tblspc_list)"
-	           fi
-	       fi
-           fi
+		        echo "Tablespaces:"
+		        if ts=$(ssh -n -- "$backup_ssh_target" \
+			            "awk -F'|' '"'$2 != "" { print "  \""$1"\" "$2" ("$3") "$4 }'"' $(qw "$dir/tblspc_list")"); then
+		            [ -n "$ts" ] && echo "$ts"
+		        else
+		            error "could not display the list of tablespaces"
+		        fi
+		        echo
+	            else
+		        error "could not find the list of tablespaces (tblspc_list)"
+	            fi
+	        fi
+            fi
 
-           if [ "$out_rc" != 0 ]; then
-	       echo "!!! This backup may be imcomplete or corrupted !!!"
-           fi
-       done
-       ;;
+            if [ "$out_rc" != 0 ]; then
+	        echo "!!! This backup may be imcomplete or corrupted !!!"
+            fi
+        done
+        ;;
 
     backup)
 	load_config
@@ -742,7 +804,7 @@ case $action in
         export PITRERY_PSQL="${psql_command[@]}"
         export PITRERY_DATABASE=$psql_condb
         export PITRERY_BACKUP_LOCAL=$local_backup
-        export PITRERY_SSH_TARGET=$ssh_target
+        export PITRERY_SSH_TARGET=$backup_ssh_target
 
         # Get the version of the server
         if ! pg_version=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'server_version_num';" \
@@ -790,12 +852,12 @@ case $action in
 	        die "could not create $backup_dir/tblspc"
             fi
         else
-            if ssh -n -- "$ssh_target" "test -e $(qw "$backup_dir")" 2>/dev/null; then
+            if ssh -n -- "$backup_ssh_target" "test -e $(qw "$backup_dir")" 2>/dev/null; then
 	        die "$backup_dir already exists, another backup may be in progress"
             fi
 
             can_cleanup="yes"
-            if ! ssh -n -- "$ssh_target" "mkdir -p -- $(qw "$backup_dir/tblspc")" 2>/dev/null; then
+            if ! ssh -n -- "$backup_ssh_target" "mkdir -p -- $(qw "$backup_dir/tblspc")" 2>/dev/null; then
 	        die "could not create $backup_dir/tblspc"
             fi
         fi
@@ -937,8 +999,8 @@ case $action in
 	            [ -d "${_dir%/}/pgdata" ] && prev_backup=${_dir%/}
 	        fi
             else
-	        _dir=$(ssh -n -- "$ssh_target" "f=\$(find $(qw "$backup_root") -mindepth 1 -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -rz | cut -d '' -f1) && printf '%s' \"\$f\"")
-	        if ssh -n -- "$ssh_target" "test -d $(qw "$_dir/pgdata")" 2>/dev/null; then
+	        _dir=$(ssh -n -- "$backup_ssh_target" "f=\$(find $(qw "$backup_root") -mindepth 1 -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -rz | cut -d '' -f1) && printf '%s' \"\$f\"")
+	        if ssh -n -- "$backup_ssh_target" "test -d $(qw "$_dir/pgdata")" 2>/dev/null; then
 	            prev_backup="$_dir"
 	        fi
             fi
@@ -968,7 +1030,7 @@ case $action in
 		        die_and_hook "could not tar PGDATA"
 	            fi
 	        else
-	            tar -cpf - --ignore-failed-read --exclude='pg_xlog' --exclude='pg_replslot/*' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' --exclude='*.sql' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | ssh -- "$ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
+	            tar -cpf - --ignore-failed-read --exclude='pg_xlog' --exclude='pg_replslot/*' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' --exclude='*.sql' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | ssh -- "$backup_ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
 	            rc=(${PIPESTATUS[*]})
 	            tar_rc=${rc[0]}
 	            compress_rc=${rc[1]}
@@ -1010,7 +1072,7 @@ case $action in
 		            die_and_hook "could not tar tablespace \"$name\""
 		        fi
 	            else
-		        tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | ssh -- "$ssh_target" "cat > $(qw "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
+		        tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | ssh -- "$backup_ssh_target" "cat > $(qw "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
 		        rc=(${PIPESTATUS[*]})
 		        tar_rc=${rc[0]}
 		        compress_rc=${rc[1]}
@@ -1048,7 +1110,7 @@ case $action in
 		        die_and_hook "rsync of PGDATA failed with exit code $rc"
 	            fi
 	        else
-	            rsync -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$ssh_target:$(qw "$backup_dir/pgdata/")"
+	            rsync -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_ssh_target:$(qw "$backup_dir/pgdata/")"
 	            rc=$?
 	            if [ $rc != 0 ] && [ $rc != 24 ]; then
 		        die_and_hook "rsync of PGDATA failed with exit code $rc"
@@ -1074,7 +1136,7 @@ case $action in
 		        if [ "$backup_local" = "yes" ]; then
 		            [ -d "$prev_backup/tblspc/$_name" ] && rsync_link=( '--link-dest' "$prev_backup/tblspc/$_name" )
 		        else
-                            if ssh -n -- "$ssh_target" "test -d $(qw "$prev_backup/tblspc/$_name")" 2>/dev/null; then
+                            if ssh -n -- "$backup_ssh_target" "test -d $(qw "$prev_backup/tblspc/$_name")" 2>/dev/null; then
 		                rsync_link=( '--link-dest' "$(qw "$prev_backup/tblspc/$_name")" )
                             fi
 		        fi
@@ -1089,7 +1151,7 @@ case $action in
 	    	            die_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 	    	        fi
 	            else
-		        rsync -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
+		        rsync -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
 		        rc=$?
 		        if [ $rc != 0 ] && [ $rc != 24 ]; then
 	    	            die_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
@@ -1132,7 +1194,7 @@ case $action in
                     die_and_hook "could not copy the pg_control file to $backup_dir"
                 fi
             else
-                if ! scp -- "$PGDATA/global/pg_control" "$ssh_target:$(qw "$backup_dir/")" > /dev/null; then
+                if ! scp -- "$PGDATA/global/pg_control" "$backup_ssh_target:$(qw "$backup_dir/")" > /dev/null; then
 	            die_and_hook "could not copy the pg_control file to $target:$backup_dir"
                 fi
             fi
@@ -1212,8 +1274,8 @@ case $action in
 		        die_and_hook "could not copy $f to backup directory"
 	            fi
 	        else
-	            ssh -n -- "$ssh_target" "mkdir -p -- $(qw "$destdir")" 2>/dev/null
-	            if ! scp -- "$file" "$ssh_target:$(qw "$dest")" >/dev/null; then
+	            ssh -n -- "$backup_ssh_target" "mkdir -p -- $(qw "$destdir")" 2>/dev/null
+	            if ! scp -- "$file" "$backup_ssh_target:$(qw "$dest")" >/dev/null; then
 		        die_and_hook "could not copy $f to backup directory on $target"
 	            fi
 	        fi
@@ -1371,58 +1433,628 @@ case $action in
 	;;
 
     restore)
+        dry_run="no"
+        tsmv_list=()
+        target_date=
+        restore_xlog_config=$config
+        
 	load_config
-	select_cmd "restore_pitr"
+
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Lu:b:l:D:x:d:O:t:nRc:e:r:C:T?" arg 2>/dev/null; do
+	while getopts "D:x:d:O:t:nRc:e:r:C:T?" arg 2>/dev/null; do
 	    case $arg in
-		L) BACKUP_IS_LOCAL="yes";;
-		u) BACKUP_USER=$OPTARG;;
-		b) BACKUP_DIR=$OPTARG;;
-		l) BACKUP_LABEL=$OPTARG;;
 		D) PGDATA=$OPTARG;;
 		x) PGXLOG=$OPTARG;;
-		d) TARGET_DATE=$OPTARG;;
+		d) target_date=$OPTARG;;
 		O) PGOWNER=$OPTARG;;
-		t) TBLSPC_RELOC+=( "-t" "$OPTARG" );;
-		n) DRY_RUN="yes";;
+		t) tsmv_list+=( "$OPTARG" );;
+		n) dry_run="yes";;
 		R) OVERWRITE="yes";;
-		c) BACKUP_UNCOMPRESS_BIN=$OPTARG;;
-		e) BACKUP_COMPRESS_SUFFIX=$OPTARG;;
-		r) RESTORE_COMMAND=$OPTARG;;
-		C) RESTORE_XLOG_CONFIG=$OPTARG;;
+		c) BACKUP_UNCOMPRESS_BIN="$OPTARG";;
+		e) BACKUP_COMPRESS_SUFFIX="$OPTARG";;
+		r) RESTORE_COMMAND="$OPTARG";;
+		C) restore_xlog_config=$OPTARG;;
 		T) LOG_TIMESTAMP="yes";;
-
-		"?") "$cmd" '-?'; exit $?;;
+		'?') usage "restore";;
 	    esac
 	done
 
-	# Add relevant options coming from the configuration
-	[ "$BACKUP_IS_LOCAL" = "yes" ]	    && opts+=( "-L" )
-	[ -n "$BACKUP_USER" ]		    && opts+=( "-u" "$BACKUP_USER" )
-	[ -n "$BACKUP_DIR" ]		    && opts+=( "-b" "$BACKUP_DIR" )
-	[ -n "$BACKUP_LABEL" ]		    && opts+=( "-l" "$BACKUP_LABEL" )
-	[ -n "$PGDATA" ]		    && opts+=( "-D" "$PGDATA" )
-	[ -n "$PGXLOG" ]		    && opts+=( "-x" "$PGXLOG" )
-	[ -n "$TARGET_DATE" ]		    && opts+=( "-d" "$TARGET_DATE" )
-	[ -n "$PGOWNER" ]		    && opts+=( "-O" "$PGOWNER" )
-	(( ${#TBLSPC_RELOC[@]} > 0 ))	    && opts+=( "${TBLSPC_RELOC[@]}" )
-	[ "$DRY_RUN" = "yes" ]		    && opts+=( "-n" )
-	[ -n "$OVERWRITE" ]		    && opts+=( "-R" )
-	[ -n "$BACKUP_UNCOMPRESS_BIN" ]	    && opts+=( "-c" "$BACKUP_UNCOMPRESS_BIN" )
-	[ -n "$BACKUP_COMPRESS_SUFFIX" ]    && opts+=( "-e" "$BACKUP_COMPRESS_SUFFIX" )
-	[ -n "$RESTORE_COMMAND" ]	    && opts+=( "-r" "$RESTORE_COMMAND" )
-	[ "$LOG_TIMESTAMP" = "yes" ]	    && opts+=( "-T" )
+        parse_target_uri ${@:$OPTIND:1}
 
-	# Pass along the configuration file
-	if [ -n "$RESTORE_XLOG_CONFIG" ]; then
-	    opts+=( "-C" "$RESTORE_XLOG_CONFIG" )
-	elif [ "$config" != "@SYSCONFDIR@/pitr.conf" ]; then
-	    opts+=( "-C" "$config" )
-	fi
+        # An unprivileged target owner is mandatory as PostgreSQL cannot run
+        # as root.
+        if [ "$(id -u -- "$PGOWNER")" = 0 ]; then
+            die "the target owner cannot not be root. Use -O when restoring as root"
+        fi
 
-	run_cmd "${@:$OPTIND:1}"
+        # When no restore_command is given, build it using restore_xlog
+        if [ -z "$RESTORE_COMMAND" ]; then
+            [[ "$restore_xlog_config" == */* ]] && restore_xlog_config=$(readlink -m "$restore_xlog_config")
+            RESTORE_COMMAND="restore_xlog${restore_xlog_config:+ -C $(qw "$restore_xlog_config")} %f %p"
+        fi
+
+        # The parent directory of all backups must be saved so that we
+        # can use backup_dir for the selected backup
+        backup_root=$backup_dir
+        backup_dir=
+
+        # Find the backup according to given date.  The target date converted
+        # to a timestamp is compared to the timestamp of the stop time of the
+        # backup. Only after the stop time a backup is sure to be consistent.
+        info "searching backup directory"
+
+        # search the store
+        if [ "$backup_local" = "yes" ]; then
+            list=( "$backup_root/"[0-9]*/backup_timestamp )
+            (( ${#list[@]} > 0 )) ||
+	        die "Could not find any backup_timestamp files in $backup_root/*"
+        else
+            list=()
+            while read -r -d '' d; do
+	        list+=("$d")
+            done < <(
+	        # We could 'optimise' this slightly for the case where we only want the latest,
+	        # by adding a `| cut -d '' -f1` after the sort, to only return the first one,
+	        # but the amount of extra data transferred here is tiny compared to the rest of
+	        # the backup, so it is probably better to just reuse this for both cases than to
+	        # duplicate the logic needed just for that.
+	        ssh -n -- "$backup_ssh_target" "find $(qw "$backup_root") -path $(qw "$backup_root/[0-9]*/backup_timestamp") -type f -print0 | sort -z"
+            )
+
+            (( ${#list[@]} > 0 )) ||
+	        die "Could not find any backup_timestamp files in $backup_root/* on $backup_ssh_target"
+        fi
+
+        if [ -n "$target_date" ]; then
+            # Target recovery time in seconds since the epoch, for easy archive searching.
+            target_timestamp=$(date -d "$target_date" '+%s') || die "invalid target date '$target_date'"
+
+            # Target recovery time in a format suitable for use in recovery.conf
+            recovery_target_time=$(date -d "$target_date" '+%F %T %z') || die "invalid target date '$target_date'"
+
+            # The timestamp must be a string of (only) digits, we do arithmetic with it below.
+            # This shouldn't ever fail, but better to catch it here than let odd things happen later.
+            [[ $target_timestamp =~ ^[[:digit:]]+$ ]] || die "invalid target_timestamp '$target_timestamp'"
+
+            # find the latest backup
+            for t in "${list[@]}"; do
+	        # get the timestamp of the end of the backup
+	        if [ "$backup_local" = "yes" ]; then
+	            backup_timestamp=$(< "$t")
+	        else
+	            backup_timestamp=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$t")")
+	        fi
+
+	        if [[ $backup_timestamp =~ ^[[:digit:]]+$ ]]; then
+	            (( $backup_timestamp < $target_timestamp )) || break;
+	            backup_dir=$(dirname -- "$t")
+	        else
+	            warn "could not get the ending timestamp of $t"
+	        fi
+            done
+        else
+            # Get the latest backup.
+            # The test for list being empty here is just belt and braces,
+            # we should have already failed with an error above if it is.
+            (( ${#list[@]} > 0 )) && backup_dir=$(dirname -- "${list[*]: -1}")
+        fi
+
+        [ -n "$backup_dir" ] || die "Could not find a backup${recovery_target_time:+ for $recovery_target_time}"
+
+        # get the tablespace list and check the directories
+        info "searching for tablespaces information"
+        if [ "$backup_local" = "yes" ]; then
+            if [ -f "$backup_dir/tblspc_list" ]; then
+	        tblspc_list=$(< "$backup_dir/tblspc_list") || die "Failed to read $backup_dir/tblspc_list"
+            fi
+        else
+            tfile=$(qw "$backup_dir/tblspc_list")
+            tblspc_list=$(ssh -n -- "$backup_ssh_target" "[ ! -f $tfile ] || cat -- $tfile") ||
+	        die "Failed to read $backup_ssh_target:$backup_dir/tblspc_list"
+        fi
+
+        # Prepare the final list of tablespace directories
+        if [ -n "$tblspc_list" ]; then
+            while read -r l; do
+	        tdir=$(cut -d '|' -f 2 <<< "$l")
+
+	        # skip pg_default and pg_global, they are located inside PGDATA
+	        [ -z "$tdir" ] && continue
+
+	        i=${#tspc_name[@]}
+	        tspc_name[$i]=$(cut -d '|' -f 1 <<< "$l")
+	        tspc_dir[$i]=$tdir
+	        tspc_oid[$i]=$(cut -d '|' -f 3 <<< "$l")
+	        tspc_reloc[$i]="no"
+
+	        for t in "${tsmv_list[@]}"; do
+	            tname=$(cut -d ':' -f 1 <<< "$t")
+	            # relocation can be done using the name or the oid of the tablespace
+	            if [ "$tname" = "${tspc_name[$i]}" ] || [ "$tname" = "${tspc_oid[$i]}" ]; then
+		        tdir=$(cut -d ':' -f 2 <<< "$t")
+		        if [ "${tspc_dir[$i]}" != "$tdir" ]; then
+		            tspc_dir[$i]=$tdir
+		            tspc_reloc[$i]="yes"
+		        fi
+		        break
+	            fi
+	        done
+            done <<< "$tblspc_list"
+        fi
+
+        tspc_count=${#tspc_name[@]}
+
+        # Display some info on the restore
+        info
+        info "backup directory:"
+        info "  $backup_dir"
+        info
+        info "destinations directories:"
+        info "  PGDATA -> $PGDATA"
+
+        [ -n "$PGXLOG" ] && info "  PGDATA/pg_xlog -> $PGXLOG"
+
+        # Populate an array with tablespace directory to check we have duplicates
+        declare -a tspc_dedup
+
+        # Print the tablespace relocation information
+        for (( i=0; i<$tspc_count; ++i )); do
+            info "  tablespace \"${tspc_name[$i]}\" (${tspc_oid[$i]}) -> ${tspc_dir[$i]} (relocated: ${tspc_reloc[$i]})"
+            tspc_dedup+=( ${tspc_dir[$i]} )
+        done
+
+        # XXX
+        info
+        info "recovery configuration:"
+        info "  target owner of the restored files: $PGOWNER"
+        info "  restore_command = '$RESTORE_COMMAND'"
+        [ -n "$recovery_target_time" ] && info "  recovery_target_time = '$recovery_target_time'"
+        info 
+
+        # Check if tablespace relocation list have duplicates
+        if (( $(for o in "${tspc_dedup[@]}"; do echo $o; done | sort -u | wc -l) < $tspc_count )); then
+            die "found duplicates in tablespace relocations. Check options and the list of tablespaces of the backup"
+        fi
+
+        if [ "$dry_run" = "yes" ]; then
+            exit 0
+        fi
+
+        # Real work starts here
+        
+        # Find out what storage method is used in the backup. If the PGDATA is
+        # stored as a gzip'ed tarball, the method is tar, if it is a
+        # directory, then we used rsync to put files there.
+        if [ "$backup_local" = "yes" ]; then
+            if [ -f "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX" ]; then
+	        storage="tar"
+            elif [ -d "$backup_dir/pgdata" ]; then
+	        storage="rsync"
+            else
+	        # Check if we have a tarball with different compression to what we are expecting.
+	        storage=$(find "$backup_dir" -mindepth 1 -maxdepth 1 -name 'pgdata.tar.*' -type f -printf '%f' -quit)
+            fi
+        else
+            storage=$(ssh -n -- "$backup_ssh_target" "if [ -f $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX") ]; then echo 'tar'; elif [ -d $(qw "$backup_dir/pgdata") ]; then echo 'rsync'; else find $(qw "$backup_dir") -maxdepth 1 -name 'pgdata.tar.*' -type f -printf '%f' -quit; fi")
+        fi
+
+        [ -n "$storage" ] ||
+            error "could not find what storage method is used in ${backup_ssh_target:+$backup_ssh_target:}$backup_dir"
+
+        [[ $storage =~ ^pgdata\.tar\. ]] &&
+            error "expecting '$BACKUP_COMPRESS_SUFFIX' compression, but found ${backup_ssh_target:+$backup_ssh_target:}$backup_dir/$storage"
+
+        # Check target directories
+        check_and_fix_directory "$PGDATA"
+
+        if [ -n "$PGXLOG" ]; then
+            [[ $PGXLOG == /* ]] || error "pg_xlog must be an absolute path"
+
+            if [ "$PGXLOG" = "$PGDATA/pg_xlog" ]; then
+	        error "xlog path cannot be \$PGDATA/pg_xlog, this path is reserved. It seems you do not need -x"
+            fi
+
+            check_and_fix_directory "$PGXLOG"
+        fi
+
+        # Check the tablespaces directory and create them if possible
+        for d in "${tspc_dir[@]}"; do
+            check_and_fix_directory "$d"
+        done
+
+        # Extract everything
+        case $storage in
+            "tar")
+	        # pgdata
+	        info "extracting PGDATA to $PGDATA"
+	        was=`pwd`
+	        cd -- "$PGDATA"
+	        if [ "$backup_local" = "yes" ]; then
+	            $BACKUP_UNCOMPRESS_BIN -c -- "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX" | tar xf -
+	            rc=(${PIPESTATUS[*]})
+	            uncompress_rc=${rc[0]}
+	            tar_rc=${rc[1]}
+	            if [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		        error "could not extract $backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX to $PGDATA"
+	            fi
+	        else
+	            ssh -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null | $BACKUP_UNCOMPRESS_BIN | tar xf - 2>/dev/null
+	            rc=(${PIPESTATUS[*]})
+	            ssh_rc=${rc[0]}
+	            uncompress_rc=${rc[1]}
+	            tar_rc=${rc[2]}
+	            if [ "$ssh_rc" != 0 ] || [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		        error "could not extract $backup_ssh_target:$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX to $PGDATA"
+	            fi
+	        fi
+	        cd -- "$was"
+	        info "extraction of PGDATA successful"
+	        ;;
+
+            "rsync")
+	        info "transferring PGDATA to $PGDATA with rsync"
+	        if [ "$backup_local" = "yes" ]; then
+	            rsync -aq --delete -- "$backup_dir/pgdata/" "$PGDATA/"
+	            rc=$?
+	            if [ $rc != 0 ] && [ $rc != 24 ]; then
+		        error "rsync of PGDATA failed with exit code $rc"
+	            fi
+	        else
+	            rsync $rsync_opts -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/pgdata/")" "$PGDATA/"
+	            rc=$?
+	            if [ $rc != 0 ] && [ $rc != 24 ]; then
+		        error "rsync of PGDATA failed with exit code $rc"
+	            fi
+	        fi
+	        info "transfer of PGDATA successful"
+	        ;;
+
+            *)
+	        error "Unknown STORAGE method '$storage'"
+	        ;;
+        esac
+
+        # On PostgreSQL >= 9.6 restore the backup_label file produced outside
+        # of the PGDATA. It is always in the backup and it is mandatory for
+        # PITR, so we just have to check if the file is in PGDATA and restore
+        # it when missing.
+        if [ ! -f "$PGDATA/backup_label" ]; then
+            if [ "$backup_local" = "yes" ]; then
+                if ! cp -- "$backup_dir/backup_label" "$PGDATA/backup_label"; then
+                    error "could not restore the backup_label file to $PGDATA"
+                fi
+            else
+                if ! scp -- "$backup_ssh_target:$backup_dir/backup_label" "$PGDATA/backup_label" >/dev/null; then
+                    error "could not restore the backup_label file to $PGDATA"
+                fi
+            fi
+        fi
+
+        # Restore the configuration file in a subdirectory of PGDATA
+        restored_conf=$PGDATA/restored_config_files
+
+        if [ "$backup_local" = "yes" ]; then
+            # Check the directory, when configuration files are
+            # inside PGDATA it does not exist
+            if [ -d "$backup_dir/conf" ]; then
+	        info "restoring configuration files to $restored_conf"
+	        if ! cp -r -- "$backup_dir/conf" "$restored_conf"; then
+	            warn "could not copy $backup_dir/conf to $restored_conf"
+	        fi
+            fi
+
+        else
+            confdir=$(qw "$backup_dir/conf")
+            if ssh -n -- "$backup_ssh_target" "test -d $confdir" 2>/dev/null; then
+	        info "restoring configuration files to $restored_conf"
+	        if ! scp -r -- "$backup_ssh_target:$confdir" "$restored_conf" >/dev/null; then
+	            warn "could not copy $source:$backup_dir/conf to $restored_conf"
+	        fi
+            fi
+        fi
+
+        # change owner of PGDATA to the target owner
+        if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+            info "setting owner of PGDATA ($PGDATA)"
+            if ! chown -R -- "$PGOWNER:" "$PGDATA"; then
+	        error "could not change owner of PGDATA to $PGOWNER"
+            fi
+        fi
+
+        # Enable the extended pattern matching operators.
+        # We use them here for replacing whitespace in the tablespace tarball names.
+        shopt -s extglob
+
+        # tablespaces
+        for (( i=0; i<$tspc_count; ++i )); do
+            name=${tspc_name[$i]}
+            _name=${name//+([[:space:]])/_} # No space version, we want paths without spaces
+            tbldir=${tspc_dir[$i]}
+            oid=${tspc_oid[$i]}
+
+            # Change the symlink in pg_tblspc when the tablespace directory changes
+            if [ "${tspc_reloc[$i]}" = "yes" ]; then
+	        ln -sf "$tbldir" "$PGDATA/pg_tblspc/$oid" || error "could not update the symbolic of tablespace $name ($oid) to $tbldir"
+
+	        # Ensure the new link has the correct owner, the chown -R
+	        # issued after extraction will not do it
+	        if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+	            chown -h -- "$PGOWNER:" "$PGDATA/pg_tblspc/$oid"
+	        fi
+            fi
+
+            # Get the data in place
+            case $storage in
+	        "tar")
+	            info "extracting tablespace \"${name}\" to $tbldir"
+	            was=`pwd`
+	            cd -- "$tbldir"
+	            if [ "$backup_local" = "yes" ]; then
+		        $BACKUP_UNCOMPRESS_BIN -c -- "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX" | tar xf -
+		        rc=(${PIPESTATUS[*]})
+		        uncompress_rc=${rc[0]}
+		        tar_rc=${rc[1]}
+		        if [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		            error "Could not extract tablespace $name to $tbldir"
+		        fi
+	            else
+		        ssh -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null | $BACKUP_UNCOMPRESS_BIN | tar xf - 2>/dev/null
+		        rc=(${PIPESTATUS[*]})
+		        ssh_rc=${rc[0]}
+		        uncompress_rc=${rc[1]}
+		        tar_rc=${rc[2]}
+		        if [ "$ssh_rc" != 0 ] || [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		            error "Could not extract tablespace $name to $tbldir"
+		        fi
+	            fi
+	            cd -- "$was"
+	            info "extraction of tablespace \"${name}\" successful"
+	            ;;
+
+	        "rsync")
+	            info "transferring tablespace \"${name}\" to $tbldir with rsync"
+	            if [ "$backup_local" = "yes" ]; then
+		        rsync -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
+		        rc=$?
+		        if [ $rc != 0 ] && [ $rc != 24 ]; then
+		            error "rsync of tablespace \"${name}\" failed with exit code $rc"
+		        fi
+	            else
+		        rsync $rsync_opts -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
+		        rc=$?
+		        if [ $rc != 0 ] && [ $rc != 24 ]; then
+		            error "rsync of tablespace \"${name}\" failed with exit code $rc"
+		        fi
+	            fi
+	            info "transfer of tablespace \"${name}\" successful"
+	            ;;
+
+	        *)
+	            error "Unknown STORAGE method '$storage'"
+	            ;;
+            esac
+
+            # change owner of the tablespace files to the target owner
+            if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+	        info "setting owner of tablespace \"$name\" ($tbldir)"
+	        if ! chown -R -- "$PGOWNER:" "$tbldir"; then
+	            error "could not change owner of tablespace \"$name\" to $PGOWNER"
+	        fi
+            fi
+        done
+
+        # Starting from 9.6 and when the backup is from a standby server,
+        # PostgreSQL relies on the pg_control file being backed up last to
+        # find the backend end location in the WAL. If we find the pg_control
+        # file at the root of the backup directory, resore it.
+        if [ "$backup_local" = "yes" ]; then
+            if [ -f "$backup_dir/pg_control" ]; then
+                info "pg_control file found in $backup_dir, restoring it"
+                if ! cp -- "$backup_dir/pg_control" "$PGDATA/global/pg_control"; then
+                    error "could not restore pg_control file to $PGDATA/global/"
+                fi
+            fi
+        else
+            if ssh -n -- "$backup_ssh_target" "test -f $(qw "$backup_dir/pg_control")"; then
+                info "pg_control file found in $backup_dir, restoring it"
+                if ! scp -- "$backup_ssh_target:$(qw "$backup_dir/pg_control")" "$PGDATA/global/pg_control" >/dev/null; then
+                    error "could not restore pg_control file to $PGDATA/global/"
+                fi
+            fi
+        fi
+
+        # As of PostgreSQL 9.5, a map of tablespaces is created in the
+        # tablespace_map file during the basebackup. The postmaster use the
+        # file recreate the symlinks in pg_tblspc when starting a
+        # recovery. This ensure symlinks are correctly restored on Windows but
+        # it interferes with our tablespace relocation feature. So we just
+        # remove the tablespace_map file, because our implementation works for
+        # versions older than 9.5.
+        if [ -f "$PGDATA/tablespace_map" ]; then
+            if ! rm -- "$PGDATA/tablespace_map"; then
+                error "could not remove the tablespace_map file"
+            fi
+        fi
+
+        # Create or symlink pg_xlog directory if needed
+        if [ -d "$PGXLOG" ]; then
+            info "creating symbolic link pg_xlog to $PGXLOG"
+            if ! ln -sf -- "$PGXLOG" "$PGDATA/pg_xlog"; then
+	        error "could not create $PGDATA/pg_xlog symbolic link"
+            fi
+            if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+	        if ! chown -h -- "$PGOWNER:" "$PGDATA/pg_xlog"; then
+	            error "could not change owner of pg_xlog symbolic link to $PGOWNER"
+	        fi
+            fi
+        fi
+
+        if [ ! -d "$PGDATA/pg_xlog/archive_status" ]; then
+            info "preparing pg_xlog directory"
+            if ! mkdir -p -- "$PGDATA/pg_xlog/archive_status"; then
+	        error "could not create $PGDATA/pg_xlog"
+            fi
+
+            if ! chmod -- 700 "$PGDATA/pg_xlog" "$PGDATA/pg_xlog/archive_status" 2>/dev/null; then
+	        error "could not set permissions of $PGDATA/pg_xlog and $PGDATA/pg_xlog/archive_status"
+            fi
+
+            if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+	        if ! chown -R -- "$PGOWNER:" "$PGDATA/pg_xlog"; then
+	            error "could not change owner of $dir to $PGOWNER"
+	        fi
+            fi
+        fi
+
+        # Check PG_VERSION
+        if [ -f "$PGDATA/PG_VERSION" ]; then
+            pgvers=$(< "$PGDATA/PG_VERSION")
+            pgvers=${pgvers//./0}
+        else
+            warn "PG_VERSION file is missing"
+        fi
+
+        # Create a recovery.conf file in $PGDATA
+        info "preparing recovery.conf file"
+        echo "restore_command = '$RESTORE_COMMAND'" > "$PGDATA/recovery.conf"
+
+        # Put the given target date in recovery.conf
+        if [ -n "$recovery_target_time" ]; then
+            echo "recovery_target_time = '$recovery_target_time'" >> "$PGDATA/recovery.conf"
+        else
+            echo "#recovery_target_time = ''	# e.g. '2004-07-14 22:39:00 EST'" >> "$PGDATA/recovery.conf"
+        fi
+
+        # Add all possible parameters for recovery, commented out.
+        case $pgvers in
+            802|803)
+	        echo "#recovery_target_xid = ''		# 'number'"
+	        echo "#recovery_target_inclusive = 'true'		# 'true' or 'false'"
+	        echo "#recovery_target_timeline = ''		# number or 'latest'"
+	        ;;
+            804)
+	        echo "#recovery_end_command = ''"
+	        echo "#recovery_target_xid = ''		# 'number'"
+	        echo "#recovery_target_inclusive = 'true'		# 'true' or 'false'"
+	        echo "#recovery_target_timeline = ''		# number or 'latest'"
+	        ;;
+            901|902|903)
+	        echo "#recovery_end_command = ''"
+	        echo "#recovery_target_name = ''  # e.g. 'daily backup 2011-01-26'"
+	        echo "#recovery_target_xid = ''"
+	        echo "#recovery_target_inclusive = true"
+	        echo "#recovery_target_timeline = 'latest'"
+	        echo "#pause_at_recovery_target = true"
+	        ;;
+            904)
+	        echo "#recovery_end_command = ''"
+	        echo "#recovery_target_name = ''	# e.g. 'daily backup 2011-01-26'"
+	        echo "#recovery_target_xid = ''"
+	        echo "#recovery_target_inclusive = true"
+	        echo "#recovery_target = 'immediate'"
+	        echo "#recovery_target_timeline = 'latest'"
+	        echo "#pause_at_recovery_target = true"
+	        ;;
+            905|906)
+	        echo "#recovery_end_command = ''"
+	        echo "#recovery_target_name = ''	# e.g. 'daily backup 2011-01-26'"
+	        echo "#recovery_target_xid = ''"
+	        echo "#recovery_target_inclusive = true"
+	        echo "#recovery_target = 'immediate'"
+	        echo "#recovery_target_timeline = 'latest'"
+	        echo "#recovery_target_action = 'pause'"
+	        ;;
+        esac >> "$PGDATA/recovery.conf"
+
+
+        # Ensure recovery.conf as the correct owner so that PostgreSQL can
+        # rename it at the end of the recovery
+        if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+            if ! chown -R -- "$PGOWNER:" "$PGDATA/recovery.conf"; then
+	        error "could not change owner of recovery.conf to $PGOWNER"
+            fi
+        fi
+
+        # Generate a SQL file in PGDATA to update the catalog when tablespace
+        # locations have changed. It is only needed when using PostgreSQL <=9.1
+        updsql=$PGDATA/update_catalog_tablespaces.sql
+        rm -f -- "$updsql"
+        if (( $tspc_count > 0 )) && [ -n "$pgvers" ] && (( 10#$pgvers <= 901 )); then
+            for (( i=0; i<$tspc_count; ++i )); do
+	        if [ "${tspc_reloc[$i]}" = "yes" ]; then
+	            echo "-- update location of ${tspc_name[$i]} to ${tspc_dir[$i]}" >> "$updsql"
+	            printf "UPDATE pg_catalog.pg_tablespace SET spclocation = '%s' WHERE oid = %s;\n" "${tspc_dir[$i]}" "${tspc_oid[$i]}" >> "$updsql"
+	        fi
+            done
+
+            if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+	        chown -- "$PGOWNER:" "$updsql" 2>/dev/null
+            fi
+        fi
+
+        # Generate a SQL file in PGDATA to let the user recreate the
+        # replication slots existing at backup time
+        replslots_sql=$PGDATA/restore_replication_slots.sql
+        rm -f -- "$replslots_sql"
+        if [ -n "$pgvers" ] && (( 10#$pgvers >= 904 )); then
+            if [ "$backup_local" = "yes" ]; then
+	        if [ -f "$backup_dir/replslot_list" ]; then
+	            replslot_list=$(< "$backup_dir/replslot_list") || error "Failed to read $backup_dir/replslot_list"
+	        fi
+            else
+	        rfile=$(qw "$backup_dir/replslot_list")
+	        replslot_list=$(ssh -n -- "$backup_ssh_target" "[ ! -f $rfile ] || cat -- $tfile") ||
+                    error "Failed to read $source:$backup_dir/replslot_list"
+            fi
+
+            while read -r l; do
+	        rs_name=$(cut -d '|' -f 1 <<< "$l")
+	        rs_plugin=$(cut -d '|' -f 2 <<< "$l")
+	        rs_type=$(cut -d '|' -f 3 <<< "$l")
+	        rs_db=$(cut -d '|' -f 4 <<< "$l")
+
+	        case $rs_type in
+	            "physical")
+		        echo "SELECT pg_create_physical_replication_slot('$rs_name');"
+		        ;;
+	            "logical")
+		        echo "\connect $rs_db"
+		        echo "SELECT pg_create_logical_replication_slot('$rs_name', '$rs_plugin');"
+		        ;;
+	        esac >> "$replslots_sql"
+            done <<< "$replslot_list"
+        fi
+
+        info "done"
+        info
+        if [ -d "$restored_conf" ]; then
+            info "saved configuration files have been restored to:"
+            info "  $restored_conf"
+            info
+        fi
+        info "please check directories and recovery.conf before starting the cluster"
+        info "and do not forget to update the configuration of pitrery if needed"
+        info
+
+        if [ -f "$replslots_sql" ]; then
+            if [[ $(cat "$replslots_sql" | wc -l) > 0 ]]; then
+                info "replication slots defined at the time of the backup can be restored"
+                info "with the SQL commands from:"
+                info "  $replslots_sql"
+                info
+            else
+                rm -f -- "$replslots_sql"
+            fi
+        fi
+
+        if [ -f "$updsql" ]; then
+            warn "locations of tablespaces have changed, after recovery update the catalog with:"
+            warn "  $updsql"
+        fi
+
+
+        
 	;;
 
     purge)
