@@ -390,12 +390,19 @@ fi
 
 # Compare and remove files from the list
 wal_purge_list=()
+last_wal_to_keep_found=false
 for wal in "${wal_list[@]}"; do
     # the wal files come ordered, when the first to keep comes, our list is complete
-    [[ $wal =~ $wal_file ]] && break
+    [[ $wal =~ $wal_file ]] && last_wal_to_keep_found=true && break
 
     wal_purge_list+=( "$wal" )
 done
+
+if [[ "$last_wal_to_keep_found" = false ]]; then
+		# the last WAL file to keep is not present. This is not normal. We will
+		# not remove any WAL and raise an error
+		error "no WAL file purged: the last WAL file to keep is not present, please check your archive process!"
+fi
 
 info "${#wal_purge_list[@]} old WAL file(s) to remove${target:+ from $target}"
 if (( ${#wal_purge_list[@]} > 0 )); then
