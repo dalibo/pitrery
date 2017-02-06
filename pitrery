@@ -43,6 +43,22 @@ USE_ISO8601_TIMESTAMPS="no"
 
 PGOWNER=`id -un`
 OVERWRITE="no"
+RESTORE_COMMAND=
+
+PURGE_KEEP_COUNT=
+PURGE_OLDER_THAN=
+
+ARCHIVE_HOST=
+ARCHIVE_USER=
+ARCHIVE_DIR="$BACKUP_DIR/archived_xlog"
+ARCHIVE_COMPRESS="yes"
+ARCHIVE_OVERWRITE="yes"
+SYSLOG="no"
+SYSLOG_FACILITY="local0"
+SYSLOG_IDENT="postgres"
+ARCHIVE_COMPRESS_BIN="gzip -f -4"
+ARCHIVE_COMPRESS_SUFFIX="gz"
+ARCHIVE_UNCOMPRESS_BIN="gunzip"
 
 config_dir="/etc/pitrery"
 config="pitr2.conf"
@@ -118,12 +134,15 @@ usage() {
             echo "usage: `basename $0` purge [options] [[user@]host:]/path/to/backups"
             echo
             echo "options:"
-            echo "    -m count     Keep this number of backups"
-            echo "    -d days      Purge backups older than this number of days"
-            echo "    -N           Dry run: show what would be purged only"
+            echo "    -m count               Keep this number of backups"
+            echo "    -d days                Purge backups older than this number of days"
             echo
-            echo "    -T           Timestamp log messages"
-            echo "    -?           Print help"
+            echo "    -a [[user@]host:]/dir  Path to WAL archives"
+            echo
+            echo "    -N                     Dry run: show what would be purged only"
+            echo
+            echo "    -T                     Timestamp log messages"
+            echo "    -?                     Print help"
             echo
             exit ${2:-0}
             ;;
@@ -346,6 +365,26 @@ parse_target_uri() {
 
     [ -n "$archive_dir" ] || error "missing archive directory"
 
+}
+
+list_backups() {
+    local dir="$1"
+    
+    if [ "$backup_local" = "yes" ]; then
+        list=( "$dir/"[0-9]*/ )
+
+        (( ${#list[@]} > 0 )) || die "could not find any backups in $dir/"
+    else
+        list=()
+        while read -r -d '' d; do
+	    list+=("$d")
+        done < <(
+	    ssh -n -- "$backup_ssh_target" \
+	        "find $(qw "$dir") -mindepth 1 -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -z"
+        )
+
+        (( ${#list[@]} > 0 )) || die "could not find any backups in $dir/ on $backup_host"
+    fi
 }
 
 # Backup related functions
@@ -574,25 +613,12 @@ case $action in
 
         parse_target_uri ${@:$OPTIND:1}
 
+        list_backups "$backup_dir" # to the list array
+        
+        # Print a header
         if [ "$backup_local" = "yes" ]; then
-            list=( "$backup_dir/"[0-9]*/ )
-
-            (( ${#list[@]} > 0 )) || die "could not find any backups in $backup_dir/"
-
-            # Print a header
             echo "List of local backups"
         else
-            list=()
-            while read -r -d '' d; do
-	        list+=("$d")
-            done < <(
-	        ssh -n -- "$backup_ssh_target" \
-	            "find $(qw "$backup_dir") -mindepth 1 -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -z"
-            )
-
-            (( ${#list[@]} > 0 )) || die "could not find any backups in $backup_dir/ on $backup_host"
-
-            # Print a header
             echo "List of backups on $backup_host"
         fi
 
@@ -1440,7 +1466,6 @@ case $action in
         
 	load_config
 
-
 	# Parse args after action: they should take precedence over the configuration
 	while getopts "D:x:d:O:t:nRc:e:r:C:T?" arg 2>/dev/null; do
 	    case $arg in
@@ -2058,64 +2083,321 @@ case $action in
 	;;
 
     purge)
+        dry_run="no"
+
+        
 	load_config
-	select_cmd "purge_pitr"
+
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "Ll:b:u:n:U:X:m:d:NT?" arg 2>/dev/null; do
+	while getopts "m:d:a:NT?" arg 2>/dev/null; do
 	    case $arg in
-		L) BACKUP_IS_LOCAL="yes";;
-		l) BACKUP_LABEL=$OPTARG;;
-		b) BACKUP_DIR=$OPTARG;;
-		u) BACKUP_USER=$OPTARG;;
-		n) ARCHIVE_HOST=$OPTARG;;
-		U) ARCHIVE_USER=$OPTARG;;
-		X) ARCHIVE_DIR=$OPTARG;;
 		m) PURGE_KEEP_COUNT=$OPTARG;;
 		d) PURGE_OLDER_THAN=$OPTARG;;
-		N) DRY_RUN="yes";;
+                a) archive_path=$OPTARG;;
+		N) dry_run="yes";;
 		T) LOG_TIMESTAMP="yes";;
 
-		"?") "$cmd" '-?'; exit $?;;
+		"?") usage "purge";;
 	    esac
 	done
 
-	# Add relevant options coming from the configuration
-	[ "$BACKUP_IS_LOCAL" = "yes" ]	&& opts+=( "-L" )
-	[ -n "$BACKUP_DIR" ]		&& opts+=( "-b" "$BACKUP_DIR" )
-	[ -n "$BACKUP_LABEL" ]		&& opts+=( "-l" "$BACKUP_LABEL" )
-	[ -n "$BACKUP_USER" ]		&& opts+=( "-u" "$BACKUP_USER" )
-	[ -n "$ARCHIVE_HOST" ]		&& opts+=( "-n" "$ARCHIVE_HOST" )
-	[ -n "$ARCHIVE_USER" ]		&& opts+=( "-U" "$ARCHIVE_USER" )
-	[ -n "$ARCHIVE_DIR" ]		&& opts+=( "-X" "$ARCHIVE_DIR" )
-	[ -n "$PURGE_KEEP_COUNT" ]	&& opts+=( "-m" "$PURGE_KEEP_COUNT" )
-	[ -n "$PURGE_OLDER_THAN" ]	&& opts+=( "-d" "$PURGE_OLDER_THAN" )
-	[ "$DRY_RUN" = "yes" ]		&& opts+=( "-N" )
-	[ "$LOG_TIMESTAMP" = "yes" ]	&& opts+=( "-T" )
+        parse_target_uri ${@:$OPTIND:1} $archive_path
 
-	run_cmd "${@:$OPTIND:1}"
+        # Destination host is mandatory unless the backup is local
+        if [ -z "$target" ] && [ "$backup_local" != "yes" ]; then
+            echo "ERROR: missing target host" 1>&2
+            usage "purge"
+        fi
+
+        # Either -m or -d must be specified
+        if [ -z "$PURGE_KEEP_COUNT" ] && [ -z "$PURGE_OLDER_THAN" ]; then
+            echo "ERROR: missing purge condition. Use -m or -d." 1>&2
+            usage "purge"
+        fi
+
+        PURGE_KEEP_COUNT=${PURGE_KEEP_COUNT:-0}
+        PURGE_OLDER_THAN=${PURGE_OLDER_THAN:-0}
+
+        # Ensure failed globs will be empty, not left containing the literal glob pattern
+        shopt -s nullglob
+
+        # Get the list of backups
+        info "searching backups"
+        list_backups "$backup_dir"
+
+        # Get the stop time timestamp of each backup, comparing timestamps is better
+        #
+        # We store them in a (sparse) indexed array, which for our purposes here is
+        # effectively an associative array, just with the keys automatically sorted
+        # so that the oldest (numerically smallest) timestamps come first.  Things
+        # would be a little bit simpler if they were sorted newest first, but not by
+        # so much that it is worth going to the effort of manually sorting them in
+        # the reverse order.
+        candidates=()
+        for dir in "${list[@]%/}"; do
+            if [ "$backup_local" = "yes" ]; then
+	        ts=$(< "$dir/backup_timestamp")
+            else
+	        ts=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
+            fi
+
+            # The timestamp must be a string of (only) digits, we do arithmetic with it
+            if [[ $ts =~ ^[[:digit:]]+$ ]]; then
+	        candidates[$ts]=$dir
+            else
+	        # We shouldn't normally ever be here, but if we are it's probably one
+	        # of two main reasons:
+	        # - This is a dir that starts with a digit but isn't actually a backup.
+	        # - Is is a backup, but either we failed to put a valid backup_timestamp
+	        #   into it, or that somehow got removed or corrupted again.
+	        #
+	        # In the latter case we could try to reconstruct a timestamp here, but
+	        # it's probably safer to just let the admin figure out what went wrong
+	        # if this happens.  There are two consequences to that:
+	        # - We won't consider this directory for automatic purge.
+	        # - We can't rely on oldest_unpurged actually being the oldest remaining
+	        #   backup (for the purpose of purging WAL files), since this one could
+	        #   be older than that.
+	        #
+	        # We could do more trickery based on the dirname to try to guess if the
+	        # latter case is true, but again, Something Went Wrong Somewhere, so
+	        # just play safe until the admin figures out what that was.
+	        have_unknown_timestamp="yes"
+	        warn "Could not get backup_timestamp for '$dir', it will not be purged"
+            fi
+        done
+
+        # If a minimum number of backup must be kept, remove the $PURGE_KEEP_COUNT
+        # youngest backups from the list.
+        if [ -n "$PURGE_KEEP_COUNT" ]; then
+            [[ $PURGE_KEEP_COUNT =~ ^[[:digit:]]+$ ]] || error "PURGE_KEEP_COUNT '$PURGE_KEEP_COUNT' is not a number"
+
+            if (( $PURGE_KEEP_COUNT > 0 )); then
+	        if (( ${#candidates[@]} > $PURGE_KEEP_COUNT )); then
+	            keys=( "${!candidates[@]}" )
+	            for k in "${keys[@]:$((-$PURGE_KEEP_COUNT))}"; do
+		        # The list of purge candidates is sorted oldest first, so capture
+		        # the first one removed from it as the oldest backup that we'll keep.
+		        [ -n "$oldest_unpurged" ] || oldest_unpurged=${candidates[$k]}
+		        unset "candidates[$k]"
+	            done
+	        else
+	            oldest_unpurged=${candidates[@]::1}
+	            candidates=()
+	        fi
+            fi
+        fi
+
+        # If older backups must be removed, filter the list by timestamp
+        if [ -n "$PURGE_OLDER_THAN" ]; then
+            [[ $PURGE_OLDER_THAN =~ ^[[:digit:]]+$ ]] || error "PURGE_OLDER_THAN '$PURGE_OLDER_THAN' is not a number"
+
+            if (( $PURGE_OLDER_THAN > 0 )); then
+	        limit_ts=$(($(date +%s) - 86400 * $PURGE_OLDER_THAN))
+	        keys=( "${!candidates[@]}" )
+	        for k in "${keys[@]}"; do
+	            if (( $k >= $limit_ts )); then
+		        [ -n "$oldest_unpurged_day" ] || oldest_unpurged_day=${candidates[$k]}
+		        unset "candidates[$k]"
+	            fi
+	        done
+            fi
+        fi
+
+        # If this is a dry run, we need to cache this information for checking the WAL expiry
+        [ -z "$oldest_unpurged_day" ] || oldest_unpurged=$oldest_unpurged_day
+
+        # Purge the backups
+        if (( ${#candidates[@]} > 0 )); then
+            info "${dry_run:+Would be }purging the following backups:"
+            for d in "${candidates[@]}"; do
+	        info " $d"
+            done
+
+            if [ "$dry_run" != "yes" ]; then
+	        if [ "$backup_local" = "yes" ]; then
+	            rm -rf -- "${candidates[@]}" || die "Failed to remove all purge candidates"
+	        else
+	            # We can't preserve the word splitting behaviour of a quoted array across the
+	            # call to ssh, so ensure each argument is properly shell quoted instead.
+	            ssh -n -- "$backup_ssh_target" "rm -rf -- $(qw "${candidates[@]}")" ||
+		        die "Failed to remove all $target purge candidates"
+	        fi
+            fi
+        else
+            info "there are no backups to purge"
+        fi
+
+
+        # To be able to purge the archived xlogs, the backup_label of the oldest backup
+        # is needed to find the oldest xlog file to keep.
+
+        # The easy case, where every directory had a valid backup_timestamp when we scanned them.
+        # This is all we should ever need normally.
+        get_oldest_unpurged_label() {
+            if [ "$backup_local" = "yes" ]; then
+	        backup_label=$(< "$oldest_unpurged/backup_label") ||
+	            die "Unable to read '$oldest_unpurged/backup_label'"
+            else
+	        backup_label=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_unpurged/backup_label")") ||
+	            die "Unable to read '$target:$oldest_unpurged/backup_label'"
+            fi
+        }
+
+        # The fallback case, where we have directories which matched the [0-9]* glob,
+        # that _might_ be backups and have a backup_label in them, but didn't have a
+        # valid backup_timestamp for some reason.
+        find_oldest_backup_label() {
+            if [ "$backup_local" = "yes" ]; then
+	        blist=( "$backup_dir/"[0-9]*/backup_label )
+	        if (( ${#blist[@]} > 0 )); then
+	            backup_label=$(< "${blist[0]}") || die "Unable to read ${blist[0]}"
+	        fi
+            else
+	        # It would probably be better to do something more like the local version above,
+	        # but this should be portable regardless of the remote login shell, and gets it
+	        # done with a single ssh connection.
+	        backup_label=$(ssh -n -- "$backup_ssh_target" "f=\$(find $(qw "$backup_dir") -path $(qw "$backup_dir/[0-9]*/backup_label") -type f -print0 | sort -z | cut -d '' -f1) && [ -n \"\$f\" ] && cat -- \"\$f\"") || die "Unable to read the backup_label file of the oldest backup"
+            fi
+        }
+
+        if [ "$dry_run" = "yes" ]; then
+            # For a dry run we want the backup_label from the oldest one that we wouldn't have removed.
+
+            if [ -n "$oldest_unpurged" ]; then
+	        # We have timestamps for at least some directories, if not all of them,
+	        # and we aren't purging every directory with a backup_timestamp file.
+	        # Scanning for backup_label files would give the wrong answer (since we
+	        # didn't actually delete anything this time), so just use the best answer
+	        # we have, and warn if we can't be certain that it's 100% correct.
+	        [ "$have_unknown_timestamp" != "yes" ] ||
+	            warn "Some directories are missing a backup_timestamp.  Dry run report may not be correct."
+
+	        get_oldest_unpurged_label
+
+            elif (( ${#candidates[@]} == 0 )); then
+	        # We found no directories with a backup_timestamp file (and so there were
+	        # no candidates for purging).  If we do have some directories that did not
+	        # have a backup_timestamp, we can 'safely' still scan those for backup_label
+	        # files which we can use to expire old WAL segment files (and we should have
+	        # errored out already before getting here if we don't have some of those).
+	        if [ "$have_unknown_timestamp" = "yes" ]; then
+	            warn "The backup_timestamp was missing from all directories.  Basing WAL expiry on the oldest backup_label found"
+	            find_oldest_backup_label
+	        fi
+            else
+	        # We would have purged all backups with a backup_timestamp file if this wasn't
+	        # a dry run.  If there are directories without one, then we can't simply scan
+	        # them here.  We could add even more logic to enumerate them based on whether
+	        # they contain a backup_label and the stop time recorded in it, but this really
+	        # shouldn't ever happen in normal use, so that seems like overkill if we aren't
+	        # going to just do that always and get rid of the backup_timestamp files.
+	        # If something is that messed up, best we just leave the admin to sort it out.
+	        [ "$have_unknown_timestamp" != "yes" ] ||
+	            warn "All directories with a backup_timestamp would be purged, but some directories without one would remain."
+            fi
+
+        else
+            # If every directory had a backup_timestamp file, then we already know the oldest
+            # one that we didn't purge (which we have to track to be able to do dry runs).
+            # If there were some that didn't, then they may be older than it is, so scan the
+            # remaining directories again looking for backup_label files, to ensure we don't
+            # purge any WAL files which they would need.
+            if [ "$have_unknown_timestamp" = "yes" ]; then
+	        warn "Some directories are missing a backup_timestamp.  They have not been purged and WAL files they depend on will not be expired."
+	        find_oldest_backup_label
+
+            elif [ -n "$oldest_unpurged" ]; then
+	        get_oldest_unpurged_label
+
+                #else
+	        # We have just purged all of the available backup directories, we have no
+	        # remaining backup_label to use for WAL expiry.  We could purge all the WAL
+	        # files up to what was needed for the most recent purged backup, or simply
+	        # nuke them all - but leave this as an Admin Problem for now, if they really
+	        # had intended to delete Everything, there's probably more afoot than simply
+	        # pruning old files to make space.
+            fi
+        fi
+
+        if [ -z "$backup_label" ]; then
+            info "no backup found after purge. Please remove old archives by hand."
+            exit 0
+        fi
+
+
+        # Extract the name of the WAL file from the backup history file, and
+        # split it in timeline, log and segment
+        wal_file=$(awk '/^START WAL LOCATION/ { gsub(/[^0-9A-F]/,"",$6); print $6 }' <<< "$backup_label")
+
+        # This must be only (hex) digits, or the arithmetic operations below will not do what we hope
+        [[ $wal_file =~ ^[0-9A-F]{24}$ ]] || die "'$wal_file' does not appear to be a WAL segment file name"
+
+        info "listing WAL files older than $(basename -- "$wal_file")"
+
+        # List the WAL files and remove the old ones based on their name which
+        # are ordered in time by their naming scheme. The filter is on the
+        # nine first chars so that history files are excluded.
+        wal_list=()
+        if [ "$archive_local" = "yes" ]; then
+            wal_list=( "$archive_dir/"[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]* )
+        else
+            while read -r -d '' f; do
+	        wal_list+=("$f")
+            done < <(
+	        ssh -n -- "$archive_ssh_target" "find $(qw "$archive_dir") -maxdepth 1 -name '[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]*' -type f -print0 | sort -z"
+            )
+        fi
+
+        # Compare and remove files from the list
+        wal_purge_list=()
+        for wal in "${wal_list[@]}"; do
+            # the wal files come ordered, when the first to keep comes, our list is complete
+            [[ $wal =~ $wal_file ]] && break
+
+            wal_purge_list+=( "$wal" )
+        done
+
+        info "${#wal_purge_list[@]} old WAL file(s) to remove"
+        if (( ${#wal_purge_list[@]} > 0 )); then
+            if [ "$dry_run" = "yes" ]; then
+	        info "Would purge ${#wal_purge_list[@]} old WAL file(s):"
+	        info " First: $(basename -- "${wal_purge_list[1]}")"
+	        info " Last: $(basename -- "${wal_purge_list[@]:(-1)}")"
+            else
+	        info "purging old WAL files"
+
+	        # This may look ugly, but it is very easy to create a rm
+	        # command without too many arguments.
+	        if [ "$archive_local" = "yes" ]; then
+	            for wal in "${wal_purge_list[@]}"; do
+		        echo "rm -- $(qw "$wal")"
+	            done | bash || die "unable to remove wal files"
+	        else
+	            for wal in "${wal_purge_list[@]}"; do
+		        echo "rm -- $(qw "$wal")"
+	            done | ssh -- "$archive_ssh_target" "cat | sh" || die "unable to remove wal files on $archive_host"
+	        fi
+            fi
+        fi
+
+        info "done"
+
+
 	;;
 
     check)
 	load_config
-	select_cmd "check_pitr"
 
-	while getopts "C:?" opt; do
-	    case $opt in
-		C) PITR_CONFIG=$OPTARG;;
-		"?") "$cmd" '-?'; exit $?;;
-	    esac
-	done
+        # Dump configuration file
+        info "the configuration file contains:"
+        grep -- '=' "$config" | grep -E '^[^[:space:]#]+'
+        echo
 
-	if [ -n "$PITR_CONFIG" ]; then
-	    opts+=( "-C" "$PITR_CONFIG" )
-	else
-	    opts+=( "-C" "$config" )
-	fi
+        info "==> checking the configuration for inconsistencies"
 
-        # Run the command
-	$dry_run "$cmd" "${opts[@]}"
-	exit $?
+        
 	;;
 
     configure)
