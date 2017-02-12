@@ -26,7 +26,7 @@
 
 version="2.0-dev"
 
-# Hard coded configuration
+# Hardcoded configuration
 PGXLOG=
 BACKUP_DIR="/var/lib/pgsql/backups/pitr"
 STORAGE="tar"
@@ -40,30 +40,28 @@ PRE_BACKUP_COMMAND=
 POST_BACKUP_COMMAND=
 LOG_TIMESTAMP="no"
 USE_ISO8601_TIMESTAMPS="no"
-
 PGOWNER=`id -un`
 OVERWRITE="no"
 RESTORE_COMMAND=
-
 PURGE_KEEP_COUNT=
 PURGE_OLDER_THAN=
 
-ARCHIVE_HOST=
-ARCHIVE_USER=
-ARCHIVE_DIR="$BACKUP_DIR/archived_xlog"
+# We do not hardcode defaults for ARCHIVE_HOST, ARCHIRVE_USER and
+# ARCHIVE_DIR so that they can be deduced from their BACKUP_
+# counterpart by parse_target_uri()
 ARCHIVE_COMPRESS="yes"
 ARCHIVE_OVERWRITE="yes"
-SYSLOG="no"
-SYSLOG_FACILITY="local0"
-SYSLOG_IDENT="postgres"
+ARCHIVE_CHECK="no"
+ARCHIVE_FLUSH="no"
 ARCHIVE_COMPRESS_BIN="gzip -f -4"
 ARCHIVE_COMPRESS_SUFFIX="gz"
 ARCHIVE_UNCOMPRESS_BIN="gunzip"
+SYSLOG="no"
+SYSLOG_FACILITY="local0"
+SYSLOG_IDENT="postgres"
 
 config_dir="/etc/pitrery"
-config="pitr2.conf"
-
-
+config="pitr.conf"
 
 out_rc=0
 
@@ -168,7 +166,6 @@ usage() {
             echo "    -f                     Overwrite the destination file"
             echo "    -C                     Do not connect to PostgreSQL"
             echo
-            echo "    -l label               Backup label"
             echo "    -s mode                Storage method, tar or rsync"
             echo "    -m count               Number of backups to keep"
             echo "    -g days                Remove backup older then this number of days"
@@ -541,6 +538,240 @@ check_and_fix_directory() {
 	else
 	    die "$dir must be owned by $PGOWNER"
 	fi
+    fi
+}
+
+# Check related functions
+check_ssh() {
+    local ssh_target=$1
+
+    if ssh -n -- "$ssh_target" "test -d /" 2>/dev/null; then
+	info "ssh connection to $ssh_target ok"
+	return 0
+    else
+	error "cannot connect to $ssh_target with ssh"
+	return 1
+    fi
+}
+
+check_remote_directory() {
+    local ssh_target=$1
+    local dest_dir=$2
+    local dest_exists
+    local dest_isdir
+    local dest_writable
+
+    dest_exists=$(ssh -n -- "$ssh_target" "[ -e $(qw "$dest_dir") ] || echo 'ko'")
+    if [ $? = 0 ]; then
+	if [ ! -n "$dest_exists" ]; then
+	    dest_isdir=$(ssh -n -- "$ssh_target" "[ -d $(qw "$dest_dir") ] || echo 'ko'")
+	    if [ $? = 0 ]; then
+		if [ ! -n "$dest_isdir" ]; then
+		    info "target directory '$dest_dir' exists"
+		    dest_writable=$(ssh -n -- "$ssh_target" "[ -w $(qw "$dest_dir") ] || echo 'ko'")
+		    if [ $? = 0 ]; then
+			if [ ! -n "$dest_writable" ]; then
+			    info "target directory '$dest_dir' is writable"
+			else
+			    error "target directory '$dest_dir' is NOT writable"
+			fi
+		    else
+			error "could not check directory ${ssh_target}:$dest_dir"
+		    fi
+		else
+		    error "target '$dest_dir' exists but is NOT a directory"
+		fi
+	    else
+		error "could not check directory ${ssh_target}:$dest_dir"
+	    fi
+	else
+	    error "target directory '$dest_dir' does NOT exist or is NOT reachable"
+	fi
+    else
+	error "could not check directory ${ssh_target}:$dest_dir"
+    fi
+}
+
+check_local_directory() {
+    local dest_dir=$1
+
+    if [ -e "$dest_dir" ]; then
+	if [ -d "$dest_dir" ]; then
+	    info "target directory '$dest_dir' exists"
+	    if [ -w "$dest_dir" ]; then
+		info "target directory '$dest_dir' is writable"
+	    else
+		error "target directory '$dest_dir' is NOT writable"
+	    fi
+	else
+	    error "target '$dest_dir' exists but is NOT a directory"
+	fi
+    else
+	error "target directory '$dest_dir' does NOT exist or is NOT reachable"
+    fi
+}
+
+check_postgresql_config() {
+    local out_rc=0
+
+    # Get the complete version from PostgreSQL
+    pg_dotted_version=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'server_version';" -- "$psql_condb" 2>/dev/null)
+    rc=$?
+    if [ $rc = 127 ]; then
+        error "psql invocation error: command not found"
+    elif [ $rc = 2 ]; then
+        error "could not connect to PostgreSQL"
+    elif [ $rc != 0 ]; then
+        error "could not get the version of the server"
+    else
+        info "PostgreSQL version is: $pg_dotted_version"
+
+        # Now get the numerical version of PostgreSQL so that we can compare
+        # it
+        if ! pg_version=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'server_version_num';" -- "$psql_condb"); then
+	    error "could not get the numerical version of the server"
+        fi
+
+        # Check if the server is in hot standby. If so, basebackup
+        # functions won't work. It is only necessary as of 9.0, before it
+        # was not possible to a warm standby anyway.
+        if (( 10#$pg_version >= 90000 )); then
+	    if ! hot_standy=$("${psql_command[@]}" -Atc "SELECT pg_is_in_recovery();" -- "$psql_condb"); then
+	        error "could not check if the server is in hot standby"
+	    else
+	        if [[ $hot_standby == "t" ]]; then
+		    error "server is in hot standby, backup won't work"
+	        fi
+	    fi
+        fi
+
+        # Check the attributes of the connection role, it must be
+        # superuser or have the replication attribute (>= 9.1)
+        if (( 10#$pg_version >= 90100 )); then
+	    if ! role=$("${psql_command[@]}" -Atc "SELECT rolname FROM pg_roles WHERE rolname = current_user AND (rolsuper OR rolreplication);" -- "$psql_condb"); then
+	        error "could not check if connection role has privileges to run backup functions"
+	    else
+	        if [ -n "$role" ]; then
+		    info "connection role can run backup functions"
+	        else
+		    error "connection role cannot run backup functions"
+	        fi
+	    fi
+        else
+	    if ! role=$("${psql_command[@]}" -Atc "SELECT rolname FROM pg_roles WHERE rolname = current_user AND rolsuper;" -- "$psql_condb"); then
+	        error "could not check if connection role has privileges to run backup functions"
+	    else
+	        if [ -n "$role" ]; then
+		    info "connection role can run backup functions"
+	        else
+		    error "connection role cannot run backup functions"
+	        fi
+	    fi
+        fi
+
+        # Check configuration of PostgreSQL
+        info "current configuration:"
+        if (( $pg_version >= 90000 )); then
+	    if ! wal_level=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_level';" -- "$psql_condb"); then
+	        error "could not get the get the value of wal_level"
+	    fi
+	    info "  wal_level = $wal_level"
+        fi
+
+        if (( $pg_version >= 80300 )); then
+	    if ! archive_mode=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'archive_mode';" -- "$psql_condb"); then
+	        error "could not get the get the value of archive_mode"
+	    fi
+	    info "  archive_mode = $archive_mode"
+        fi
+
+        if ! archive_command=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'archive_command';" -- "$psql_condb"); then
+	    error "could not get the get the value of archive_command"
+        fi
+        info "  archive_command = '$archive_command'"
+
+	if ! syslog=$("${psql_command[@]}" -Atc "SELECT setting ~ 'syslog' FROM pg_settings WHERE name = 'log_destination';" -- "$psql_condb"); then
+	    warn "could not get get the value of log_destination"
+	fi
+
+	if [ "$syslog" = "t" ]; then
+	    if ! syslog_facility=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'syslog_facility';" -- "$psql_condb"); then
+		warn "could not get get the value of syslog_facility"
+	    fi
+
+	    if ! syslog_ident=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'syslog_ident';" -- "$psql_condb"); then
+		warn "could not get get the value of syslog_ident"
+	    fi
+	fi
+
+        # wal_level must be different than minimal
+        if [ -n "$wal_level" ] && [ $wal_level = "minimal" ]; then
+            if (( $pg_version >= 90000 )); then
+                if (( $pg_version < 90600 )); then
+	            error "wal_level must be set at least to archive"
+                else
+                    # archive and hot_standby levels have been merged into
+                    # replica starting from 9.6
+                    error "wal_level must be set at least to replica"
+                fi
+            fi
+        fi
+
+        if [ -n "$archive_mode" ] && [ $archive_mode = "off" ]; then
+	    error "archive_mode must be set to on"
+        fi
+
+        if [ -z "$archive_command" ]; then
+	    error "archive_command is empty"
+        fi
+
+        # Get the data directory from PostgreSQL, later we can compare it
+        # to PGDATA variable and see if the configuration is correct.
+        if ! data_directory=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'data_directory';" -- "$psql_condb"); then
+	    error "could not get the get the value of data_directory"
+        fi
+
+    fi
+
+    return $out_rc
+}
+
+# Simple helper function to output a parameter and replace it in the
+# given file. Since some OS do not support the -i option of sed, we
+# have to use a temporary file. Since we are in the configuration
+# stage, switching a lot between temp files is not a performance
+# issue.
+output_param() {
+    local param=$1
+    local value=$2
+    local file=$3
+
+    echo "${param}=\"${value}\""
+
+    if [ -n "$file" ]; then
+	local tmpfile=$(mktemp -t pitr_config_sed.XXXXXXXXXX) ||
+            error "Failed to create temporary file"
+
+	# Replace the parameter with sed, the value is quoted so that
+	# commas in the value do not conflict with our sed sed
+	# construct
+	v=$(qw "$value")
+
+	# qw can output string starting with a $, sourcing the
+	# configuration file later will make the value ok, but if the
+	# sed that replaces the values inside the configuration puts
+	# double quote around the value it will prevent source from
+	# interpreting $ starting strings correctly.
+	echo "$v" | grep '^\$' >/dev/null 2>&1
+	if [ $? = 0 ]; then
+	    cat "$file" | sed -re "s/^#${param}=.*/${param}=${v//\//\\/}/" > "$tmpfile" ||
+		error "Cannot change parameter in configuration file"
+	else
+	    cat "$file" | sed -re "s/^#${param}=.*/${param}=\"${v//\//\\/}\"/" > "$tmpfile" ||
+		error "Cannot change parameter in configuration file"
+	fi
+
+	mv "$tmpfile" "$file" || error "Cannot rename tmpfile to configuration file"
     fi
 }
 
@@ -2102,7 +2333,7 @@ case $action in
 	    esac
 	done
 
-        parse_target_uri ${@:$OPTIND:1} $archive_path
+        parse_target_uri "${@:$OPTIND:1}" $archive_path
 
         # Destination host is mandatory unless the backup is local
         if [ -z "$target" ] && [ "$backup_local" != "yes" ]; then
@@ -2390,6 +2621,11 @@ case $action in
     check)
 	load_config
 
+        # Some extra check, since we are going to manipulate de
+        # configuration file
+        [ -e "$config" ] || die "configuration file $config does not exist"
+        [ -r "$config" ] || die "configuration file $config is not readable"
+
         # Dump configuration file
         info "the configuration file contains:"
         grep -- '=' "$config" | grep -E '^[^[:space:]#]+'
@@ -2397,7 +2633,197 @@ case $action in
 
         info "==> checking the configuration for inconsistencies"
 
+        conf_ok=1
+        # Sanity checks on the configuration
+        # Only tar or rsync are allowed as storage method
+        if [ "$STORAGE" != "tar" ] && [ "$STORAGE" != "rsync" ]; then
+            error "storage method (STORAGE) must be 'tar' or 'rsync'"
+            conf_ok=0
+        fi
+
+        # At least one of PURGE_KEEP_COUNT and PURGE_OLDER_THAN must be
+        # configured, otherwise purge won't work
+        if [ -z "$PURGE_KEEP_COUNT" ] && [ -z "$PURGE_OLDER_THAN" ]; then
+            error "purge not configured, either PURGE_KEEP_COUNT or PURGE_OLDER_THAN must be set"
+            conf_ok=0
+        fi
+
+        if [[ $conf_ok == 1 ]]; then
+            info "configuration seems correct"
+        else
+            warn "errors found in the configuration. The following tests may not be accurate"
+        fi
+
+        # Prepare psql command, it must be an array.
+        if [ -n "$PGPSQL" ]; then
+            psql_command=( "$PGPSQL" )
+        fi
+
+        info "==> checking backup configuration"
+
+        parse_target_uri
+
+        if [ "$backup_local" = "yes" ]; then
+            info "backups are local, not checking SSH"
+
+            check_local_directory "$backup_dir"
+        else
+            info "checking SSH connection for backups"
+            if ! check_ssh "$backup_ssh_target"; then
+	        die "the backup host must be reachable. Aborting"
+            fi
+
+            info "checking backup directory: $backup_dir"
+            # check if the target directory exist, or can be created. It means a
+            # parent must exist and be writable. At this point we cannot see
+            # if it is a proper mount point that would have enough space
+            check_remote_directory "$backup_ssh_target" "$backup_dir"
+
+            # Check if rsync is available on the remote host, it is only
+            # needed by the rsync storage method
+            if [[ $STORAGE == "rsync" ]]; then
+	        info "checking rsync on the remote host: $backup_ssh_target"
+	        if ! ssh -n -- "$backup_ssh_target" "which rsync" >/dev/null 2>&1; then
+	            error "could not find rsync in the PATH on $backup_ssh_target"
+	        else
+	            info "rsync found on the remote host"
+	        fi
+            fi
+        fi
+
+        # Check the local rsync
+        if [[ $STORAGE == "rsync" ]]; then
+            info "checking rsync on the local host"
+            if ! which rsync >/dev/null 2>&1; then
+	        error "could not find rsync in the PATH of the local host"
+            else
+	        info "rsync found on the local host"
+            fi
+        fi
+
+        info "==> checking WAL files archiving configuration"
+
+        arch_ok="yes"
+        if [ "$archive_local" = "yes" ]; then
+            info "WAL archiving is local, not checking SSH"
+            info "checking WAL archiving directory: $archive_dir"
+            check_local_directory "$archive_dir" || arch_ok="no"
+        else
+            info "checking SSH connection for WAL archiving"
+            check_ssh "$archive_ssh_target" || arch_ok="no"
+
+            info "checking WAL archiving directory: $archive_dir"
+            check_remote_directory "$archive_ssh_target" "$archive_dir" || arch_ok="no"
+
+            # Check if rsync is installed on the remote host
+            info "checking rsync on the remote host: $archive_ssh_target"
+            if ! ssh -n -- "$archive_ssh_target" "which rsync" >/dev/null 2>&1; then
+	        error "could not find rsync in the PATH on $archive_ssh_target"
+	        arch_ok="no"
+            else
+	        info "rsync found on the remote host"
+            fi
+        fi
+
+        # Check the local rsync for WAL archiving
+        if [[ $STORAGE == "rsync" ]] || [[ $archive_local == "no" ]]; then
+            info "checking rsync on the local host"
+            if ! which rsync >/dev/null 2>&1; then
+	        error "could not find rsync in the PATH of the local host"
+	        arch_ok="no"
+            else
+	        info "rsync found on the local host"
+            fi
+        fi
+
+        # Archiving with archive_xlog is not mandatory, so tell the user that
+        # it may be unusable
+        if [[ $arch_ok == "no" ]]; then
+            error "archiving may not work with archive_xlog and the current configuration"
+            error "please consider another way to archive WAL files"
+        fi
+
+        # Check access to postgres
+        info "==> checking access to PostgreSQL"
+
+        # Prepare psql command line. Starting from 9.6 .psqlrc is sourced with
+        # psql -c or -f, so we force -X
+        psql_command+=( "-X" )
+        [ -n "$PGHOST" ] && psql_command+=( "-h" "$PGHOST" )
+        [ -n "$PGPORT" ] && psql_command+=( "-p" "$PGPORT" )
+        [ -n "$PGUSER" ] && psql_command+=( "-U" "$PGUSER" )
+
+        psql_condb=${PGDATABASE:-postgres}
+
+        # Show the command line of psql and the contents of the environnement
+        # variables starting with PG, they may affect the behaviour of psql.
+        info "psql command and connection options are: ${psql_command[@]}"
+        info "connection database is: $psql_condb"
+        info "environment variables (maybe overwritten by the configuration file):"
+        while read -r -d '' v; do
+            echo $v | grep -q "^PG" || continue
+            info "  $v"
+        done < <(env -0 2>/dev/null || warn "could not read the environment: env -0 failed")
         
+        check_postgresql_config || out_rc=1
+
+        info "==> checking access to PGDATA"
+
+        # Access to PGDATA
+        if [ -n "$data_directory" ]; then
+            test "$PGDATA" -ef "$data_directory"
+            if [ $? != 0 ]; then
+	        info "data_directory setting is: $data_directory"
+	        info "PGDATA is: $PGDATA"
+	        error "configured PGDATA is different than the data directory reported by PostgreSQL"
+            else
+	        info "PostgreSQL and the configuration reports the same PGDATA"
+            fi
+        fi
+
+        # This test may be stupid but in case we do not have access to
+        # PostgreSQL, we only have the configuration which may be
+        # incorrect
+        if [ ! -e "$PGDATA" ]; then
+            error "$PGDATA does not exist"
+            exit 1
+        fi
+
+        if [ ! -d "$PGDATA" ]; then
+            error "$PGDATA is not a directory"
+            exit 1
+        fi
+
+        dperms=$(stat -c %a -- "$PGDATA" 2>/dev/null) || error "Unable to get permissions of $PGDATA"
+        downer=$(stat -c %U -- "$PGDATA" 2>/dev/null) || error "Unable to get owner of $PGDATA"
+
+        if [[ "$dperms" == "700" ]]; then
+            info "permissions of PGDATA ok"
+        else
+            warn "permissions of PGDATA are not 700: $dperms"
+        fi
+
+        # Do not run the owner test if run as root, superuser won't have
+        # problems accessing the files
+        if [ "$(id -u)" != 0 ]; then
+            owner=${PGOWNER:-$(id -un)}
+            if [[ "$owner" == "$downer" ]]; then
+	        info "owner of PGDATA is the current user"
+            else
+	        warn "owner of PGDATA is not the current user: $downer"
+            fi
+
+            # To see if we can backup, just check if we can read the version
+            # file
+            if [[ -r "$PGDATA/PG_VERSION" ]]; then
+	        info "access to the contents of PGDATA ok"
+            else
+	        error "cannot read $PGDATA/PG_VERSION, access to PGDATA may not be possible"
+            fi
+        else
+            info "running as root, not checking access to the contents of PGDATA"
+        fi
+
 	;;
 
     configure)
@@ -2406,34 +2832,404 @@ case $action in
 	# for PostgreSQL related environment variables that we do not
 	# want to overwrite. This is why the following loop getopts on
 	# get just pass in the command line.
-	select_cmd "configure_pitr"
 
-	while getopts "o:fCl:s:m:g:D:a:P:h:p:U:d:?" opt; do
-	    case $opt in
-		o) opts+=( "-o" "$OPTARG" );;
-		f) opts+=( "-f" );;
-		C) opts+=( "-C" );;
-		l) opts+=( "-l" "$OPTARG" );;
-		s) opts+=( "-s" "$OPTARG" );;
-		m) opts+=( "-m" "$OPTARG" );;
-		g) opts+=( "-g" "$OPTARG" );;
-		D) opts+=( "-D" "$OPTARG" );;
-		a) opts+=( "-a" "$OPTARG" );;
+        psql_command=( "psql" "-X" )
+        storage="tar"
+        connect="yes"
+        overwrite_config="no"
 
-		P) opts+=( "-P" "$OPTARG" );;
-		h) opts+=( "-h" "$OPTARG" );;
-		p) opts+=( "-p" "$OPTARG" );;
-		U) opts+=( "-U" "$OPTARG" );;
-		d) opts+=( "-d" "$OPTARG" );;
+        while getopts "o:fCs:m:g:D:a:P:h:p:U:d:?" opt; do
+            case $opt in
+	        o) output=$OPTARG;;
+	        f) overwrite_config="yes";;
+	        C) connect="no";;
+	        s) storage=$OPTARG;;
+	        m) max_count=$OPTARG;;
+	        g) max_days=$OPTARG;;
+	        D) pgdata=$(readlink -m -- "$OPTARG");;
+	        a) archive_path="$OPTARG";;
 
-		"?") "$cmd" '-?'; exit $?;;
-	    esac
-	done
+	        P) psql=$OPTARG; psql_command=( "$OPTARG" );;
+                h) dbhost=$OPTARG;;
+                p) dbport=$OPTARG;;
+                U) dbuser=$OPTARG;;
+                d) dbname=$OPTARG;;
 
-	[ -n "${@:$OPTIND:1}" ] && opts+=( "${@:$OPTIND:1}" )
-	$dry_run "$cmd" "${opts[@]}"
-	exit $?
-	;;
+	        "?") usage "configure";;
+            esac
+        done
+
+        # target directory for backups must be provided
+        if [ -z "${@:$OPTIND:1}" ]; then
+            error "missing target backup directory"
+            usage "configure"
+        fi
+
+        # Only tar and rsync are allowed as storage methode
+        if [ "$storage" != "tar" ] && [ "$storage" != "rsync" ]; then
+            die "storage method must be 'tar' or 'rsync'"
+        fi
+
+        parse_target_uri "${@:$OPTIND:1}" "$archive_path"
+
+        # the configuration for archive_xlog must be an absolute path or
+        # relative to PGDATA. Just convert it to a absolute path if needed,
+        # because we cannot garantee what the user provides is relative to
+        # PGDATA.
+        if [ -n "$output" ]; then
+            if [[ "$output" == */* ]]; then
+	        restore_xlog_config=$(readlink -m "$output")
+            else
+	        restore_xlog_config="$output"
+            fi
+        fi
+
+        if [ "$connect" = "yes" ]; then
+            # Check if PostgreSQL is available and check its configuration. The
+            # purpose is to output what should be changed to configure WAL
+            # archiving.
+            info "==> checking access to PostgreSQL"
+
+            # Starting from 9.6 .psqlrc is sourced with psql -c or -f, so we
+            # force -X
+            psql_command+=( "-X" )
+            [ -n "$dbhost" ] && psql_command+=( "-h" "$dbhost" )
+            [ -n "$dbport" ] && psql_command+=( "-p" "$dbport" )
+            [ -n "$dbuser" ] && psql_command+=( "-U" "$dbuser" )
+            [ -n "$dbname" ] && psql_condb="$dbname"
+
+            check_postgresql_config
+
+            if [ -n "$restore_xlog_config" ]; then
+	        info "please ensure archive_command includes 'archive_xlog -C $restore_xlog_config %p'"
+            else
+	        info "please ensure archive_command includes a call to archive_xlog"
+            fi
+        fi
+
+        # When check of PostgreSQL is disabled, only output what should be
+        # changed in postgresql.conf
+        if [ -z "$data_directory" ]; then
+            info "==> PostgreSQL configuration to change in 'postgresql.conf':"
+            info "  wal_level = archive # or higher (>= 9.0 and < 9.6), replica or higher >= 9.6"
+            info "  archive_mode = on # (>= 8.3)"
+            if [ -n "$restore_xlog_config" ]; then
+	        info "  archive_command = 'archive_xlog -C $restore_xlog_config %p'"
+            else
+	        info "  archive_command = 'archive_xlog -C {your_conf} %p'"
+            fi
+        fi
+
+        # Check PGDATA, if it consistent with the data_directory parameter of
+        # PostgreSQL. It has it flows but it is a simple consitency test.
+        info "==> checking \$PGDATA"
+        if [ -n "$pgdata" ]; then
+            if [ -n "$data_directory" ]; then
+	        test "$pgdata" -ef "$data_directory"
+	        if [ $? != 0 ]; then
+	            info "data_directory setting is: $data_directory"
+	            info "PGDATA is: $pgdata"
+	            die "configured PGDATA is different than the data directory reported by PostgreSQL"
+	        fi
+            fi
+        else
+            pgdata="$data_directory"
+        fi
+
+        # When PGDATA is not provided on the command line and PostgreSQL is
+        # unreachable, fallback on the PGDATA environment variable.
+        if [ -z "$pgdata" ] && [ -z "$data_directory" ]; then
+            if [ -n "$PGDATA" ]; then
+	        pgdata="$PGDATA"
+            else
+	        die "could not find what PGDATA is. Use -D or -? for help."
+            fi
+        fi
+
+        # This test may be stupid but in case we do not have access to
+        # PostgreSQL, we only have the configuration which may be
+        # incorrect
+        [ -e "$pgdata" ] || die "$pgdata does not exist"
+        [ -d "$pgdata" ] || die "$pgdata is not a directory"
+
+        downer=$(stat -c %U -- "$pgdata" 2>/dev/null) || error "Unable to get owner of $pgdata"
+
+        # Do not run the owner test if run as root, superuser won't have
+        # problems accessing the files
+        if [ "$(id -u)" != 0 ]; then
+            owner=$(id -un)
+            if [[ "$owner" != "$downer" ]]; then
+	        warn "owner of PGDATA is not the current user: $downer"
+	        pgowner=$downer
+            fi
+
+            # To see if we can backup, just check if we can read the version
+            # file
+            if [ -r "$pgdata/PG_VERSION" ]; then
+	        info "access to the contents of PGDATA ok"
+            else
+	        warn "cannot read $pgdata/PG_VERSION, access to PGDATA may not be possible"
+            fi
+        fi
+
+        info "==> contents of the configuration file"
+        echo
+        if [ -n "$output" ]; then
+            # We want to create a configuration file with all the comments and
+            # possible options so that it can be easily tuned afterwards.
+	    conffile=$(mktemp -t pitr_config.XXXXXXXXXX) ||
+                die "Failed to create temporary file for the new configuration file"
+
+            # Ensure the configuration file has everything commented out, so
+            # that we can uncomment only what is configured here
+            cat > "$conffile" <<EOF
+# pitrery.conf -- central configuration file for pitrery
+#
+# This file is intended to be copied for each backup set to be
+# performed with pitrery.
+#
+
+####################
+# Backup management
+####################
+
+# Data directory of the PostgreSQL cluster to backup.
+#PGDATA="/var/lib/pgsql/data"
+
+# Specify all needed information to be able to run SQL command on the
+# PostgreSQL cluster to backup.  Those options may be commented out to
+# let the scripts use the ones defined in the environment (be careful
+# with cron which may need them)
+#PGUSER="postgres"
+#PGPORT=5432
+#PGHOST="/tmp"
+#PGDATABASE="postgres"
+
+# Command line to invoke psql.
+#PGPSQL="$PGPSQL"
+
+# Target owner of the files when restoring with a different user
+# (e.g. one may need to restore as root to create some missing
+# directories, then PGOWNER should be set to "postgres" or whatever
+# unprivileged user is used to run PostgreSQL)
+#PGOWNER=$PGUSER
+
+# If the transaction logs directory is outside PGDATA (see -X option
+# of initdb), specify its path here to recreate the symbolic link when
+# restoring.
+#PGXLOG=$PGXLOG
+
+# Directory where to store the files.  Each backup has its own
+# subdirectory named after the date and time it was launched.
+#BACKUP_DIR="$BACKUP_DIR"
+
+# When performing backups to a remote host, a target host with a batch SSH
+# access is needed (e.g. create passwordless SSH key pairs).  Be aware
+# that commands will be run by the scripts through SSH, so this should
+# be allowed. Keep this empty to perform local backups.
+#BACKUP_HOST="$BACKUP_HOST"
+
+# User to use when accessing BACKUP_HOST through SSH.  If blank, the
+# login will be performed with the default SSH configuration.
+#BACKUP_USER="$BACKUP_USER"
+
+# After restoring from a backup, PostgreSQL will need a command to run
+# to get archived WAL segments that need to be replayed on the
+# cluster files.  This can be any valid command or script for the
+# restore_command parameter of PostgreSQL (in recovery.conf).  The
+# restore_xlog script is intended to be used here: leave empty to use it
+#RESTORE_COMMAND=
+
+# The old backups can be removed by setting one of those two
+# parameters, one can keep at most PURGE_KEEP_COUNT backups or keep
+# backups that are younger than PURGE_OLDER_THAN in days. When both
+# parameters are set, age based purge keeps at least the given count.
+#PURGE_KEEP_COUNT="$PURGE_KEEP_COUNT"
+#PURGE_OLDER_THAN="$PURGE_OLDER_THAN"
+
+# Hooks. Command run at some point in the different actions
+#PRE_BACKUP_COMMAND="$PRE_BACKUP_COMMAND"
+#POST_BACKUP_COMMAND="$POST_BACKUP_COMMAND"
+
+# Backup storage method. "tar" creates one compressed tarball (with
+# gzip) for PGDATA and each tablespace. "rsync" synchronizes PGDATA
+# and each tablespace and try to optimize data transfer by hardlinking
+# the previous backup (provided it was done with the "rsync"
+# method). Use "tar" if space for the backup matters more than speed,
+# use "rsync" if speed is more important.
+#STORAGE="$STORAGE"
+
+# Timestamp the messages.
+#LOG_TIMESTAMP="$LOG_TIMESTAMP"
+
+# When naming the backup directory from the stop time of the backup,
+# use ISO 8601 format. Defaults to "no" to keep the backward
+# compatibility, as mixing formats of backup names would break the
+# sorting of backups on restore.
+#USE_ISO8601_TIMESTAMPS="$USE_ISO8601_TIMESTAMPS"
+
+####################
+# WAL archiving
+####################
+
+# The host storing the archived WAL files. Must not be set if ARCHIVE_LOCAL
+# is "yes", otherwise this must be set if using archive_xlog, restore_xlog,
+# or pitrery purge.
+#ARCHIVE_HOST="$ARCHIVE_HOST"
+
+# The user for login to ARCHIVE_HOST through SSH. If blank, PostgreSQL
+# server process owner is used
+#ARCHIVE_USER="$ARCHIVE_USER"
+
+# The directory where to look for archived WAL files on BACKUP_HOST.
+#ARCHIVE_DIR="\$BACKUP_DIR/archived_xlog"
+
+# Compress the WAL segment
+#ARCHIVE_COMPRESS="$ARCHIVE_COMPRESS"
+
+# Allow overwriting the file when it exists in the archive
+# directory. Since checking if the file exists before archiving has a
+# performance overhead, the option is enabled by default.
+#ARCHIVE_OVERWRITE="$ARCHIVE_OVERWRITE"
+
+# Check the md5 of the archived file to the md5 of the original WAL file.
+# Useful if you are paranoid or don't trust the remote storage reliability.
+# Note that you can not check the archive if compression is enabled.
+# If overwriting is disabled, the md5 check enabled and the archive already
+# exists, the archiving returns success if the md5 check is successful.
+#ARCHIVE_CHECK="$ARCHIVE_CHECK"
+
+# Force an immediate flush of the archived file to disk before returning
+# success. This is often a life saver on power loss to get ALL the archive back
+# and clean.
+#ARCHIVE_FLUSH="$ARCHIVE_FLUSH"
+
+# Logging options.  When SYSLOG is no, messages are written to stderr,
+# to allow the logging collector or redirection to catch them. These
+# parameters are intended to match their counterparts in
+# postgresql.conf. This only applies to WAL archiving.
+#SYSLOG="$SYSLOG"
+#SYSLOG_FACILITY="$SYSLOG_FACILITY"
+#SYSLOG_IDENT="$SYSLOG_IDENT"
+
+####################
+# Compression
+####################
+
+# The following options allow to customize compression tools for WAL
+# archiving. The program used in COMPRESS_BIN must support a -c option
+# to output to stdout and access data from stdin (tested with gzip, pigz,
+# bzip2, pbzip2, xz).  Defaults to "gzip -4"
+#ARCHIVE_COMPRESS_BIN="$ARCHIVE_COMPRESS_BIN"
+
+# The suffix added by the compression tool (needed for
+# decompression). Defaults to "gz"
+#ARCHIVE_COMPRESS_SUFFIX="$ARCHIVE_COMPRESS_SUFFIX"
+
+# Path to the decompression program, it must take the file to process
+# as its first parameter. Defaults to "gunzip"
+#ARCHIVE_UNCOMPRESS_BIN="$ARCHIVE_UNCOMPRESS_BIN"
+
+# The compression used with the "tar" storage method can be configured
+# with these options. The command must be able to be used with
+# pipes (tested with gzip, pigz, bzip2, pbzip2). Defaults to "gzip -4".
+#BACKUP_COMPRESS_BIN="$BACKUP_COMPRESS_BIN"
+
+# The suffix added by the compression tool (needed for
+# decompression). Defaults to "gz".
+#BACKUP_COMPRESS_SUFFIX="$BACKUP_COMPRESS_SUFFIX"
+
+# Path to the decompression program for backup using the "tar" storage
+# method, it must take the file to process as its first parameter,
+# work with pipes and be able output to stdout with -c. Defaults to
+# "gunzip".
+#BACKUP_UNCOMPRESS_BIN="$BACKUP_UNCOMPRESS_BIN"
+
+EOF
+        fi
+
+        # Write all configured parameters
+        output_param "PGDATA" "$pgdata" "$conffile"
+
+        if [ -n "$dbuser" ]; then
+            output_param "PGUSER" "$dbuser" "$conffile"
+        elif [ -n "$PGUSER" ]; then
+            output_param "PGUSER" "$PGUSER" "$conffile"
+        fi
+
+        if [ -n "$dbport" ]; then
+            output_param "PGPORT" "$dbport" "$conffile"
+        elif [ -n "$PGPORT" ]; then
+            output_param "PGPORT" "$PGPORT" "$conffile"
+        fi
+
+        if [ -n "$dbhost" ]; then
+            output_param "PGHOST" "$dbhost" "$conffile"
+        elif [ -n "$PGHOST" ]; then
+            output_param "PGHOST" "$PGHOST" "$conffile"
+        fi
+
+        if [ -n "$dbname" ]; then
+            output_param "PGDATABASE" "$dbname" "$conffile"
+        elif [ -n "$PGDATABASE" ]; then
+            output_param "PGDATABASE" "$PGDATABASE" "$conffile"
+        fi
+
+        [ -n "$psql" ] && output_param "PGPSQL" "$psql" "$conffile"
+        [ -n "$pgowner" ] && output_param "PGOWNER" "$pgowner" "$conffile"
+
+        output_param "BACKUP_DIR" "$backup_dir" "$conffile"
+        [ -n "$backup_host" ] && output_param "BACKUP_HOST" "$backup_host" "$conffile"
+        [ -n "$backup_user" ] && output_param "BACKUP_USER" "$backup_user" "$conffile"
+
+        [ -n "$max_count" ] && output_param "PURGE_KEEP_COUNT" "$max_count" "$conffile"
+        [ -n "$max_days" ] && output_param "PURGE_OLDER_THAN" "$max_days" "$conffile"
+        # Fallback on a keep count of 2, so that our configuration passes
+        # the check action
+        if [ -z "$max_count" ] && [ -z "$max_days" ]; then
+            output_param "PURGE_KEEP_COUNT" 2 "$conffile"
+        fi
+
+        output_param "STORAGE" "$storage" "$conffile"
+
+        [ -n "$archive_host" ] && output_param "ARCHIVE_HOST" "$archive_host" "$conffile"
+        [ -n "$archive_user" ] && output_param "ARCHIVE_USER" "$archive_user" "$conffile"
+        output_param "ARCHIVE_DIR" "$archive_dir" "$conffile"
+        if [ "$syslog" = "t" ]; then
+            output_param "SYSLOG" "yes" "$conffile"
+            [ "$syslog_facility" != "local0" ] && output_param "SYSLOG_FACILITY" "$syslog_facility" "$conffile"
+            [ "$syslog_ident" != "postgres" ] && output_param "SYSLOG_IDENT" "$syslog_ident" "$conffile"
+        fi
+        echo
+
+        # Write the configuration file
+        if [ -n "$output" ]; then
+            # Check if the output config option is a path or just a name in
+            # the configuration directory.  Prepend the configuration
+            # directory and .conf when needed.
+            if [[ $output != */* ]]; then
+	        output="$config_dir/$(basename -- "$output" .conf).conf"
+            fi
+
+            info "writing configuration file: $output"
+
+            # Do not overwrite an existing configuration file
+            if [ -f "$output" ] && [ $overwrite_config = "no" ]; then
+	        die "target configuration file '$output' already exists"
+            fi
+
+            if [ -w "$(dirname -- "$output")" ]; then
+	        if [ -n "$conffile" ]; then
+	            cp -- "$conffile" "$output" || die "Could not write $output"
+	            rm -- $conffile
+	        fi
+            else
+	        die "Could not write $output: directory is not writable"
+            fi
+        else
+            [ -n "$conffile" ] && rm -- $conffile
+        fi
+        ;;
 
     *)
 	error "unknown action"
