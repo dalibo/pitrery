@@ -32,7 +32,7 @@ Packages for Debian are available [here](https://dl.dalibo.com/public/pitrery/de
 * DEB: [pitrery\_1.12-1\_all.deb](https://dl.dalibo.com/public/pitrery/debian/pitrery_1.12-1_all.deb)
 * PGP signature: [pitrery\_1.12-1\_all.deb.asc](https://dl.dalibo.com/public/pitrery/debian/pitrery_1.12-1_all.deb.asc)
 
-They are no longer part the Debian package repository of Dalibo.
+They are no longer part of the Debian package repository of Dalibo.
 
 
 
