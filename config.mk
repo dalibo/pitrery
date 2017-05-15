@@ -1,5 +1,5 @@
 NAME = pitrery
-VERSION = 1.14-dev
+VERSION = 2.0
 
 # Customize below to fit your system
 
@@ -9,8 +9,6 @@ BASH = /bin/bash
 # paths
 PREFIX = /usr/local
 BINDIR = ${PREFIX}/bin
-LIBDIR = ${PREFIX}/lib
 SYSCONFDIR = ${PREFIX}/etc/${NAME}
-SHAREDIR = ${PREFIX}/share/${NAME}
 DOCDIR = ${PREFIX}/share/doc/${NAME}
 MANDIR = ${PREFIX}/share/man

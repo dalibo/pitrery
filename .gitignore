@@ -1,12 +1,5 @@
 *~
-backup_pitr
-check_pitr
-configure_pitr
-list_pitr
-pitr.conf
-pitr.conf.template
-purge_pitr
-restore_pitr
+_build
 .s[a-w][a-z]
 .*.s[a-w][a-z]
 Session*.vim
