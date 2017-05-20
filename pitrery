@@ -784,9 +784,9 @@ while getopts "c:lV?" opt; do
             ;;
 	l) # List the configuration files and exit
             info "listing configuration files in $config_dir"
-            for x in "$config_dir"/*.conf; do
-	        basename -- "$x" .conf
-            done
+            if [ -d "$config_dir" ]; then
+                find "$config_dir" -mindepth 1 -maxdepth 1 -name '*.conf' | xargs -i basename '{}' .conf
+            fi
             exit 0
             ;;
 	V) echo "pitrery $version"; exit 0;;
