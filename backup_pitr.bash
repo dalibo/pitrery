@@ -415,9 +415,11 @@ if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
         # When the fd has some data, read everything and change
         # newlines to pipe characters, to pass through expansion of
         # newline to space, when stored as a string.
+        ret_str=''
         while read -t 1 -u ${COPROC[0]} line; do
-            [ -n "$line" ] && echo -n "$line|"
+            [ -n "$line" ] && ret_str="$ret_str$line|"
         done
+        echo -n $ret_str | sed 's/|$//'
         return 0
     }
 
@@ -706,7 +708,7 @@ if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
     # to remove this temp file
     backup_file=$backup_label_file
     
-    echo -n $label_contents | tr '|' '\n' > $backup_file
+    echo $label_contents | tr '|' '\n' > $backup_file
     if [ $? != 0 ]; then
         error_and_hook "could not write temporary backup_label file"
     fi
@@ -717,7 +719,7 @@ if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
             error_and_hook "could not create temporary file"
         fi
 
-        echo -n $spcmap_contents | tr '|' '\n' > $tablespace_map_file
+        echo $spcmap_contents | tr '|' '\n' > $tablespace_map_file
         if [ $? != 0 ]; then
             error_and_hook "could not write temporary tablespace_map file"
         fi
