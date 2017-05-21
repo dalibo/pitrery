@@ -380,40 +380,48 @@ else
     while read -r -d '' f; do
 	wal_list+=("$f")
     done < <(
-	ssh -n -- "$xlog_ssh_target" "find $(qw "$xlog_dir") -maxdepth 1 -name '[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]*' -type f -print0 | sort -z"
+	ssh -n -- "$xlog_ssh_target" "find $(qw "$xlog_dir") -maxdepth 1 -mindepth 1 -name '[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]*' -type f -print0 | sort -z"
     )
 fi
 
 # Compare and remove files from the list
 wal_purge_list=()
+stop_wal_file_found="no"
 for wal in "${wal_list[@]}"; do
     # the wal files come ordered, when the first to keep comes, our list is complete
-    [[ $wal =~ $wal_file ]] && break
-
+    if [[ $wal =~ $wal_file ]]; then
+        stop_wal_file_found="yes"
+        break
+    fi
     wal_purge_list+=( "$wal" )
 done
 
-info "${#wal_purge_list[@]} old WAL file(s) to remove${target:+ from $target}"
-if (( ${#wal_purge_list[@]} > 0 )); then
-    if [ "$dry_run" = "yes" ]; then
-	info "Would purge ${#wal_purge_list[@]} old WAL file(s):"
-	info " First: $(basename -- "${wal_purge_list[1]}")"
-	info " Last: $(basename -- "${wal_purge_list[@]:(-1)}")"
-    else
-	info "purging old WAL files"
+if [ $stop_wal_file_found = "yes" ]; then
+    info "${#wal_purge_list[@]} old WAL file(s) to remove${target:+ from $target}"
+    if (( ${#wal_purge_list[@]} > 0 )); then
+        if [ "$dry_run" = "yes" ]; then
+	    info "Would purge ${#wal_purge_list[@]} old WAL file(s):"
+	    info " First: $(basename -- "${wal_purge_list[1]}")"
+	    info " Last: $(basename -- "${wal_purge_list[@]:(-1)}")"
+        else
+	    info "purging old WAL files"
 
-	# This may look ugly, but it is very easy to create a rm
-	# command without too many arguments.
-	if [ "$local_xlog" = "yes" ]; then
-	    for wal in "${wal_purge_list[@]}"; do
-		echo "rm -- $(qw "$wal")"
-	    done | @BASH@ || error "unable to remove wal files"
-	else
-	    for wal in "${wal_purge_list[@]}"; do
-		echo "rm -- $(qw "$wal")"
-	    done | ssh -- "$xlog_ssh_target" "cat | sh" || error "unable to remove wal files on $xlog_host"
-	fi
+	    # This may look ugly, but it is very easy to create a rm
+	    # command without too many arguments.
+	    if [ "$local_xlog" = "yes" ]; then
+	        for wal in "${wal_purge_list[@]}"; do
+		    echo "rm -- $(qw "$wal")"
+	        done | @BASH@ || error "unable to remove wal files"
+	    else
+	        for wal in "${wal_purge_list[@]}"; do
+		    echo "rm -- $(qw "$wal")"
+	        done | ssh -- "$xlog_ssh_target" "cat | sh" || error "unable to remove wal files on $xlog_host"
+	    fi
+        fi
     fi
+else
+    warn "WAL file $wal_file not found in the archives"
+    warn "could not create a list of WAL files to purge, not purging"
 fi
 
 info "done"
