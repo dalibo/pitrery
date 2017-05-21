@@ -368,10 +368,6 @@ wal_file=$(awk '/^START WAL LOCATION/ { gsub(/[^0-9A-F]/,"",$6); print $6 }' <<<
 # This must be only (hex) digits, or the arithmetic operations below will not do what we hope
 [[ $wal_file =~ ^[0-9A-F]{24}$ ]] || error "'$wal_file' does not appear to be a WAL segment file name"
 
-max_tln=$(( 16#${wal_file:0:8} ))
-max_log=$(( 16#${wal_file:8:8} ))
-max_seg=$(( 16#${wal_file:16:8} ))
-
 info "listing WAL files older than $(basename -- "$wal_file")"
 
 # List the WAL files and remove the old ones based on their name which
