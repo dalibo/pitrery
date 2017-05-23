@@ -1,6 +1,6 @@
 %global pkgname pitrery
 %global confdir %{_sysconfdir}/%{pkgname}
-%{!?pkgversion: %global pkgversion 1.12}
+%{!?pkgversion: %global pkgversion 1.13}
 %{!?pkgrevision: %global pkgrevision 1}
 
 Name:           %{pkgname}
@@ -18,7 +18,7 @@ Requires:       bash, rsync
 
 %description
 pitrery is set of tools to ease to management of PITR backups and
-restores.
+restores for PostgreSQL.
 
 - Management of WAL segments archiving with compression to hosts
   reachable with SSH
@@ -58,6 +58,9 @@ make install DESTDIR=%{buildroot}
 %doc %{_mandir}/man1/restore_xlog.1.gz
 
 %changelog
+* Tue May 23 2017 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.13-1
+- Update to 1.13
+
 * Wed Nov 18 2016 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.12-1
 - Update to 1.12
 

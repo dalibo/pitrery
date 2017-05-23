@@ -4,6 +4,12 @@ pitrery 1.13
   * Fix tablespaces links being overwritten by postmaster on 9.5 due
     to tablespace_map. This conflicted with our tablespace relocation
 
+  * Fix the purge of WAL file that would remove all archives if the
+    stop file is missing
+
+  * Fix backups failing due to incorrect parsing of the stop time
+    when iso8601 timestamps are used
+
 
 pitrery 1.12
 ============
