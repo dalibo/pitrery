@@ -208,7 +208,7 @@ shopt -s nullglob
 # An unprivileged target owner is mandatory as PostgreSQL cannot run
 # as root.
 if [ "$(id -u -- "$owner")" = 0 ]; then
-    error "the target owner cannot not be root. Use -O when restoring as root"
+    error "the target owner cannot be root. Use -O when restoring as root"
 fi
 
 # When no restore_command is given, build it using restore_xlog
