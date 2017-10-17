@@ -1060,7 +1060,7 @@ case $action in
         export PITRERY_BACKUP_DIR=$backup_dir
         export PITRERY_PSQL="${psql_command[@]}"
         export PITRERY_DATABASE=$psql_condb
-        export PITRERY_BACKUP_LOCAL=$local_backup
+        export PITRERY_BACKUP_LOCAL=$backup_local
         export PITRERY_SSH_TARGET=$backup_ssh_target
 
         # Get the version of the server
@@ -1525,7 +1525,7 @@ case $action in
 	        dest=$destdir/$(basename -- "$file")
 	        info "saving $f"
 
-	        if [ "$local_backup" = "yes" ]; then
+	        if [ "$backup_local" = "yes" ]; then
 	            mkdir -p -- "$destdir"
 	            if ! cp -- "$file" "$dest"; then
 		        die_and_hook "could not copy $f to backup directory"
