@@ -27,9 +27,9 @@ QUICK SETUP
 
 3. Run `make` and `make install`
 
-4. Run `pitrery configure -o pitr -f [[user@]host:]/path/to/backups` (user@host being optional)
+4. Run `pitrery configure -o pitrery -f [[user@]host:]/path/to/backups` (user@host being optional)
 
-5. Configure WAL archiving (`archive_command = 'archive_xlog -C pitr %p'`) in PostgreSQL
+5. Configure WAL archiving (`archive_command = 'archive_xlog %p'`) in PostgreSQL
 
 6. Run `pitrery` to perform your backups and restores
 
