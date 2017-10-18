@@ -20,6 +20,8 @@ pitrery 2.0
     were not used. The upgrade change the backup directory to include
     the label.
 
+  * Support for PostgreSQL 10
+
 
 pitrery 1.13
 ============

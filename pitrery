@@ -1069,6 +1069,14 @@ case $action in
             die "could not get the version of the server"
         fi
 
+        # As of PostgreSQL 10, "xlog" has been changed to "wal", it
+        # applies to directories and functions
+        if (( 10#$pg_version >= 100000 )); then
+            xlog_or_wal="wal"
+        else
+            xlog_or_wal="xlog"
+        fi
+
         # Check if the server is in hot standby, it can happen from 9.0
         # otherwise we would have already exited on error.
         if (( 10#$pg_version >= 90000 )); then
@@ -1223,15 +1231,17 @@ case $action in
                 die_and_hook "could not start backup process (empty output)"
             fi
         else
-            # Force a checkpoint for version >= 8.4. We add some parsing of the
-            # result of pg_xlogfile_name_offset on the LSN returned by
-            # pg_start_backup, so that we have the name of the backup_label that
-            # will be archived after pg_stop_backup completes
+            # Force a checkpoint for version >= 8.4. We add some
+            # parsing of the result of pg_xlogfile_name_offset (or
+            # pg_walfile_name_offset as of 10) on the LSN returned by
+            # pg_start_backup, so that we have the name of the
+            # backup_label that will be archived after pg_stop_backup
+            # completes
             if (( $pg_version >= 80400 )); then
-                start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_text}', true)) as i;" $psql_condb`
+                start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}', true)) as i;" $psql_condb`
                 rc=$?
             else
-                start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_xlogfile_name_offset(pg_start_backup('${label_text}')) as i;" $psql_condb`
+                start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}')) as i;" $psql_condb`
                 rc=$?
             fi
 
@@ -1281,7 +1291,7 @@ case $action in
 
 	        info "archiving $PGDATA"
 	        if [ "$backup_local" = "yes" ]; then
-	            tar -cpf - --ignore-failed-read --exclude='pg_xlog' --exclude='pg_replslot/*' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' --exclude='*.sql' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN > "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX"
+	            tar -cpf - --ignore-failed-read --exclude="pg_${xlog_or_wal}" --exclude='pg_replslot/*' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' --exclude='*.sql' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN > "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX"
 	            rc=(${PIPESTATUS[*]})
 	            tar_rc=${rc[0]}
 	            compress_rc=${rc[1]}
@@ -1289,7 +1299,7 @@ case $action in
 		        die_and_hook "could not tar PGDATA"
 	            fi
 	        else
-	            tar -cpf - --ignore-failed-read --exclude='pg_xlog' --exclude='pg_replslot/*' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' --exclude='*.sql' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | ssh -- "$backup_ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
+	            tar -cpf - --ignore-failed-read --exclude="pg_${xlog_or_wal}" --exclude='pg_replslot/*' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' --exclude='*.sql' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | ssh -- "$backup_ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
 	            rc=(${PIPESTATUS[*]})
 	            tar_rc=${rc[0]}
 	            compress_rc=${rc[1]}
@@ -1363,13 +1373,13 @@ case $action in
 
 	        info "transferring data from $PGDATA"
 	        if [ "$backup_local" = "yes" ]; then
-	            rsync -aq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_dir/pgdata/"
+	            rsync -aq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_dir/pgdata/"
 	            rc=$?
 	            if [ $rc != 0 ] && [ $rc != 24 ]; then
 		        die_and_hook "rsync of PGDATA failed with exit code $rc"
 	            fi
 	        else
-	            rsync -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude 'pg_xlog' --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_ssh_target:$(qw "$backup_dir/pgdata/")"
+	            rsync -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_ssh_target:$(qw "$backup_dir/pgdata/")"
 	            rc=$?
 	            if [ $rc != 0 ] && [ $rc != 24 ]; then
 		        die_and_hook "rsync of PGDATA failed with exit code $rc"
@@ -1500,7 +1510,7 @@ case $action in
             # backup, just in case and also use the stop time from the file to
             # name the backup directory and have the minimum datetime required to
             # select this backup on restore.
-            backup_file="$PGDATA/pg_xlog/$start_backup_label_file"
+            backup_file="$PGDATA/pg_${xlog_or_wal}/$start_backup_label_file"
 
             # Get the stop date of the backup. 
             stop_time=$(sed -n 's/STOP TIME: //p' -- "$backup_file")
@@ -1800,6 +1810,34 @@ case $action in
 
         [ -n "$backup_dir" ] || die "Could not find a backup${recovery_target_time:+ for $recovery_target_time}"
 
+        # As of PostgreSQL 10, "xlog" has been renamed to "wal" in
+        # functions and directories, so we need to get the PostgreSQL
+        # version of the backup
+        info "retrieving the PostgreSQL version of the backup"
+        if [ "$backup_local" = "yes" ]; then
+            if [ -f "$backup_dir/PG_VERSION" ]; then
+                info "PostgreSQL version: $(cat -- "$backup_dir/PG_VERSION")"
+                vdigit=$(sed -nr 's/^([0-9]+).*/\1/p' -- "$backup_dir/PG_VERSION")
+            fi
+        else
+            vfile=$(qw "$backup_dir/PG_VERSION")
+            pgversion=$(ssh -n -- "$backup_ssh_target" "[ ! -f $vfile ] || cat -- $vfile") ||
+                die "Failed to read $backup_ssh_target:$backup_dir/PG_VERSION"
+            info "PostgreSQL version: $pgversion"
+            vdigit=$(sed -nr 's/^([0-9]+).*/\1/p' <<< "$pgversion")
+        fi
+
+        if [ -z "$vdigit" ]; then
+            warn "PG_VERSION not found or usable in the backup, assuming PostgreSQL < 10"
+            xlog_or_wal="xlog"
+        else
+            if (( 10#$vdigit >= 10 )); then
+                xlog_or_wal="wal"
+            else
+                xlog_or_wal="xlog"
+            fi
+        fi
+
         # get the tablespace list and check the directories
         info "searching for tablespaces information"
         if [ "$backup_local" = "yes" ]; then
@@ -1851,7 +1889,7 @@ case $action in
         info "destinations directories:"
         info "  PGDATA -> $PGDATA"
 
-        [ -n "$PGXLOG" ] && info "  PGDATA/pg_xlog -> $PGXLOG"
+        [ -n "$PGXLOG" ] && info "  PGDATA/pg_${xlog_or_wal} -> $PGXLOG"
 
         # Populate an array with tablespace directory to check we have duplicates
         declare -a tspc_dedup
@@ -1862,7 +1900,6 @@ case $action in
             tspc_dedup+=( ${tspc_dir[$i]} )
         done
 
-        # XXX
         info
         info "recovery configuration:"
         info "  target owner of the restored files: $PGOWNER"
@@ -1907,10 +1944,10 @@ case $action in
         check_and_fix_directory "$PGDATA"
 
         if [ -n "$PGXLOG" ]; then
-            [[ $PGXLOG == /* ]] || error "pg_xlog must be an absolute path"
+            [[ $PGXLOG == /* ]] || error "pg_${xlog_or_wal} must be an absolute path"
 
-            if [ "$PGXLOG" = "$PGDATA/pg_xlog" ]; then
-	        error "xlog path cannot be \$PGDATA/pg_xlog, this path is reserved. It seems you do not need -x"
+            if [ "$PGXLOG" = "$PGDATA/pg_${xlog_or_wal}" ]; then
+	        error "pg_${xlog_or_wal} path cannot be \$PGDATA/pg_${xlog_or_wal}, this path is reserved. It seems you do not need -x"
             fi
 
             check_and_fix_directory "$PGXLOG"
@@ -2135,31 +2172,31 @@ case $action in
             fi
         fi
 
-        # Create or symlink pg_xlog directory if needed
+        # Create or symlink pg_xlog/pg_wal directory if needed
         if [ -d "$PGXLOG" ]; then
-            info "creating symbolic link pg_xlog to $PGXLOG"
-            if ! ln -sf -- "$PGXLOG" "$PGDATA/pg_xlog"; then
-	        error "could not create $PGDATA/pg_xlog symbolic link"
+            info "creating symbolic link pg_${xlog_or_wal} to $PGXLOG"
+            if ! ln -sf -- "$PGXLOG" "$PGDATA/pg_${xlog_or_wal}"; then
+	        error "could not create $PGDATA/pg_${xlog_or_wal} symbolic link"
             fi
             if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
-	        if ! chown -h -- "$PGOWNER:" "$PGDATA/pg_xlog"; then
-	            error "could not change owner of pg_xlog symbolic link to $PGOWNER"
+	        if ! chown -h -- "$PGOWNER:" "$PGDATA/pg_${xlog_or_wal}"; then
+	            error "could not change owner of pg_${xlog_or_wal} symbolic link to $PGOWNER"
 	        fi
             fi
         fi
 
-        if [ ! -d "$PGDATA/pg_xlog/archive_status" ]; then
-            info "preparing pg_xlog directory"
-            if ! mkdir -p -- "$PGDATA/pg_xlog/archive_status"; then
-	        error "could not create $PGDATA/pg_xlog"
+        if [ ! -d "$PGDATA/pg_${xlog_or_wal}/archive_status" ]; then
+            info "preparing pg_${xlog_or_wal} directory"
+            if ! mkdir -p -- "$PGDATA/pg_${xlog_or_wal}/archive_status"; then
+	        error "could not create $PGDATA/pg_${xlog_or_wal}"
             fi
 
-            if ! chmod -- 700 "$PGDATA/pg_xlog" "$PGDATA/pg_xlog/archive_status" 2>/dev/null; then
-	        error "could not set permissions of $PGDATA/pg_xlog and $PGDATA/pg_xlog/archive_status"
+            if ! chmod -- 700 "$PGDATA/pg_${xlog_or_wal}" "$PGDATA/pg_${xlog_or_wal}/archive_status" 2>/dev/null; then
+	        error "could not set permissions of $PGDATA/pg_${xlog_or_wal} and $PGDATA/pg_${xlog_or_wal}/archive_status"
             fi
 
             if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
-	        if ! chown -R -- "$PGOWNER:" "$PGDATA/pg_xlog"; then
+	        if ! chown -R -- "$PGOWNER:" "$PGDATA/pg_${xlog_or_wal}"; then
 	            error "could not change owner of $dir to $PGOWNER"
 	        fi
             fi
@@ -2168,7 +2205,14 @@ case $action in
         # Check PG_VERSION
         if [ -f "$PGDATA/PG_VERSION" ]; then
             pgvers=$(< "$PGDATA/PG_VERSION")
-            pgvers=${pgvers//./0}
+            # As of PostgreSQL 10, replacing the dot in the major
+            # version is no longer enough to do integer comparison, so
+            # we put to 0 behind to make it possible
+            if [[ $pgvers =~ \. ]]; then
+                pgvers=${pgvers//./0}
+            else
+                pgvers="${pgvers}00"
+            fi
         else
             warn "PG_VERSION file is missing"
         fi
@@ -2223,6 +2267,16 @@ case $action in
 	        echo "#recovery_target_timeline = 'latest'"
 	        echo "#recovery_target_action = 'pause'"
 	        ;;
+            1000)
+	        echo "#recovery_end_command = ''"
+	        echo "#recovery_target_name = ''	# e.g. 'daily backup 2011-01-26'"
+	        echo "#recovery_target_xid = ''"
+                echo "#recovery_target_lsn = ''	# e.g. '0/70006B8'"
+	        echo "#recovery_target_inclusive = true"
+	        echo "#recovery_target = 'immediate'"
+	        echo "#recovery_target_timeline = 'latest'"
+	        echo "#recovery_target_action = 'pause'"
+                ;;
         esac >> "$PGDATA/recovery.conf"
 
 
@@ -2318,9 +2372,7 @@ case $action in
     purge)
         dry_run="no"
 
-        
 	load_config
-
 
 	# Parse args after action: they should take precedence over the configuration
 	while getopts "m:d:a:NT?" arg 2>/dev/null; do
