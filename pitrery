@@ -305,7 +305,6 @@ parse_target_uri() {
         backup_user="$(echo $backup_target | grep '@' | cut -d'@' -f1 )"
         backup_host="$(echo $backup_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
         backup_dir="$(echo $backup_target | sed -re 's/(.*):(.*)/\2/')"
-       
     else
         # Fallback to the values from the configuration file
         [ -n "$BACKUP_USER" ] && backup_user=$BACKUP_USER
@@ -362,6 +361,7 @@ parse_target_uri() {
 
     [ -n "$archive_dir" ] || error "missing archive directory"
 
+    return $out_rc
 }
 
 list_backups() {
@@ -842,7 +842,7 @@ case $action in
 	    esac
 	done
 
-        parse_target_uri ${@:$OPTIND:1}
+        parse_target_uri ${@:$OPTIND:1} || usage "list"
 
         list_backups "$backup_dir" # to the list array
         
@@ -1028,7 +1028,7 @@ case $action in
 
         # set the variables needed to access storage (handling of cli
         # vs config is handled by the function)
-        parse_target_uri ${@:$OPTIND:1}
+        parse_target_uri ${@:$OPTIND:1} || usage "backup"
 
         # initialize the target path
         backup_root=$backup_dir
@@ -1728,7 +1728,7 @@ case $action in
 	    esac
 	done
 
-        parse_target_uri ${@:$OPTIND:1}
+        parse_target_uri ${@:$OPTIND:1} || usage "restore"
 
         # An unprivileged target owner is mandatory as PostgreSQL cannot run
         # as root.
@@ -2370,7 +2370,7 @@ case $action in
 	;;
 
     purge)
-        dry_run="no"
+        dry_run=""
 
 	load_config
 
@@ -2387,13 +2387,7 @@ case $action in
 	    esac
 	done
 
-        parse_target_uri "${@:$OPTIND:1}" $archive_path
-
-        # Destination host is mandatory unless the backup is local
-        if [ -z "$target" ] && [ "$backup_local" != "yes" ]; then
-            echo "ERROR: missing target host" 1>&2
-            usage "purge"
-        fi
+        parse_target_uri "${@:$OPTIND:1}" $archive_path || usage "purge"
 
         # Either -m or -d must be specified
         if [ -z "$PURGE_KEEP_COUNT" ] && [ -z "$PURGE_OLDER_THAN" ]; then
@@ -2507,7 +2501,7 @@ case $action in
 	            # We can't preserve the word splitting behaviour of a quoted array across the
 	            # call to ssh, so ensure each argument is properly shell quoted instead.
 	            ssh -n -- "$backup_ssh_target" "rm -rf -- $(qw "${candidates[@]}")" ||
-		        die "Failed to remove all $target purge candidates"
+		        die "Failed to remove all purge candidates"
 	        fi
             fi
         else
@@ -2526,7 +2520,7 @@ case $action in
 	            die "Unable to read '$oldest_unpurged/backup_label'"
             else
 	        backup_label=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_unpurged/backup_label")") ||
-	            die "Unable to read '$target:$oldest_unpurged/backup_label'"
+	            die "Unable to read '$backup_ssh_target:$oldest_unpurged/backup_label'"
             fi
         }
 
@@ -2931,7 +2925,7 @@ case $action in
             die "storage method must be 'tar' or 'rsync'"
         fi
 
-        parse_target_uri "${@:$OPTIND:1}" "$archive_path"
+        parse_target_uri "${@:$OPTIND:1}" "$archive_path" || usage "configure"
 
         # the configuration for archive_xlog must be an absolute path or
         # relative to PGDATA. Just convert it to a absolute path if needed,
