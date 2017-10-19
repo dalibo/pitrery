@@ -85,11 +85,11 @@ reachable using SSH.  A configuration file can be used to reduce the
 size of the command line defined in the configuration file of
 PostgreSQL.
 
-The management of base backups is divided in four actions: `backup`, `restore`,
-`purge` and `list`.  Two more actions are available to ease
+The management of base backups is divided in four actions: `backup`,
+`restore`, `purge` and `list`.  Two more actions are available to ease
 the administration : `check` can be used to ensure the configuration
-file is correct and PostgreSQL properly configured. `configure` can
-be used to easily create a configuration file from the command line.
+file is correct and PostgreSQL properly configured. `configure` can be
+used to easily create a configuration file from the command line.
 
 The storage place can be a remote server or the local machine. If is a
 remote server, it must be accessible using SSH in batch mode (One
@@ -515,8 +515,10 @@ through pitrery:
 * `BACKUP_DIR` is the path to the directory where to store the backups.
 
 * `BACKUP_HOST` is the name or IP address of the host where backups
-  shall be stored. `BACKUP_USER` is the username to use for SSH login,
-  if empty, the username is the one running pitrery.
+  shall be stored. If left empty, backups are local.
+
+* `BACKUP_USER` is the username to use for SSH login, if empty, the
+  username is the one running pitrery.
 
 * `RESTORE_COMMAND` can be used to define the command run by PostgreSQL
   when it needs to retrieve a WAL file before applying it in recovery

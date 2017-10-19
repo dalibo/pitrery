@@ -12,12 +12,14 @@ BUILDDIR = _build
 SRCS = archive_xlog restore_xlog pitrery
 CONFS = pitrery.conf
 DOCS = COPYRIGHT INSTALL.md UPGRADE.md CHANGELOG
+SRCMANPAGES = pitrery.1 archive_xlog.1 restore_xlog.1
 
 # Files that we temporary store into BUILDDIR before copying them to
 # their target destination
+MANPAGES = $(addprefix ${BUILDDIR}/, $(SRCMANPAGES))
 BINS = $(addprefix ${BUILDDIR}/, $(SRCS))
 
-all: options $(BINS) $(CONFS) $(DOCS)
+all: options $(BINS) $(CONFS) $(DOCS) $(MANPAGES)
 
 options:
 	@echo ${NAME} ${VERSION} install options:
@@ -34,9 +36,14 @@ $(BINS): $(SRCS)
 	@sed -e "s%#!/bin/bash%#!${BASH}%" \
 		-e "s%/etc/pitrery%${SYSCONFDIR}%" $(@:${BUILDDIR}/%=%) > $@
 
+$(MANPAGES): $(SRCMANPAGES)
+	@mkdir -p ${BUILDDIR}
+	@echo translating paths in manual pages: $(@:${BUILDDIR}/%=%)
+	@sed -e "s%/etc/pitrery%${SYSCONFDIR}%" $(@:${BUILDDIR}/%=%) > $@
+
 clean:
 	@echo cleaning
-	@-rm -f $(BINS)
+	@-rm -f $(BINS) $(MANPAGES)
 	@-rmdir ${BUILDDIR}
 
 install: all
@@ -50,6 +57,9 @@ install: all
 	@echo installing docs to ${DESTDIR}${DOCDIR}
 	@mkdir -p ${DESTDIR}${DOCDIR}
 	@cp -f $(CONFS) $(DOCS) ${DESTDIR}${DOCDIR}
+	@echo installing man pages to ${DESTDIR}${MANDIR}
+	@mkdir -p ${DESTDIR}${MANDIR}/man1
+	@cp -f $(MANPAGES) ${DESTDIR}${MANDIR}/man1
 
 uninstall:
 	@echo removing executable files from ${DESTDIR}${BINDIR}
@@ -58,5 +68,7 @@ uninstall:
 	@rm -f $(addprefix ${DESTDIR}${DOCDIR}/, $(CONFS))
 	@rm -f $(addprefix ${DESTDIR}${DOCDIR}/, $(DOCS))
 	@-rmdir ${DESTDIR}${DOCDIR}
+	@echo removing man pages from ${DESTDIR}${MANDIR}
+	@rm $(addprefix ${DESTDIR}${MANDIR}/man1/, $(MANPAGES:${BUILDDIR}/%=%))
 
 .PHONY: all options clean install uninstall
