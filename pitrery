@@ -70,7 +70,7 @@ usage() {
         list)
             echo "`basename $0` list - Display information about backups"
             echo
-            echo "usage: `basename $0` list [options] [[user@]host:]/path/to/backups"
+            echo "usage: `basename $0` list [options] [[[user@]host:]/path/to/backups]"
             echo
             echo "options:"
             echo "    -v              Display details of the backup"
@@ -105,7 +105,7 @@ usage() {
         restore)
             echo "`basename $0` restore - Restore a base backup and prepare PITR"
             echo
-            echo "usage: `basename $0` restore [options] [[user@]host:]/path/to/backups"
+            echo "usage: `basename $0` restore [options] [[[user@]host:]/path/to/backups]"
             echo
             echo " options:"
             echo "    -D dir               Path to target \$PGDATA"
@@ -129,7 +129,7 @@ usage() {
         purge)
             echo "`basename $0` purge - Clean old base backups and archived WAL files"
             echo
-            echo "usage: `basename $0` purge [options] [[user@]host:]/path/to/backups"
+            echo "usage: `basename $0` purge [options] [[[user@]host:]/path/to/backups]"
             echo
             echo "options:"
             echo "    -m count               Keep this number of backups"
@@ -147,7 +147,7 @@ usage() {
         check)
             echo "`basename $0` check - Verify configuration and backups integrity"
             echo
-            echo "usage: `basename $0` check [options] [config_file]"
+            echo "usage: `basename $0` check [options]"
             echo
             echo "options:"
             echo "    -C conf              Configuration file"
@@ -2674,12 +2674,30 @@ case $action in
 	;;
 
     check)
-	load_config
+        # Parse args after action
+	while getopts "C:?" arg 2>/dev/null; do
+	    case $arg in
+                C) config=$OPTARG;;
+		"?") usage "check";;
+	    esac
+	done
 
-        # Some extra check, since we are going to manipulate de
+        # Some extra check, since we are going to manipulate the
         # configuration file
+
+        # Recheck if the config option is a path or just a name in the
+        # configuration directory.  Prepend the configuration directory and
+        # .conf when needed.
+        if [[ $config != */* ]]; then
+            config="$config_dir/$(basename -- "$config" .conf).conf"
+        fi
+
         [ -e "$config" ] || die "configuration file $config does not exist"
         [ -r "$config" ] || die "configuration file $config is not readable"
+
+        info "checking $config"
+
+	load_config
 
         # Dump configuration file
         info "the configuration file contains:"
