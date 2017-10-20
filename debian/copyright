@@ -1,6 +1,6 @@
 Format: http://dep.debian.net/deps/dep5
 Upstream-Name: pitrery
-Source: https://dl.dalibo.com/public/pitrery/pitrery-1.13.tar.gz
+Source: https://dl.dalibo.com/public/pitrery/pitrery-2.0.tar.gz
 
 Files: *
 Copyright: 2011-2017 Nicolas Thauvin <nicolas.thauvin@dalibo.com>

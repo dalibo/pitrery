@@ -36,5 +36,5 @@ override_dh_auto_configure:
 # file too, since we already install a copy of it to /etc/pitrery.
 override_dh_auto_install:
 	$(MAKE) install DESTDIR=$(CURDIR)/debian/pitrery
-	$(RM) debian/pitrery/usr/share/doc/pitrery/{CHANGELOG,COPYRIGHT,pitr.conf}
+	$(RM) debian/pitrery/usr/share/doc/pitrery/{CHANGELOG,COPYRIGHT,pitrery.conf}
 
