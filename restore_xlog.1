@@ -37,28 +37,14 @@ The following options are available:
 .TP
 .BI "\-C " conf
 Use option settings from the specified configuration file instead of the
-default \fIpitr.conf\fP file.  This may be a full path to the file to use,
-or the name of a configuration file in \fI@SYSCONFDIR@\fP.
+default \fIpitrery.conf\fP file.  This may be a full path to the file to use,
+or the name of a configuration file in \fI/etc/pitrery\fP.
 
 .TP
-.B \-L
-Restore from local archives.  This will override the \fBARCHIVE_LOCAL\fP
-option from the configuration file (forcing it to be "yes").
-
-.TP
-.BI "\-u " username
-The user name for \fBssh\fP(1) login to a remote WAL archive.  This will
-override the \fBARCHIVE_USER\fP option from the configuration file.
-
-.TP
-.BI "\-h " hostname
-The host name for \fBssh\fP(1) login to a remote WAL archive.  This will
-override the \fBARCHIVE_HOST\fP option from the configuration file.
-
-.TP
-.BI "\-d " dir
-The directory containing WAL segment files on the (local or remote) host.
-This will override the \fBARCHIVE_DIR\fP option from the configuration file.
+.BI "\-a " [[user@]host:]/dir
+The directory on the (local or remote) host where WAL segment files will be
+stored.  This will override the \fBARCHIVE_DIR\fP option from the
+configuration file.  When the host name is omited, the archiving is local.
 
 .TP
 .B \-X
@@ -106,14 +92,24 @@ from the configuration file (forcing it to be "yes").
 .B \-?
 Output the brief help summarising the above options.
 
+.TP
+.I xlogfile
+The name of the WAL segment to restore, relative to the configured
+archive directory. It must be set to \fB%f\fP inside
+\fIrecovery.conf\fP when configuring restore_command.
+
+.TP
+.I destination
+The target path where to restore the file. It must be set to \fB%p\fP
+inside \fIrecovery.conf\fP when configuring restore_command.
 
 .SH FILES
 .TP
-.I @SYSCONFDIR@/pitr.conf
+.I /etc/pitrery/pitrery.conf
 The default \fBrestore_xlog\fP configuration file if not explicitly specified.
 
 .TP
-.I recovery.conf
+.I $PGATA/recovery.conf
 The file created in the \fBPGDATA\fP directory by \fBpitrery\ restore\fP which
 configures if and/or how to use \fBrestore_xlog\fP to retrieve any needed WAL
 segment files during database recovery.

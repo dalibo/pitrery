@@ -1,84 +1,59 @@
 # See COPYRIGHT file for copyright and license details.
 
+# The install can be customized by modifying config.mk
 include config.mk
 
-SRCS = archive_xlog.bash \
-	pitrery.bash \
-	restore_xlog.bash
-HELPERS = backup_pitr.bash \
-	list_pitr.bash \
-	purge_pitr.bash \
-	restore_pitr.bash \
-	check_pitr.bash \
-	configure_pitr.bash
-SRCCONFS = pitr.conf.sample
+# The place where we store the files processed by sed.  Do not set
+# that to the same directory as the source files, or you would destroy
+# them
+BUILDDIR = _build
+
+# Files to install
+SRCS = archive_xlog restore_xlog pitrery
+CONFS = pitrery.conf
 DOCS = COPYRIGHT INSTALL.md UPGRADE.md CHANGELOG
-SRCMANPAGES = pitrery.1.man archive_xlog.1.man restore_xlog.1.man
+SRCMANPAGES = pitrery.1 archive_xlog.1 restore_xlog.1
 
-BINS = $(basename $(SRCS))
-LIBS = $(basename $(HELPERS))
-CONFS = $(basename $(SRCCONFS))
-TEMPLATES = $(addsuffix .template,$(basename $(SRCCONFS)))
-MANPAGES = $(basename $(SRCMANPAGES))
+# Files that we temporary store into BUILDDIR before copying them to
+# their target destination
+MANPAGES = $(addprefix ${BUILDDIR}/, $(SRCMANPAGES))
+BINS = $(addprefix ${BUILDDIR}/, $(SRCS))
 
-all: options $(BINS) $(LIBS) $(CONFS) $(TEMPLATES) $(MANPAGES)
+all: options $(BINS) $(CONFS) $(DOCS) $(MANPAGES)
 
 options:
 	@echo ${NAME} ${VERSION} install options:
 	@echo "PREFIX     = ${PREFIX}"
 	@echo "BINDIR     = ${BINDIR}"
-	@echo "LIBDIR     = ${LIBDIR}/${NAME}"
 	@echo "SYSCONFDIR = ${SYSCONFDIR}"
-	@echo "SHAREDIR   = ${SHAREDIR}"
 	@echo "DOCDIR     = ${DOCDIR}"
 	@echo "MANDIR     = ${MANDIR}"
 	@echo
 
-$(BINS) $(LIBS): $(SRCS) $(HELPERS)
-	@echo translating paths in bash scripts: $@
-	@sed -e "s%@BASH@%${BASH}%" \
-		-e "s%@VERSION@%${VERSION}%" \
-		-e "s%@BINDIR@%${BINDIR}%" \
-		-e "s%@SYSCONFDIR@%${SYSCONFDIR}%" \
-		-e "s%@LIBDIR@%${LIBDIR}/${NAME}%" \
-		-e "s%@SHAREDIR@%${SHAREDIR}%" $(addsuffix .bash,$@) > $@
-
-$(CONFS): $(SRCCONFS)
-	@echo translating paths in configuration files: $@
-	@sed -e "s%@SYSCONFDIR@%${SYSCONFDIR}%" \
-		-e "s%@LIBDIR@%${LIBDIR}/${NAME}%" $(addsuffix .sample,$@) > $@
-
-$(TEMPLATES): $(CONFS)
-	@echo preparing template: $@
-	@-cp $(basename $@) $@
+$(BINS): $(SRCS)
+	@mkdir -p ${BUILDDIR}
+	@echo translating paths in bash scripts: $(@:${BUILDDIR}/%=%)
+	@sed -e "s%#!/bin/bash%#!${BASH}%" \
+		-e "s%/etc/pitrery%${SYSCONFDIR}%" $(@:${BUILDDIR}/%=%) > $@
 
 $(MANPAGES): $(SRCMANPAGES)
-	@echo translating paths in manual pages: $@
-	@sed -e "s%@SYSCONFDIR@%${SYSCONFDIR}%" $(addsuffix .man,$@) > $@
+	@mkdir -p ${BUILDDIR}
+	@echo translating paths in manual pages: $(@:${BUILDDIR}/%=%)
+	@sed -e "s%/etc/pitrery%${SYSCONFDIR}%" $(@:${BUILDDIR}/%=%) > $@
 
 clean:
 	@echo cleaning
-	@-rm -f $(BINS)
-	@-rm -f $(LIBS)
-	@-rm -f $(CONFS)
-	@-rm -f $(TEMPLATES)
-	@-rm -f $(MANPAGES)
+	@-rm -f $(BINS) $(MANPAGES)
+	@-rmdir ${BUILDDIR}
 
 install: all
 	@echo installing executable files to ${DESTDIR}${BINDIR}
 	@mkdir -p ${DESTDIR}${BINDIR}
 	@cp -f $(BINS) ${DESTDIR}${BINDIR}
-	@chmod 755 $(addprefix ${DESTDIR}${BINDIR}/,$(BINS))
-	@echo installing helpers to ${DESTDIR}${LIBDIR}/${NAME}
-	@mkdir -p ${DESTDIR}${LIBDIR}/${NAME}
-	@cp -f $(LIBS) ${DESTDIR}${LIBDIR}/${NAME}
-	@chmod 755 $(addprefix ${DESTDIR}${LIBDIR}/${NAME}/,$(LIBS))
+	@chmod 755 $(addprefix ${DESTDIR}${BINDIR}/, $(BINS:${BUILDDIR}/%=%))
 	@echo installing configuration to ${DESTDIR}${SYSCONFDIR}
 	@mkdir -p ${DESTDIR}${SYSCONFDIR}
 	@-cp -i $(CONFS) ${DESTDIR}${SYSCONFDIR} < /dev/null >/dev/null 2>&1
-	@echo installing templates to ${DESTDIR}${SHAREDIR}
-	@mkdir -p ${DESTDIR}${SHAREDIR}
-	@-cp $(TEMPLATES) ${DESTDIR}${SHAREDIR}
 	@echo installing docs to ${DESTDIR}${DOCDIR}
 	@mkdir -p ${DESTDIR}${DOCDIR}
 	@cp -f $(CONFS) $(DOCS) ${DESTDIR}${DOCDIR}
@@ -88,16 +63,12 @@ install: all
 
 uninstall:
 	@echo removing executable files from ${DESTDIR}${BINDIR}
-	@rm -f $(addprefix ${DESTDIR}${BINDIR}/,$(BINS))
-	@rm -f ${DESTDIR}${BINDIR}/pitr_mgr
-	@echo removing helpers from ${DESTDIR}${LIBDIR}/${NAME}
-	@rm -f $(addprefix ${DESTDIR}${LIBDIR}/${NAME}/,$(LIBS))
-	@-rmdir ${DESTDIR}${LIBDIR}/${NAME}
+	@rm $(addprefix ${DESTDIR}${BINDIR}/, $(BINS:${BUILDDIR}/%=%))
 	@echo removing docs from ${DESTDIR}${DOCDIR}
-	@rm -f $(addprefix ${DESTDIR}${DOCDIR}/,$(CONFS))
-	@rm -f $(addprefix ${DESTDIR}${DOCDIR}/,$(DOCS))
+	@rm -f $(addprefix ${DESTDIR}${DOCDIR}/, $(CONFS))
+	@rm -f $(addprefix ${DESTDIR}${DOCDIR}/, $(DOCS))
 	@-rmdir ${DESTDIR}${DOCDIR}
 	@echo removing man pages from ${DESTDIR}${MANDIR}
-	@rm -f $(addprefix ${DESTDIR}${MANDIR}/man1/,$(MANPAGES))
+	@rm $(addprefix ${DESTDIR}${MANDIR}/man1/, $(MANPAGES:${BUILDDIR}/%=%))
 
 .PHONY: all options clean install uninstall

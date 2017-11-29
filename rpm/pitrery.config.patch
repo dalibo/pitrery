@@ -1,15 +1,14 @@
---- config.mk
-+++ config.mk
-@@ -7,10 +7,10 @@
+Setup the installation paths
+--- a/config.mk
++++ b/config.mk
+@@ -7,8 +7,8 @@
  BASH = /bin/bash
  
  # paths
 -PREFIX = /usr/local
 +PREFIX = /usr
  BINDIR = ${PREFIX}/bin
- LIBDIR = ${PREFIX}/lib
 -SYSCONFDIR = ${PREFIX}/etc/${NAME}
 +SYSCONFDIR = /etc/${NAME}
- SHAREDIR = ${PREFIX}/share/${NAME}
  DOCDIR = ${PREFIX}/share/doc/${NAME}
  MANDIR = ${PREFIX}/share/man

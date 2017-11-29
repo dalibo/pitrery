@@ -41,30 +41,14 @@ The following options are available:
 .TP
 .BI "\-C " conf
 Use option settings from the specified configuration file instead of the
-default \fIpitr.conf\fP file.  This may be a full path to the file to use,
-or the name of a configuration file in \fI@SYSCONFDIR@\fP.
+default \fIpitrery.conf\fP file.  This may be a full path to the file to use,
+or the name of a configuration file in \fI/etc/pitrery\fP.
 
 .TP
-.B \-L
-Save WAL segment files to a local archive directory.  This will override the
-\fBARCHIVE_LOCAL\fP option from the configuration file (forcing it to be
-"yes").
-
-.TP
-.BI "\-u " username
-The user name for \fBssh\fP(1) login to a remote WAL archive.  This will
-override the \fBARCHIVE_USER\fP option from the configuration file.
-
-.TP
-.BI "\-h " hostname
-The host name for \fBssh\fP(1) login to a remote WAL archive.  This will
-override the \fBARCHIVE_HOST\fP option from the configuration file.
-
-.TP
-.BI "\-d " dir
+.BI "\-a " [[user@]host:]/dir
 The directory on the (local or remote) host where WAL segment files will be
 stored.  This will override the \fBARCHIVE_DIR\fP option from the
-configuration file.
+configuration file.  When the host name is omited, the archiving is local.
 
 .TP
 .B \-X
@@ -126,7 +110,7 @@ string "postgres" if not otherwise explicitly set.
 
 .TP
 .BI "\-m " mode
-Set the permissions of the archived file to this mode (e.g. chmod).  The value
+Set the permissions of the archived file to this mode (e.g. \fBchmod\fP).  The value
 must be in octal form.
 
 .TP
@@ -137,6 +121,11 @@ from the configuration file (forcing it to be "yes").
 .TP
 .B \-?
 Output the brief help summarising the above options.
+
+.TP
+.I xlogfile
+The path to the WAL segment to archive. It must be set to \fB%p\fP inside
+\fIpostgresql.conf\fP when configuring archive_command.
 
 
 .SH EXAMPLES
@@ -160,13 +149,13 @@ A minimal \fIpostgresql.conf\fP configuration for WAL archiving with
   archive_command = 'archive_xlog %p'
 
   # The archive command with parameters.
-  #archive_command = 'archive_xlog \-C /path/to/pitr.conf %p'
-  # or to search @SYSCONFDIR@ for the pitr.conf configuration:
-  #archive_command = 'archive_xlog \-C pitr %p'
+  #archive_command = 'archive_xlog \-C /path/to/pitrery.conf %p'
+  # or to search /etc/pitrery for the pitrery.conf configuration:
+  #archive_command = 'archive_xlog \-C pitrery %p'
 .fi
 .hy
 
-The \fIpitr.conf\fP that will be used should be configured suitably before
+The \fIpitrery.conf\fP that will be used should be configured suitably before
 these changes are made to the \fBpostgres\fP configuration and the postmaster
 is restarted or reloaded.  Once the above configuration is active, the
 \fBarchive_xlog\fP script may be called at any time.  See \fBpitrery\fP(1)
@@ -175,11 +164,11 @@ for details of the configuration options available there.
 
 .SH FILES
 .TP
-.I @SYSCONFDIR@/pitr.conf
+.I /etc/pitrery/pitrery.conf
 The default \fBarchive_xlog\fP configuration file if not explicitly specified.
 
 .TP
-.I /etc/postgresql/**/postgresql.conf
+.I /etc/postgresql/**/postgresql.conf $PGDATA/postgresql.conf
 The \fBpostgres\fP(1) configuration file where \fIarchive_command\fP (and
 other WAL archiving configuration) must be set to use \fBpitrery\fP (or any
 other point-in-time recovery methods).

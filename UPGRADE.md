@@ -1,3 +1,13 @@
+Upgrade to 2.0
+==============
+
+* Command line switches and options to specify if the backup is local, the user, host and target directory, are now merged into a SSH style syntax: `[[user@]host:]/path`. Not providing a host tells pitrery the backups are local.
+
+* Remove the BACKUP_LABEL option, subdirectory and -l switch. They were not used. The upgrade change the backup directory to include the label.
+
+* Rename the default configuration file from `pitr.conf` to `pitrery.conf`
+
+
 Upgrade to 1.13
 ===============
 

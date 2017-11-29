@@ -1,4 +1,4 @@
-#!@BASH@
+#!/bin/bash
 #
 # Copyright 2011-2017 Nicolas Thauvin. All rights reserved.
 #
@@ -23,6 +23,20 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+
+# Configuration defaults
+SYSLOG="no"
+ARCHIVE_COMPRESS="yes"
+ARCHIVE_COMPRESS_BIN="gzip -f -4"
+ARCHIVE_COMPRESS_SUFFIX="gz"
+ARCHIVE_OVERWRITE="yes"
+ARCHIVE_CHECK="no"
+ARCHIVE_FLUSH="no"
+ARCHIVE_FILE_CHMOD=""
+
+CONFIG_DIR="/etc/pitrery"
+CONFIG="pitrery.conf"
+
 
 # Apply an extra level of shell quoting to each of the arguments passed.
 # This is necessary for remote-side arguments of ssh (including commands that
@@ -55,28 +69,30 @@ warn() {
 
 # Script help
 usage() {
-    echo "usage: `basename $0` [options] XLOGFILE"
+    echo "`basename $0` Archive a WAL segment"
+    echo
+    echo "usage: `basename $0` [options] xlogfile"
+    echo
     echo "options:"
-    echo "    -L             do local archiving"
     echo "    -C conf        configuration file"
-    echo "    -u username    username for SSH login"
-    echo "    -h hostname    hostname for SSH login"
-    echo "    -d dir         target directory"
+    echo "    -a [[user@]host:]/dir  Place to store the archive"
     echo "    -X             do not compress"
     echo "    -O             do not overwrite the destination file"
     echo "    -H             check the hash of the destination file (remote only)"
     echo "    -F             flush the destination file to disk"
     echo "    -c command     compression command"
     echo "    -s suffix      compressed file suffix (ex: gz)"
+    echo
     echo "    -S             send messages to syslog"
     echo "    -f facility    syslog facility"
     echo "    -t ident       syslog ident"
     echo "    -m mode        destination file permission mode in octal (e.g. chmod)"
-    echo
     echo "    -T             Timestamp log messages"
+    echo
     echo "    -?             print help"
     echo
     exit $1
+
 }
 
 check_md5() {
@@ -93,28 +109,79 @@ check_md5() {
     return 0
 }
 
-# Configuration defaults
-CONFIG=pitr.conf
-CONFIG_DIR=@SYSCONFDIR@
-ARCHIVE_DIR=/var/lib/pgsql/archived_xlog
-ARCHIVE_LOCAL="no"
-SYSLOG="no"
-ARCHIVE_COMPRESS="yes"
-ARCHIVE_COMPRESS_BIN="gzip -f -4"
-ARCHIVE_COMPRESS_SUFFIX="gz"
-ARCHIVE_OVERWRITE="yes"
-ARCHIVE_CHECK="no"
-ARCHIVE_FLUSH="no"
-ARCHIVE_FILE_CHMOD=""
+parse_target_uri() {
+    local backup_target=$1
+    local archive_target=$2
+
+    if [ -n "$backup_target" ]; then
+        # Parse the backuptarget into user, host and path
+        backup_user="$(echo $backup_target | grep '@' | cut -d'@' -f1 )"
+        backup_host="$(echo $backup_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
+        backup_dir="$(echo $backup_target | sed -re 's/(.*):(.*)/\2/')"
+       
+    else
+        # Fallback to the values from the configuration file
+        [ -n "$BACKUP_USER" ] && backup_user=$BACKUP_USER
+        [ -n "$BACKUP_HOST" ] && backup_host=$BACKUP_HOST
+        [ -n "$BACKUP_DIR" ] && backup_dir=$BACKUP_DIR
+    fi
+
+    [ -n "$backup_dir" ] || error "missing backup directory"
+    
+    # Deduce if backup is local
+    if [ -z "$backup_host" ]; then
+        backup_local="yes"
+    else
+        backup_local="no"
+
+        # Wrap IPv6 addresses with brackets
+        echo $backup_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && backup_host="[${backup_host}]"
+
+        # Add a shortcut for ssh/rsync commands
+        backup_ssh_target=${backup_user:+$backup_user@}$backup_host
+    fi
+    
+    # Parse archive target the same way
+    if [ -n "$archive_target" ]; then
+        archive_user="$(echo $archive_target | grep '@' | cut -d'@' -f1 )"
+        archive_host="$(echo $archive_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
+        archive_dir="$(echo $archive_target | sed -re 's/(.*):(.*)/\2/')"
+    else
+        # Fallback to the values of the configuration file. When the
+        # path is not provided in the config file, fallback to backup values
+        if [ -n "$ARCHIVE_DIR" ]; then
+            [ -n "$ARCHIVE_USER" ] && archive_user=$ARCHIVE_USER
+            [ -n "$ARCHIVE_HOST" ] && archive_host=$ARCHIVE_HOST
+            archive_dir=$ARCHIVE_DIR
+        else
+            archive_user="$backup_user"
+            archive_host="$backup_host"
+            archive_dir="$backup_dir/archived_xlog"
+        fi
+    fi
+
+    # Deduce if archives are local
+    if [ -z "$archive_host" ]; then
+	archive_local="yes"
+    else
+	archive_local="no"
+
+        # Wrap IPv6 addresses with brackets
+        echo $archive_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
+
+        # Add a shortcut for ssh/rsync commands
+        archive_ssh_target=${archive_user:+$archive_user@}$archive_host
+    fi
+
+    [ -n "$archive_dir" ] || error "missing archive directory"
+
+}
 
 # Command line options
-while getopts "LC:u:d:h:XOHFc:s:Sf:t:m:T?"  opt; do
+while getopts "C:a:XOHFc:s:Sf:t:m:T?"  opt; do
     case $opt in
-        L) CLI_ARCHIVE_LOCAL="yes";;
         C) CONFIG=$OPTARG;;
-        u) CLI_ARCHIVE_USER=$OPTARG;;
-        h) CLI_ARCHIVE_HOST=$OPTARG;;
-        d) CLI_ARCHIVE_DIR=$OPTARG;;
+        a) archive_path="$OPTARG";;
         X) CLI_ARCHIVE_COMPRESS="no";;
         O) CLI_ARCHIVE_OVERWRITE="no";;
         H) CLI_ARCHIVE_CHECK="yes";;
@@ -144,10 +211,7 @@ if [ -f "$CONFIG" ]; then
 fi
 
 # Overwrite configuration with cli options
-[ -n "$CLI_ARCHIVE_LOCAL" ] && ARCHIVE_LOCAL=$CLI_ARCHIVE_LOCAL
-[ -n "$CLI_ARCHIVE_USER" ] && ARCHIVE_USER=$CLI_ARCHIVE_USER
-[ -n "$CLI_ARCHIVE_HOST" ] && ARCHIVE_HOST=$CLI_ARCHIVE_HOST
-[ -n "$CLI_ARCHIVE_DIR" ] && ARCHIVE_DIR=$CLI_ARCHIVE_DIR
+
 [ -n "$CLI_ARCHIVE_COMPRESS" ] && ARCHIVE_COMPRESS=$CLI_ARCHIVE_COMPRESS
 [ -n "$CLI_ARCHIVE_COMPRESS_BIN" ] && ARCHIVE_COMPRESS_BIN=$CLI_ARCHIVE_COMPRESS_BIN
 [ -n "$CLI_ARCHIVE_COMPRESS_SUFFIX" ] && ARCHIVE_COMPRESS_SUFFIX=$CLI_ARCHIVE_COMPRESS_SUFFIX
@@ -169,20 +233,12 @@ if [ "$SYSLOG" = "yes" ]; then
     exec 2> >(logger -t "$SYSLOG_IDENT" -p "${SYSLOG_FACILITY}.err")
 fi
 
+parse_target_uri "" "$archive_path"
+
 # The first argument must be a WAL file
 xlog=${@:$OPTIND:1}
 if [ -z "$xlog" ]; then
     error "missing xlog filename to archive. Please consider modifying archive_command, eg add %p"
-fi
-
-# Sanity check. We need at least to know if we want to perform a local
-# copy or have a hostname for an SSH copy
-if [ "$ARCHIVE_LOCAL" != "yes" ] && [ -z "$ARCHIVE_HOST" ]; then
-    error "Not enough information to archive the segment"
-fi
-
-if [ "$ARCHIVE_LOCAL" = "yes" ] && [ -n "$ARCHIVE_HOST" ]; then
-    error "ARCHIVE_LOCAL and ARCHIVE_HOST are set, it can't be both"
 fi
 
 # Check if the source file exists
@@ -205,13 +261,13 @@ check_local_dest_exists()
 }
 
 # Copy the wal locally
-if [ "$ARCHIVE_LOCAL" = "yes" ]; then
+if [ "$archive_local" = "yes" ]; then
     dd_rc=0
-    mkdir -p -- "$ARCHIVE_DIR" 1>&2 ||
-        error "Unable to create target directory '$ARCHIVE_DIR'" $?
+    mkdir -p -- "$archive_dir" 1>&2 ||
+        error "Unable to create target directory '$archive_dir'" $?
 
     if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
-        dest_path=$ARCHIVE_DIR/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
+        dest_path=$archive_dir/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
         check_local_dest_exists "$dest_path"
 
         $ARCHIVE_COMPRESS_BIN -c < "$xlog" | dd $ARCHIVE_FLUSH of="$dest_path" 2>/dev/null
@@ -223,7 +279,7 @@ if [ "$ARCHIVE_LOCAL" = "yes" ]; then
             error "Compressing $xlog to $dest_path failed"
         fi
     else
-        dest_path=$ARCHIVE_DIR/$(basename -- "$xlog")
+        dest_path=$archive_dir/$(basename -- "$xlog")
         check_local_dest_exists "$dest_path"
 
         dd $ARCHIVE_FLUSH if="$xlog" of="$dest_path" 2>/dev/null
@@ -249,11 +305,8 @@ if [ "$ARCHIVE_LOCAL" = "yes" ]; then
 
 else
     # Compress and copy with rsync
-    echo $ARCHIVE_HOST | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && ARCHIVE_HOST="[${ARCHIVE_HOST}]" # Dummy test for IPv6
 
-    dest_host=${ARCHIVE_USER:+$ARCHIVE_USER@}${ARCHIVE_HOST}
-
-    dest_file="$ARCHIVE_DIR/$(basename -- "$xlog")"
+    dest_file="$archive_dir/$(basename -- "$xlog")"
     tmp_file=""
     src_file="$xlog"
 
@@ -262,11 +315,11 @@ else
     # run one time on the remote host.
 
     # Create remote folder if needed. Return 2 on error.
-    REMOTE_CMD="mkdir -p -- $(qw "$ARCHIVE_DIR") || exit 2"
+    REMOTE_CMD="mkdir -p -- $(qw "$archive_dir") || exit 2"
 
     # Compress the file to a temporary location
     if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
-        dest_file=$ARCHIVE_DIR/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
+        dest_file=$archive_dir/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
         tmp_file=$(mktemp -t pitr_wal.XXXXXXXXXX) ||
             error "Failed to create temporary file for compressed WAL" $?
 
@@ -307,16 +360,16 @@ else
     fi
 
     # Actually execute the remote commands
-    remote_md5=$(dd if="$src_file" 2>/dev/null|ssh -- "$dest_host" "$REMOTE_CMD")
+    remote_md5=$(dd if="$src_file" 2>/dev/null|ssh -- "$archive_ssh_target" "$REMOTE_CMD")
     rc=$?
 
     case $rc in
         0) ;;
-        1) error "Unable to copy $xlog to ${ARCHIVE_HOST}:${ARCHIVE_DIR}" $rc;;
+        1) error "Unable to copy $xlog to ${archive_ssh_target}:$archive_dir" $rc;;
         2) error "Unable to create target directory" $rc;;
         3) error "'$dest_file' already exists on $dest_host, refusing to overwrite it" $rc;;
         4) warn "Could not change mode of $dest_path to $ARCHIVE_FILE_CHMOD";;
-        255) error "SSH error on ${ARCHIVE_HOST}" $rc;;
+        255) error "SSH error on ${archive_host}" $rc;;
         *) error "Unexpected return code while copying the file" 100
     esac
 

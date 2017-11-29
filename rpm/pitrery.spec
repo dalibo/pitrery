@@ -1,6 +1,6 @@
 %global pkgname pitrery
 %global confdir %{_sysconfdir}/%{pkgname}
-%{!?pkgversion: %global pkgversion 1.13}
+%{!?pkgversion: %global pkgversion 2.0}
 %{!?pkgrevision: %global pkgrevision 1}
 
 Name:           %{pkgname}
@@ -28,7 +28,7 @@ restores for PostgreSQL.
 
 %prep
 %setup -q
-%patch1 -p0
+%patch1 -p1
 
 %build
 make
@@ -37,27 +37,23 @@ make
 make install DESTDIR=%{buildroot}
 
 %files
-%config(noreplace) /etc/pitrery/pitr.conf
+%config(noreplace) /etc/pitrery/pitrery.conf
 /usr/bin/archive_xlog
 /usr/bin/pitrery
 /usr/bin/restore_xlog
-/usr/lib/pitrery/backup_pitr
-/usr/lib/pitrery/check_pitr
-/usr/lib/pitrery/configure_pitr
-/usr/lib/pitrery/list_pitr
-/usr/lib/pitrery/purge_pitr
-/usr/lib/pitrery/restore_pitr
-/usr/share/doc/pitrery/COPYRIGHT
-/usr/share/pitrery/pitr.conf.template
+%doc /usr/share/doc/pitrery/COPYRIGHT
 %doc /usr/share/doc/pitrery/INSTALL.md
 %doc /usr/share/doc/pitrery/UPGRADE.md
-%doc /usr/share/doc/pitrery/pitr.conf
+%doc /usr/share/doc/pitrery/pitrery.conf
 %doc /usr/share/doc/pitrery/CHANGELOG
 %doc %{_mandir}/man1/pitrery.1.gz
 %doc %{_mandir}/man1/archive_xlog.1.gz
 %doc %{_mandir}/man1/restore_xlog.1.gz
 
 %changelog
+* Fri Oct 20 2017 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 2.0-1
+* Update to 2.0
+
 * Tue May 23 2017 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.13-1
 - Update to 1.13
 

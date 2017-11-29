@@ -1,3 +1,28 @@
+pitrery 2.0
+===========
+
+  * Regroup all action into the main script
+
+  * Change the sed commands in the Makefile to have the script work
+    without modifications
+
+  * Command line switches and options to specify if the backup is
+    local, the user, host and target directory, are now merged into a
+    SSH style syntax: `[[user@]host:]/path`. Not providing a host
+    tells pitrery the backups are local.
+
+  * Rename the default configuration file from `pitr.conf` to `pitrery.conf`
+
+  * Comment out all parameters in the configuration file so that they
+    do not interfere
+
+  * Remove the BACKUP_LABEL option, subdirectory and -l switch. They
+    were not used. The upgrade change the backup directory to include
+    the label.
+
+  * Support for PostgreSQL 10
+
+
 pitrery 1.13
 ============
 
