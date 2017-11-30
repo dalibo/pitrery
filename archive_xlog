@@ -369,7 +369,7 @@ else
         2) error "Unable to create target directory" $rc;;
         3) error "'$dest_file' already exists on $dest_host, refusing to overwrite it" $rc;;
         4) warn "Could not change mode of $dest_path to $ARCHIVE_FILE_CHMOD";;
-        255) error "SSH error on ${archive_host}" $rc;;
+        5) error "SSH error on ${archive_host}" $rc;;
         *) error "Unexpected return code while copying the file" 100
     esac
 
