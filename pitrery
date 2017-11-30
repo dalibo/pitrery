@@ -2698,17 +2698,20 @@ case $action in
             config="$config_dir/$(basename -- "$config" .conf).conf"
         fi
 
-        [ -e "$config" ] || die "configuration file $config does not exist"
-        [ -r "$config" ] || die "configuration file $config is not readable"
+        if [ -e "$config" ]; then
+            [ -r "$config" ] || die "configuration file $config is not readable"
 
-        info "checking $config"
+            info "checking $config"
 
-	load_config
+	    load_config
 
-        # Dump configuration file
-        info "the configuration file contains:"
-        grep -- '=' "$config" | grep -E '^[^[:space:]#]+'
-        echo
+            # Dump configuration file
+            info "the configuration file contains:"
+            grep -- '=' "$config" | grep -E '^[^[:space:]#]+'
+            echo
+        else
+            warn "configuration file $config does not exist"
+        fi
 
         info "==> checking the configuration for inconsistencies"
 
