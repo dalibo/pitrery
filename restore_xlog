@@ -230,7 +230,7 @@ if [ "$archive_local" = "yes" ]; then
     fi
 else
     if ! scp -- "${archive_ssh_target}:$(qw "$archive_dir/$xlog_file")" "$target_file" >/dev/null; then
-	die "could not copy ${archive_host}:$archive_dir/$xlog_file to $target_file"
+	error "could not copy ${archive_host}:$archive_dir/$xlog_file to $target_file"
     fi
 fi
 
