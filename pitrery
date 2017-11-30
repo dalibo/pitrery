@@ -313,6 +313,9 @@ parse_target_uri() {
     fi
 
     [ -n "$backup_dir" ] || error "missing backup directory"
+
+    # Ensure the backup directory is an absolute path
+    backup_dir="$(readlink -f -- "$backup_dir")"
     
     # Deduce if backup is local
     if [ -z "$backup_host" ]; then
@@ -360,6 +363,9 @@ parse_target_uri() {
     fi
 
     [ -n "$archive_dir" ] || error "missing archive directory"
+
+    # Ensure the achives directory is an absolute path
+    archive_dir="$(readlink -f -- "$archive_dir")"
 
     return $out_rc
 }
