@@ -17,8 +17,7 @@ pitrery 2.0
     do not interfere
 
   * Remove the BACKUP_LABEL option, subdirectory and -l switch. They
-    were not used. The upgrade change the backup directory to include
-    the label.
+    were not used.
 
   * Support for PostgreSQL 10
 
