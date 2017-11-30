@@ -302,14 +302,14 @@ parse_target_uri() {
 
     if [ -n "$backup_target" ]; then
         # Parse the backuptarget into user, host and path
-        backup_user="$(echo $backup_target | grep '@' | cut -d'@' -f1 )"
-        backup_host="$(echo $backup_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
-        backup_dir="$(echo $backup_target | sed -re 's/(.*):(.*)/\2/')"
+        backup_user="$(echo "$backup_target" | grep '@' | cut -d'@' -f1 )"
+        backup_host="$(echo "$backup_target" | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
+        backup_dir="$(echo "$backup_target" | sed -re 's/(.*):(.*)/\2/')"
     else
         # Fallback to the values from the configuration file
-        [ -n "$BACKUP_USER" ] && backup_user=$BACKUP_USER
-        [ -n "$BACKUP_HOST" ] && backup_host=$BACKUP_HOST
-        [ -n "$BACKUP_DIR" ] && backup_dir=$BACKUP_DIR
+        [ -n "$BACKUP_USER" ] && backup_user="$BACKUP_USER"
+        [ -n "$BACKUP_HOST" ] && backup_host="$BACKUP_HOST"
+        [ -n "$BACKUP_DIR" ] && backup_dir="$BACKUP_DIR"
     fi
 
     [ -n "$backup_dir" ] || error "missing backup directory"
@@ -327,20 +327,20 @@ parse_target_uri() {
         echo $backup_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && backup_host="[${backup_host}]"
 
         # Add a shortcut for ssh/rsync commands
-        backup_ssh_target=${backup_user:+$backup_user@}$backup_host
+        backup_ssh_target="${backup_user:+$backup_user@}$backup_host"
     fi
     
     # Parse archive target the same way
     if [ -n "$archive_target" ]; then
-        archive_user="$(echo $archive_target | grep '@' | cut -d'@' -f1 )"
-        archive_host="$(echo $archive_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
-        archive_dir="$(echo $archive_target | sed -re 's/(.*):(.*)/\2/')"
+        archive_user="$(echo "$archive_target" | grep '@' | cut -d'@' -f1 )"
+        archive_host="$(echo "$archive_target" | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
+        archive_dir="$(echo "$archive_target" | sed -re 's/(.*):(.*)/\2/')"
     else
         # Fallback to the values of the configuration file. When the
         # path is not provided in the config file, fallback to backup values
         if [ -n "$ARCHIVE_DIR" ]; then
-            [ -n "$ARCHIVE_USER" ] && archive_user=$ARCHIVE_USER
-            [ -n "$ARCHIVE_HOST" ] && archive_host=$ARCHIVE_HOST
+            [ -n "$ARCHIVE_USER" ] && archive_user="$ARCHIVE_USER"
+            [ -n "$ARCHIVE_HOST" ] && archive_host="$ARCHIVE_HOST"
             archive_dir=$ARCHIVE_DIR
         else
             archive_user="$backup_user"
@@ -359,7 +359,7 @@ parse_target_uri() {
         echo $archive_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
 
         # Add a shortcut for ssh/rsync commands
-        archive_ssh_target=${archive_user:+$archive_user@}$archive_host
+        archive_ssh_target="${archive_user:+$archive_user@}$archive_host"
     fi
 
     [ -n "$archive_dir" ] || error "missing archive directory"
@@ -848,7 +848,7 @@ case $action in
 	    esac
 	done
 
-        parse_target_uri ${@:$OPTIND:1} || usage "list"
+        parse_target_uri "${@:$OPTIND:1}" || usage "list"
 
         list_backups "$backup_dir" # to the list array
         
@@ -1034,7 +1034,7 @@ case $action in
 
         # set the variables needed to access storage (handling of cli
         # vs config is handled by the function)
-        parse_target_uri ${@:$OPTIND:1} || usage "backup"
+        parse_target_uri "${@:$OPTIND:1}" || usage "backup"
 
         # initialize the target path
         backup_root=$backup_dir
@@ -1734,7 +1734,7 @@ case $action in
 	    esac
 	done
 
-        parse_target_uri ${@:$OPTIND:1} || usage "restore"
+        parse_target_uri "${@:$OPTIND:1}" || usage "restore"
 
         # An unprivileged target owner is mandatory as PostgreSQL cannot run
         # as root.
@@ -2393,7 +2393,7 @@ case $action in
 	    esac
 	done
 
-        parse_target_uri "${@:$OPTIND:1}" $archive_path || usage "purge"
+        parse_target_uri "${@:$OPTIND:1}" "$archive_path" || usage "purge"
 
         # Either -m or -d must be specified
         if [ -z "$PURGE_KEEP_COUNT" ] && [ -z "$PURGE_OLDER_THAN" ]; then
