@@ -16,9 +16,21 @@ pitrery automates [Continuous Archiving and Point-in-Time Recovery (PITR)](http:
 * Do only PITR, log-shipping and replication is outside of the scope
 * Be the least possible intrusive about archiving
 
-Pitrery has been tested and works with all currently supported versions of PostgreSQL, starting from 8.2.
+Pitrery has been tested and works with all currently supported versions of PostgreSQL.
 
 It is free software licensed under the PostgreSQL License.
+
+Quick start
+-----------
+
+1. Get the source, edit the `config.mk`, run `make` and `make install`
+
+2. Run `pitrery configure -o pitrery -f [[user@]host:]/path/to/backups` (user@host being optional)
+
+3. Configure WAL archiving (`archive_command = 'archive_xlog %p'` and friends) in PostgreSQL
+
+4. Run `pitrery` to perform your backups and restores
+
 
 News
 ----
