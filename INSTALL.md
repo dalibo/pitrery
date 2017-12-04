@@ -204,8 +204,6 @@ specified *before* the action. The help message is:
         purge - Clean old base backups and archived WAL files
         check - Verify configuration and backups integrity
         configure - Create a configuration file from the command line
-        archive_xlog - Archive a WAL segment
-        restore_xlog - Restore a WAL segment
         help - Print help, optionnally for an action
 
 The help or usage of each action listed in the general help message
