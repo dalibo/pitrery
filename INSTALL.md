@@ -187,7 +187,7 @@ from the configuration file. A non default configuration can be
 specified *before* the action. The help message is:
 
     $ pitrery -?
-    pitrery 2.0 - PostgreSQL Point In Time Recovery made easy
+    pitrery 2.1 - PostgreSQL Point In Time Recovery made easy
     
     usage: pitrery [options] action [args]
     

@@ -1,3 +1,9 @@
+Upgrade to 2.1
+==============
+
+Nothing to do.
+
+
 Upgrade to 2.0
 ==============
 
