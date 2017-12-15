@@ -101,8 +101,6 @@ parse_target_uri() {
         [ -n "$BACKUP_DIR" ] && backup_dir=$BACKUP_DIR
     fi
 
-    [ -n "$backup_dir" ] || error "missing backup directory"
-    
     # Deduce if backup is local
     if [ -z "$backup_host" ]; then
         backup_local="yes"
@@ -131,7 +129,8 @@ parse_target_uri() {
         else
             archive_user="$backup_user"
             archive_host="$backup_host"
-            archive_dir="$backup_dir/archived_xlog"
+            # avoid trying to create directory in /
+            [ -n "$backup_dir" ] && archive_dir="$backup_dir/archived_xlog"
         fi
     fi
 
