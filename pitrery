@@ -287,6 +287,13 @@ load_config() {
     # Load the configuration file
     if [ -f "$config" ]; then
 	. "$config"
+
+        # Export libpq variables sourced from the configuration file
+        # so that we have them in subshells
+        export PGUSER
+        export PGPORT
+        export PGHOST
+        export PGDATABASE
     else
         # Output an error if the file is missing and the user
         # specified it on the command line
