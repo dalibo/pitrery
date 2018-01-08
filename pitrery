@@ -861,6 +861,12 @@ case $action in
 
         # Print the directory and stop time of each backup
         for dir in "${list[@]%/}"; do
+            # Check the permissions
+            if [[ ! -r "$dir" ]] || [[ ! -x "$dir" ]]; then
+                error "acces denied to $dir"
+                continue
+            fi
+
             # Print the details of the backup dir
             if [ -n "$verbose" ]; then
 	        echo "----------------------------------------------------------------------"
@@ -1122,6 +1128,11 @@ case $action in
             if ! mkdir -p -- "$backup_dir/tblspc"; then
 	        die "could not create $backup_dir/tblspc"
             fi
+
+            # Make the backup directory private
+            if ! chmod 700 -- "$backup_dir"; then
+                die "could not change permissions of $backup_dir"
+            fi
         else
             if ssh -n -- "$backup_ssh_target" "test -e $(qw "$backup_dir")" 2>/dev/null; then
 	        die "$backup_dir already exists, another backup may be in progress"
@@ -1130,6 +1141,11 @@ case $action in
             can_cleanup="yes"
             if ! ssh -n -- "$backup_ssh_target" "mkdir -p -- $(qw "$backup_dir/tblspc")" 2>/dev/null; then
 	        die "could not create $backup_dir/tblspc"
+            fi
+
+            # Make the backup directory private
+            if ! ssh -n -- "$backup_ssh_target" "chmod 700 -- $(qw "$backup_dir")" 2>/dev/null; then
+	        die "could not change permissions of $backup_dir"
             fi
         fi
 
