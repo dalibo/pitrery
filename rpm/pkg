@@ -1,9 +1,11 @@
 #!/bin/bash -eux
 
+cd $(readlink -m $0/..)
 SPEC=pitrery.spec
 VERSION=${1-${VERSION-$(rpmspec --query --queryformat '%{VERSION}' ${SPEC})}}
-yum-builddep -y ${SPEC}
+sudo yum-builddep -y ${SPEC}
 rpmbuild \
+    --define "_rpmdir ${PWD}" \
     --define "pkgversion ${VERSION}" \
     --undefine _disable_source_fetch \
     -ba ${SPEC}
