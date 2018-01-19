@@ -3,3 +3,5 @@ _build
 .s[a-w][a-z]
 .*.s[a-w][a-z]
 Session*.vim
+rpm/noarch
+rpm/BUILDROOT

@@ -1,7 +1,7 @@
 %global pkgname pitrery
 %global confdir %{_sysconfdir}/%{pkgname}
 %{!?pkgversion: %global pkgversion 2.1}
-%{!?pkgrevision: %global pkgrevision 1}
+%{!?pkgrevision: %global pkgrevision 2}
 
 Name:           %{pkgname}
 Version:        %{pkgversion}
@@ -11,7 +11,6 @@ License:        BSD
 Group:          Applications/Databases
 URL:            https://github.com/dalibo/pitrery
 Source0:        https://dl.dalibo.com/public/pitrery/%{pkgname}-%{version}.tar.gz
-Patch1:         pitrery.config.patch
 BuildArch:      noarch
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires:       bash, rsync
@@ -28,13 +27,12 @@ restores for PostgreSQL.
 
 %prep
 %setup -q
-%patch1 -p1
 
 %build
-make
+make DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
 %install
-make install DESTDIR=%{buildroot}
+make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
 %files
 %config(noreplace) /etc/pitrery/pitrery.conf
@@ -51,6 +49,9 @@ make install DESTDIR=%{buildroot}
 %doc %{_mandir}/man1/restore_xlog.1.gz
 
 %changelog
+* Thu Jan 18 2018 Étienne BERSAC <etienne.bersac@dalibo.com> - 2.1-2
+- Drop patch
+
 * Fri Dec 15 2017 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 2.1-1
 - Update to 2.1
 

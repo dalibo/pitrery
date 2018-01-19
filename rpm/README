@@ -1,12 +1,9 @@
-The rpm/ directory contains a spec file and a patch to create RPM
-files.  The patch configures the Makfile (config.mk) to put things in
-/usr/bin, /usr/lib and /etc/pitrery.
+The rpm/ directory contains a spec file to create RPM files.
 
-To build a rpm:
-- copy the spec file to /usr/src/redhat/SPECS
-- copy the patch to /usr/src/redhat/SOURCES
-- go to https://github.com/dalibo/pitrery and download a tarball.
-  put it in /usr/src/redhat/SOURCES
-- edit the spec file to change anything needed to match the version
-  you got.
-- run rpmbuild on the spec file as usual
+The `./pkg` script builds the rpm package from this spec file. You can override
+version by passing it as first argument: `./pkg 2.0`. The rpm is saved in usual
+rpmbuild location.
+
+A `docker-compose.yml` file is shipped to generate rpm in a clean environment.
+Pass the wanted version as `run` argument : `docker-compose run --rm rpmbuild
+2.0`. The RPM file is saved in `noarch/` directory.
