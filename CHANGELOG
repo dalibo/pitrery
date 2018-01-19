@@ -3,6 +3,8 @@ pitrery 2.1
 
   * Restrict permissions of backup directories to the user that created them
 
+  * Add options to the check action to verify backup policy
+
 
 pitrery 2.0
 ===========

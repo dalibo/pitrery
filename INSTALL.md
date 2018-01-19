@@ -1233,4 +1233,50 @@ options:
 If unsure about the configuration of the purge, the `-N` switch can be
 used to display what would be done.
 
+Checking the backups
+--------------------
 
+The check actions can check if there are enough backups and their
+against thresholds. This mode must be selected with the `-b` option of
+the check action.
+
+The check is successful if the number of backups is greater or equal
+than the number provided to the `-m` option or `PURGE_KEEP_COUNT` if
+not specified.  It is also successful if the age of the newest backup
+is less than the interval provided to the `-g` option or
+`PURGE_OLDER_THAN` if not specified.  The age limit is a number of
+days or less if a time unit is specified, the supported units being
+"s" (seconds), "min" (minutes), "h" (hours) and "d" (days), like ine
+the PostgreSQL configuration.
+
+This check mode can behave like a Nagios plugin with the `-n` option.
+
+For example:
+
+    $ pitrery check -b -g 1d -m 2 /home/pgsql/pitrery/r10
+    INFO: checking local backups in: /home/pgsql/pitrery/r10
+    INFO: newest backup age: 16d 20h 31min 30s
+    INFO: number of backups: 3
+    ERROR: backups are too old
+
+With the nagios output:
+
+    $ pitrery check -b -m 3 -g 30d -n localhost:/home/pgsql/pitrery/r10
+    PITRERY BACKUPS OK - count: 3, newest: 16d 20h 40min 15s | count=3;3;3 newest=1456815s;2592000;2592000
+
+The options are:
+
+    $ pitrery check -?
+    pitrery check - Verify configuration and backups integrity
+
+    usage: pitrery check [options] [[[user@]host:]/path/to/backups]
+
+    options:
+        -C conf              Configuration file
+
+        -b                   Check backups
+        -m count             Fail when the number of backups is less than count
+        -g age               Fail when the newest backup is older than age
+        -n                   Nagios compatible output for -b
+
+        -?                   Print help

@@ -570,6 +570,7 @@ backup the files.
 .RI [ options ]
 .B check
 .RI [ check-options ]
+.RI [ [[user@]host:]/path/to/backups ]
 
 .TP 4
 .B CHECK-OPTIONS
@@ -583,8 +584,34 @@ The configuration file to check. It can also be provided using the \-c
 option of \fBpitrery\fP
 
 .TP
+.B \-b
+Check backups instead of the configuration
+
+.TP
+.B "\-m " count
+When checking backups, fail when the number of backups is less than
+count. If not set, fallback to the value of \fBPURGE_KEEP_COUNT\fP.
+
+.TP
+.B "\-g " age
+When checking backups, Fail when the newest backup is older than age
+in days. A time unit can specified: the supported units are "s"
+(seconds), "min" (minutes), "h" (hours) and "d" (days). If not set,
+fallback to the value of \fBPURGE_OLDER_THAN\fP.
+
+.TP
+.B \-n
+When checking backups, behave like a Nagios plugin.
+
+.TP
 .B \-?
 Output the brief help summarising the \fBcheck\fP options.
+
+.TP
+.I [[user@]host:]/path/to/backups
+The path to the directory storing the backups. If a host name is
+provided, it is used to login to a remote archive with
+\fBssh\fP(1). When the host is not given, the lookup is local.
 
 .RE
 

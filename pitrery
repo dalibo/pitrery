@@ -147,10 +147,15 @@ usage() {
         check)
             echo "`basename $0` check - Verify configuration and backups integrity"
             echo
-            echo "usage: `basename $0` check [options]"
+            echo "usage: `basename $0` check [options] [[[user@]host:]/path/to/backups]"
             echo
             echo "options:"
             echo "    -C conf              Configuration file"
+            echo
+            echo "    -b                   Check backups"
+            echo "    -m count             Fail when the number of backups is less than count"
+            echo "    -g age               Fail when the newest backup is older than age"
+            echo "    -n                   Nagios compatible output for -b"
             echo
             echo "    -?                   Print help"
             echo
@@ -254,6 +259,13 @@ cleanup() {
             [ -n "$psql_stderr" ] && rm -f -- "$psql_stderr"
             [ -n "$backup_label_file" ] && rm -f -- "$backup_label_file"
             [ -n "$tablespace_map_file"  ] && rm -f -- "$tablespace_map_file"
+            ;;
+        "check")
+            if [ "$output" = "nagios" ]; then
+                # Fail with return code 3 (unknown) in die() when
+                # behaving like a nagios plugin
+                exit 3
+            fi
             ;;
     esac
 }
@@ -2703,230 +2715,382 @@ case $action in
 	;;
 
     check)
+        check_conf="yes"
+        check_backups="no"
+        
         # Parse args after action
-	while getopts "C:?" arg 2>/dev/null; do
+	while getopts "C:bg:m:n?" arg 2>/dev/null; do
 	    case $arg in
-                C) config=$OPTARG;;
+                C) config="$OPTARG";;
+                b) check_backups="yes"; check_conf="no";;
+                g) check_max_age="$OPTARG";;
+                m) check_min_count="$OPTARG";;
+                n) output="nagios";;
 		"?") usage "check";;
 	    esac
 	done
 
-        # Some extra check, since we are going to manipulate the
-        # configuration file
+        if [[ "$check_conf" = "yes" ]]; then
+            # Some extra check, since we are going to manipulate the
+            # configuration file
 
-        # Recheck if the config option is a path or just a name in the
-        # configuration directory.  Prepend the configuration directory and
-        # .conf when needed.
-        if [[ $config != */* ]]; then
-            config="$config_dir/$(basename -- "$config" .conf).conf"
-        fi
-
-        if [ -e "$config" ]; then
-            [ -r "$config" ] || die "configuration file $config is not readable"
-
-            info "checking $config"
-
-	    load_config
-
-            # Dump configuration file
-            info "the configuration file contains:"
-            grep -- '=' "$config" | grep -E '^[^[:space:]#]+'
-            echo
-        else
-            warn "configuration file $config does not exist"
-        fi
-
-        info "==> checking the configuration for inconsistencies"
-
-        conf_ok=1
-        # Sanity checks on the configuration
-        # Only tar or rsync are allowed as storage method
-        if [ "$STORAGE" != "tar" ] && [ "$STORAGE" != "rsync" ]; then
-            error "storage method (STORAGE) must be 'tar' or 'rsync'"
-            conf_ok=0
-        fi
-
-        # At least one of PURGE_KEEP_COUNT and PURGE_OLDER_THAN must be
-        # configured, otherwise purge won't work
-        if [ -z "$PURGE_KEEP_COUNT" ] && [ -z "$PURGE_OLDER_THAN" ]; then
-            error "purge not configured, either PURGE_KEEP_COUNT or PURGE_OLDER_THAN must be set"
-            conf_ok=0
-        fi
-
-        if [[ $conf_ok == 1 ]]; then
-            info "configuration seems correct"
-        else
-            warn "errors found in the configuration. The following tests may not be accurate"
-        fi
-
-        # Prepare psql command, it must be an array.
-        if [ -n "$PGPSQL" ]; then
-            psql_command=( "$PGPSQL" )
-        fi
-
-        info "==> checking backup configuration"
-
-        parse_target_uri
-
-        if [ "$backup_local" = "yes" ]; then
-            info "backups are local, not checking SSH"
-
-            check_local_directory "$backup_dir"
-        else
-            info "checking SSH connection for backups"
-            if ! check_ssh "$backup_ssh_target"; then
-	        die "the backup host must be reachable. Aborting"
+            # Recheck if the config option is a path or just a name in the
+            # configuration directory.  Prepend the configuration directory and
+            # .conf when needed.
+            if [[ $config != */* ]]; then
+                config="$config_dir/$(basename -- "$config" .conf).conf"
             fi
 
-            info "checking backup directory: $backup_dir"
-            # check if the target directory exist, or can be created. It means a
-            # parent must exist and be writable. At this point we cannot see
-            # if it is a proper mount point that would have enough space
-            check_remote_directory "$backup_ssh_target" "$backup_dir"
+            if [ -e "$config" ]; then
+                [ -r "$config" ] || die "configuration file $config is not readable"
 
-            # Check if rsync is available on the remote host, it is only
-            # needed by the rsync storage method
+                info "checking $config"
+
+	        load_config
+
+                # Dump configuration file
+                info "the configuration file contains:"
+                grep -- '=' "$config" | grep -E '^[^[:space:]#]+'
+                echo
+            else
+                warn "configuration file $config does not exist"
+            fi
+        else
+            load_config
+        fi
+
+        if [[ "$check_conf" = "yes" ]]; then
+            info "==> checking the configuration for inconsistencies"
+
+            conf_ok=1
+            # Sanity checks on the configuration
+            # Only tar or rsync are allowed as storage method
+            if [ "$STORAGE" != "tar" ] && [ "$STORAGE" != "rsync" ]; then
+                error "storage method (STORAGE) must be 'tar' or 'rsync'"
+                conf_ok=0
+            fi
+
+            # At least one of PURGE_KEEP_COUNT and PURGE_OLDER_THAN must be
+            # configured, otherwise purge won't work
+            if [ -z "$PURGE_KEEP_COUNT" ] && [ -z "$PURGE_OLDER_THAN" ]; then
+                error "purge not configured, either PURGE_KEEP_COUNT or PURGE_OLDER_THAN must be set"
+                conf_ok=0
+            fi
+
+            if [[ $conf_ok == 1 ]]; then
+                info "configuration seems correct"
+            else
+                warn "errors found in the configuration. The following tests may not be accurate"
+            fi
+
+            # Prepare psql command, it must be an array.
+            if [ -n "$PGPSQL" ]; then
+                psql_command=( "$PGPSQL" )
+            fi
+
+            info "==> checking backup configuration"
+
+            parse_target_uri
+
+            if [ "$backup_local" = "yes" ]; then
+                info "backups are local, not checking SSH"
+
+                check_local_directory "$backup_dir"
+            else
+                info "checking SSH connection for backups"
+                if ! check_ssh "$backup_ssh_target"; then
+	            die "the backup host must be reachable. Aborting"
+                fi
+
+                info "checking backup directory: $backup_dir"
+                # check if the target directory exist, or can be created. It means a
+                # parent must exist and be writable. At this point we cannot see
+                # if it is a proper mount point that would have enough space
+                check_remote_directory "$backup_ssh_target" "$backup_dir"
+
+                # Check if rsync is available on the remote host, it is only
+                # needed by the rsync storage method
+                if [[ $STORAGE == "rsync" ]]; then
+	            info "checking rsync on the remote host: $backup_ssh_target"
+	            if ! ssh -n -- "$backup_ssh_target" "which rsync" >/dev/null 2>&1; then
+	                error "could not find rsync in the PATH on $backup_ssh_target"
+	            else
+	                info "rsync found on the remote host"
+	            fi
+                fi
+            fi
+
+            # Check the local rsync
             if [[ $STORAGE == "rsync" ]]; then
-	        info "checking rsync on the remote host: $backup_ssh_target"
-	        if ! ssh -n -- "$backup_ssh_target" "which rsync" >/dev/null 2>&1; then
-	            error "could not find rsync in the PATH on $backup_ssh_target"
-	        else
+                info "checking rsync on the local host"
+                if ! which rsync >/dev/null 2>&1; then
+	            error "could not find rsync in the PATH of the local host"
+                else
+	            info "rsync found on the local host"
+                fi
+            fi
+
+            info "==> checking WAL files archiving configuration"
+
+            arch_ok="yes"
+            if [ "$archive_local" = "yes" ]; then
+                info "WAL archiving is local, not checking SSH"
+                info "checking WAL archiving directory: $archive_dir"
+                check_local_directory "$archive_dir" || arch_ok="no"
+            else
+                info "checking SSH connection for WAL archiving"
+                check_ssh "$archive_ssh_target" || arch_ok="no"
+
+                info "checking WAL archiving directory: $archive_dir"
+                check_remote_directory "$archive_ssh_target" "$archive_dir" || arch_ok="no"
+
+                # Check if rsync is installed on the remote host
+                info "checking rsync on the remote host: $archive_ssh_target"
+                if ! ssh -n -- "$archive_ssh_target" "which rsync" >/dev/null 2>&1; then
+	            error "could not find rsync in the PATH on $archive_ssh_target"
+	            arch_ok="no"
+                else
 	            info "rsync found on the remote host"
-	        fi
+                fi
             fi
-        fi
 
-        # Check the local rsync
-        if [[ $STORAGE == "rsync" ]]; then
-            info "checking rsync on the local host"
-            if ! which rsync >/dev/null 2>&1; then
-	        error "could not find rsync in the PATH of the local host"
+            # Check the local rsync for WAL archiving
+            if [[ $STORAGE == "rsync" ]] || [[ $archive_local == "no" ]]; then
+                info "checking rsync on the local host"
+                if ! which rsync >/dev/null 2>&1; then
+	            error "could not find rsync in the PATH of the local host"
+	            arch_ok="no"
+                else
+	            info "rsync found on the local host"
+                fi
+            fi
+
+            # Archiving with archive_xlog is not mandatory, so tell the user that
+            # it may be unusable
+            if [[ $arch_ok == "no" ]]; then
+                error "archiving may not work with archive_xlog and the current configuration"
+                error "please consider another way to archive WAL files"
+            fi
+
+            # Check access to postgres
+            info "==> checking access to PostgreSQL"
+
+            # Prepare psql command line. Starting from 9.6 .psqlrc is sourced with
+            # psql -c or -f, so we force -X
+            psql_command+=( "-X" )
+            [ -n "$PGHOST" ] && psql_command+=( "-h" "$PGHOST" )
+            [ -n "$PGPORT" ] && psql_command+=( "-p" "$PGPORT" )
+            [ -n "$PGUSER" ] && psql_command+=( "-U" "$PGUSER" )
+
+            psql_condb=${PGDATABASE:-postgres}
+
+            # Show the command line of psql and the contents of the environnement
+            # variables starting with PG, they may affect the behaviour of psql.
+            info "psql command and connection options are: ${psql_command[@]}"
+            info "connection database is: $psql_condb"
+            info "environment variables (maybe overwritten by the configuration file):"
+            while read -r -d '' v; do
+                echo $v | grep -q "^PG" || continue
+                info "  $v"
+            done < <(env -0 2>/dev/null || warn "could not read the environment: env -0 failed")
+            
+            check_postgresql_config || out_rc=1
+
+            info "==> checking access to PGDATA"
+
+            # Access to PGDATA
+            if [ -n "$data_directory" ]; then
+                test "$PGDATA" -ef "$data_directory"
+                if [ $? != 0 ]; then
+	            info "data_directory setting is: $data_directory"
+	            info "PGDATA is: $PGDATA"
+	            error "configured PGDATA is different than the data directory reported by PostgreSQL"
+                else
+	            info "PostgreSQL and the configuration reports the same PGDATA"
+                fi
+            fi
+
+            # This test may be stupid but in case we do not have access to
+            # PostgreSQL, we only have the configuration which may be
+            # incorrect
+            if [ ! -e "$PGDATA" ]; then
+                error "$PGDATA does not exist"
+                exit 1
+            fi
+
+            if [ ! -d "$PGDATA" ]; then
+                error "$PGDATA is not a directory"
+                exit 1
+            fi
+
+            dperms=$(stat -c %a -- "$PGDATA" 2>/dev/null) || error "Unable to get permissions of $PGDATA"
+            downer=$(stat -c %U -- "$PGDATA" 2>/dev/null) || error "Unable to get owner of $PGDATA"
+
+            if [[ "$dperms" == "700" ]]; then
+                info "permissions of PGDATA ok"
             else
-	        info "rsync found on the local host"
+                warn "permissions of PGDATA are not 700: $dperms"
             fi
-        fi
 
-        info "==> checking WAL files archiving configuration"
+            # Do not run the owner test if run as root, superuser won't have
+            # problems accessing the files
+            if [ "$(id -u)" != 0 ]; then
+                owner=${PGOWNER:-$(id -un)}
+                if [[ "$owner" == "$downer" ]]; then
+	            info "owner of PGDATA is the current user"
+                else
+	            warn "owner of PGDATA is not the current user: $downer"
+                fi
 
-        arch_ok="yes"
-        if [ "$archive_local" = "yes" ]; then
-            info "WAL archiving is local, not checking SSH"
-            info "checking WAL archiving directory: $archive_dir"
-            check_local_directory "$archive_dir" || arch_ok="no"
-        else
-            info "checking SSH connection for WAL archiving"
-            check_ssh "$archive_ssh_target" || arch_ok="no"
-
-            info "checking WAL archiving directory: $archive_dir"
-            check_remote_directory "$archive_ssh_target" "$archive_dir" || arch_ok="no"
-
-            # Check if rsync is installed on the remote host
-            info "checking rsync on the remote host: $archive_ssh_target"
-            if ! ssh -n -- "$archive_ssh_target" "which rsync" >/dev/null 2>&1; then
-	        error "could not find rsync in the PATH on $archive_ssh_target"
-	        arch_ok="no"
+                # To see if we can backup, just check if we can read the version
+                # file
+                if [[ -r "$PGDATA/PG_VERSION" ]]; then
+	            info "access to the contents of PGDATA ok"
+                else
+	            error "cannot read $PGDATA/PG_VERSION, access to PGDATA may not be possible"
+                fi
             else
-	        info "rsync found on the remote host"
+                info "running as root, not checking access to the contents of PGDATA"
             fi
         fi
 
-        # Check the local rsync for WAL archiving
-        if [[ $STORAGE == "rsync" ]] || [[ $archive_local == "no" ]]; then
-            info "checking rsync on the local host"
-            if ! which rsync >/dev/null 2>&1; then
-	        error "could not find rsync in the PATH of the local host"
-	        arch_ok="no"
+        if [[ "$check_backups" = "yes" ]]; then
+            load_config
+            
+            if [ -n "$check_max_age" ]; then
+                # transform age to seconds so that we can compare with backup_timestamp
+                if [[ "$check_max_age" =~ ^[[:digit:]]+(s|min|h|d)?$ ]]; then
+                    val=$(sed -r -e 's/^([0-9]+)(s|min|h|d)?$/\1/g' <<< "$check_max_age")
+                    unit=$(sed -r -e 's/^([0-9]+)(s|min|h|d)?$/\2/g' <<< "$check_max_age")
+
+                    case $unit in
+                        "s") age=$val;;
+                        "min") age=$(($val * 60));;
+                        "h") age=$(($val * 3600));;
+                        # default unit is days
+                        *) age=$(($val * 86400));;
+                    esac
+                else
+                    die "invalid value for age: not a time, e.g. positive number with s,min,h,d units"
+                fi
             else
-	        info "rsync found on the local host"
+                # fallback to PURGE_OLDER_THAN
+                if [ -n "$PURGE_OLDER_THAN" ]; then
+                    if [[ "$PURGE_OLDER_THAN" =~ ^[[:digit:]]+$ ]]; then
+                        age=$(($PURGE_OLDER_THAN * 86400))
+                    else
+                        die "invalid value for PURGE_OLDER_THAN: not a positive number"
+                    fi
+                fi
             fi
-        fi
 
-        # Archiving with archive_xlog is not mandatory, so tell the user that
-        # it may be unusable
-        if [[ $arch_ok == "no" ]]; then
-            error "archiving may not work with archive_xlog and the current configuration"
-            error "please consider another way to archive WAL files"
-        fi
-
-        # Check access to postgres
-        info "==> checking access to PostgreSQL"
-
-        # Prepare psql command line. Starting from 9.6 .psqlrc is sourced with
-        # psql -c or -f, so we force -X
-        psql_command+=( "-X" )
-        [ -n "$PGHOST" ] && psql_command+=( "-h" "$PGHOST" )
-        [ -n "$PGPORT" ] && psql_command+=( "-p" "$PGPORT" )
-        [ -n "$PGUSER" ] && psql_command+=( "-U" "$PGUSER" )
-
-        psql_condb=${PGDATABASE:-postgres}
-
-        # Show the command line of psql and the contents of the environnement
-        # variables starting with PG, they may affect the behaviour of psql.
-        info "psql command and connection options are: ${psql_command[@]}"
-        info "connection database is: $psql_condb"
-        info "environment variables (maybe overwritten by the configuration file):"
-        while read -r -d '' v; do
-            echo $v | grep -q "^PG" || continue
-            info "  $v"
-        done < <(env -0 2>/dev/null || warn "could not read the environment: env -0 failed")
-        
-        check_postgresql_config || out_rc=1
-
-        info "==> checking access to PGDATA"
-
-        # Access to PGDATA
-        if [ -n "$data_directory" ]; then
-            test "$PGDATA" -ef "$data_directory"
-            if [ $? != 0 ]; then
-	        info "data_directory setting is: $data_directory"
-	        info "PGDATA is: $PGDATA"
-	        error "configured PGDATA is different than the data directory reported by PostgreSQL"
+            if [ -n "$check_min_count" ]; then
+                if [[ "$check_min_count" =~ ^[[:digit:]]+$ ]]; then
+                    min=$check_min_count
+                else
+                    die "invalid value for count: not a positive number"
+                fi
             else
-	        info "PostgreSQL and the configuration reports the same PGDATA"
-            fi
-        fi
-
-        # This test may be stupid but in case we do not have access to
-        # PostgreSQL, we only have the configuration which may be
-        # incorrect
-        if [ ! -e "$PGDATA" ]; then
-            error "$PGDATA does not exist"
-            exit 1
-        fi
-
-        if [ ! -d "$PGDATA" ]; then
-            error "$PGDATA is not a directory"
-            exit 1
-        fi
-
-        dperms=$(stat -c %a -- "$PGDATA" 2>/dev/null) || error "Unable to get permissions of $PGDATA"
-        downer=$(stat -c %U -- "$PGDATA" 2>/dev/null) || error "Unable to get owner of $PGDATA"
-
-        if [[ "$dperms" == "700" ]]; then
-            info "permissions of PGDATA ok"
-        else
-            warn "permissions of PGDATA are not 700: $dperms"
-        fi
-
-        # Do not run the owner test if run as root, superuser won't have
-        # problems accessing the files
-        if [ "$(id -u)" != 0 ]; then
-            owner=${PGOWNER:-$(id -un)}
-            if [[ "$owner" == "$downer" ]]; then
-	        info "owner of PGDATA is the current user"
-            else
-	        warn "owner of PGDATA is not the current user: $downer"
+                if [ -n "$PURGE_KEEP_COUNT" ]; then
+                    if [[ "$PURGE_KEEP_COUNT" =~ ^[[:digit:]]+$ ]]; then
+                        min=$PURGE_KEEP_COUNT
+                    else
+                        die "invalid value for PURGE_KEEP_COUNT: not a positive number"
+                    fi
+                fi
             fi
 
-            # To see if we can backup, just check if we can read the version
-            # file
-            if [[ -r "$PGDATA/PG_VERSION" ]]; then
-	        info "access to the contents of PGDATA ok"
-            else
-	        error "cannot read $PGDATA/PG_VERSION, access to PGDATA may not be possible"
+            if [ -z "$age" ] && [ -z "$min" ]; then
+                die "no limit set. -a or -c required"
             fi
-        else
-            info "running as root, not checking access to the contents of PGDATA"
+
+            parse_target_uri "${@:$OPTIND:1}"
+            list_backups "$backup_dir"
+
+            # Count the backups
+            count=${#list[@]}
+
+            # for max age, compute the timestamp limit for comparison count stuff for perfdata
+            [ -n "$age" ] && limit_ts=$(($(date +%s) - $age))
+
+            # Get the backup_timestamp from the backup and compare
+            newest_ts=0
+            too_old="yes"
+            for dir in "${list[@]%/}"; do
+                if [ "$backup_local" = "yes" ]; then
+	            ts=$(< "$dir/backup_timestamp")
+                else
+	            ts=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
+                fi
+
+                # The timestamp must be a string of (only) digits, we do arithmetic with it
+                if [[ $ts =~ ^[[:digit:]]+$ ]]; then
+
+                    # remember the date of the newest backup
+                    if (( $ts > $newest_ts )); then
+                        newest_ts=$ts
+                    fi
+
+                    # just check the age and keep the information for the output part later
+                    if [ -n "$age" ]; then
+                        if (( $ts >= $limit_ts )); then
+                            too_old="no"
+                        fi
+                    fi
+                fi
+            done
+
+            # compute the age of the newest backups for logging
+            nts_age=$(($(date +%s) - $newest_ts))
+            nts_age_human="$(($nts_age/86400))d $(($nts_age%86400/3600))h $(($nts_age%86400%3600/60))min $(($nts_age%86400%3600%60))s"
+
+            # Output the result
+            case $output in
+                "nagios")
+                    if [ -n "$age" ]; then
+                        if [[ $too_old == "yes" ]]; then
+                            out_rc=2
+                        fi
+                    fi
+
+                    if [ -n "$min" ]; then
+                        if (( $count < $min )); then
+                            out_rc=2
+                        fi
+                    fi
+
+                    case $out_rc in
+                        0) status="OK";;
+                        2) status="CRITICAL";;
+                    esac
+
+                    echo "PITRERY BACKUPS $status - count: $count, newest: $nts_age_human | count=${count};${min};${min} newest=${nts_age}s;${age};${age}"
+                    ;;
+                *)
+                    if [[ "$backup_local" == "yes" ]]; then
+                        info "checking local backups in $backup_dir"
+                    else
+                        info "checking backups in $backup_host:$backup_dir"
+                    fi
+                    info "newest backup age: ${nts_age_human}"
+                    info "number of backups: $count"
+
+                    if [ -n "$age" ]; then
+                        if [[ $too_old == "yes" ]]; then
+                            error "backups are too old"
+                        fi
+                    fi
+
+                    if [ -n "$min" ]; then
+                        if (( $count < $min )); then
+                            error "not enough backups, $min required"
+                        fi
+                    fi
+
+                    [[ $out_rc = 0 ]] && info "backups policy checks ok"
+                    ;;
+            esac
+
         fi
 
 	;;
