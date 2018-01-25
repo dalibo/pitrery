@@ -1213,21 +1213,21 @@ action will not remove those WAL files.
 
 The options of purge are:
 
-$ pitrery purge -?
-pitrery purge - Clean old base backups and archived WAL files
+    $ pitrery purge -?
+    pitrery purge - Clean old base backups and archived WAL files
 
-usage: pitrery purge [options] [[user@]host:]/path/to/backups
+    usage: pitrery purge [options] [[user@]host:]/path/to/backups
 
-options:
-    -m count               Keep this number of backups
-    -d days                Purge backups older than this number of days
+    options:
+        -m count               Keep this number of backups
+        -d days                Purge backups older than this number of days
 
-    -a [[user@]host:]/dir  Path to WAL archives
+        -a [[user@]host:]/dir  Path to WAL archives
 
-    -N                     Dry run: show what would be purged only
+        -N                     Dry run: show what would be purged only
 
-    -T                     Timestamp log messages
-    -?                     Print help
+        -T                     Timestamp log messages
+        -?                     Print help
 
 
 If unsure about the configuration of the purge, the `-N` switch can be
