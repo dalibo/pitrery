@@ -2955,7 +2955,6 @@ case $action in
         fi
 
         if [[ "$check_backups" = "yes" ]]; then
-            load_config
             
             if [ -n "$check_max_age" ]; then
                 # transform age to seconds so that we can compare with backup_timestamp
