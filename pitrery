@@ -45,6 +45,8 @@ OVERWRITE="no"
 RESTORE_COMMAND=
 PURGE_KEEP_COUNT=
 PURGE_OLDER_THAN=
+RSYNC_WHOLEFILE="no"
+RSYNC_BWLIMIT=
 
 # We do not hardcode defaults for ARCHIVE_HOST, ARCHIRVE_USER and
 # ARCHIVE_DIR so that they can be deduced from their BACKUP_
@@ -64,6 +66,7 @@ config_dir="/etc/pitrery"
 config="pitrery.conf"
 
 out_rc=0
+rsync_opts=""
 
 usage() {
     case $1 in
@@ -801,6 +804,20 @@ output_param() {
 }
 
 
+init_rsync_opts() {
+    if [[ "$RSYNC_WHOLEFILE" == "yes" ]]; then
+        rsync_opts="$rsync_opts --whole-file"
+    fi
+
+    if [[ -n "$RSYNC_BWLIMIT" ]]; then
+        if [[ "$RSYNC_BWLIMIT" == "$(sed -r -e 's/([^kmgbi0-9])//gi' <<< "$RSYNC_BWLIMIT")" ]]; then
+            rsync_opts="$rsync_opts --bwlimit=$RSYNC_BWLIMIT"
+        else
+            warn "bad value for RSYNC_BWLIMIT: '$RSYNC_BWLIMIT'"
+        fi
+    fi
+}
+
 while getopts "c:lV?" opt; do
     case $opt in
 	c)
@@ -1401,6 +1418,7 @@ case $action in
 
             "rsync")
 	        info "backing up PGDATA with rsync"
+                init_rsync_opts
 	        rsync_link=()
 	        if [ -n "$prev_backup" ]; then
 	            # Link previous backup of pgdata
@@ -1414,13 +1432,13 @@ case $action in
 
 	        info "transferring data from $PGDATA"
 	        if [ "$backup_local" = "yes" ]; then
-	            rsync -aq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_dir/pgdata/"
+	            rsync $rsync_opts -aq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_dir/pgdata/"
 	            rc=$?
 	            if [ $rc != 0 ] && [ $rc != 24 ]; then
 		        die_and_hook "rsync of PGDATA failed with exit code $rc"
 	            fi
 	        else
-	            rsync -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_ssh_target:$(qw "$backup_dir/pgdata/")"
+	            rsync $rsync_opts -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_ssh_target:$(qw "$backup_dir/pgdata/")"
 	            rc=$?
 	            if [ $rc != 0 ] && [ $rc != 24 ]; then
 		        die_and_hook "rsync of PGDATA failed with exit code $rc"
@@ -1455,13 +1473,13 @@ case $action in
 	            # rsync
 	            info "transferring data from $location"
 	            if [ "$backup_local" = "yes" ]; then
-		        rsync -aq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_dir/tblspc/$_name/"
+		        rsync $rsync_opts -aq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_dir/tblspc/$_name/"
 		        rc=$?
 		        if [ $rc != 0 ] && [ $rc != 24 ]; then
 	    	            die_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 	    	        fi
 	            else
-		        rsync -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
+		        rsync $rsync_opts -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
 		        rc=$?
 		        if [ $rc != 0 ] && [ $rc != 24 ]; then
 	    	            die_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
@@ -2030,8 +2048,13 @@ case $action in
 
             "rsync")
 	        info "transferring PGDATA to $PGDATA with rsync"
+
+                # Force remove the bandwidth limit when restoring
+                RSYNC_BWLIMIT=""
+                init_rsync_opts
+
 	        if [ "$backup_local" = "yes" ]; then
-	            rsync -aq --delete -- "$backup_dir/pgdata/" "$PGDATA/"
+	            rsync $rsync_opts -aq --delete -- "$backup_dir/pgdata/" "$PGDATA/"
 	            rc=$?
 	            if [ $rc != 0 ] && [ $rc != 24 ]; then
 		        error "rsync of PGDATA failed with exit code $rc"
@@ -2151,7 +2174,7 @@ case $action in
 	        "rsync")
 	            info "transferring tablespace \"${name}\" to $tbldir with rsync"
 	            if [ "$backup_local" = "yes" ]; then
-		        rsync -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
+		        rsync $rsync_opts -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
 		        rc=$?
 		        if [ $rc != 0 ] && [ $rc != 24 ]; then
 		            error "rsync of tablespace \"${name}\" failed with exit code $rc"
@@ -3335,6 +3358,16 @@ case $action in
 # compatibility, as mixing formats of backup names would break the
 # sorting of backups on restore.
 #USE_ISO8601_TIMESTAMPS="$USE_ISO8601_TIMESTAMPS"
+
+# rsync storage method options.
+# Disable the rsync on the fly comparison algorithm by adding
+# --whole-file to the rsync commandline. This may improve performance
+# over NFS.
+#RSYNC_WHOLEFILE="no"
+
+# Limit the bandwidth usage for rsync. This is the value of --bwlimit
+# of rsync. with no unit, it is in kB/s.
+#RSYNC_BWLIMIT=""
 
 ####################
 # WAL archiving

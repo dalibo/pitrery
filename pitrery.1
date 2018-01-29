@@ -857,6 +857,23 @@ ISO 8601 format. Defaults to "no" to keep the backward compatibility,
 as mixing formats of backup names would break the sorting of backups on
 restore.
 
+
+.SS Transfer configuration
+This variables are used to configure the behavior of rsync when used
+for the base backups.
+
+.TP
+.B RSYNC_WHOLEFILE
+When set to "yes", disable the rsync on the fly comparison algorithm
+by adding --whole-file to the \fBrsync\fP(1) commandline. This may improve
+performance over NFS. Default is "no".
+
+.TP
+.B RSYNC_BWLIMIT
+Limit the bandwidth usage for rsync. This is the value of --bwlimit of
+\fBrsync\fP(1). With no unit, it is in kB/s. Leave empty for no limit,
+there is no limit by default.
+
 .SS Restore configuration
 These variables are used to configure the \fBrestore\fP action operation.
 

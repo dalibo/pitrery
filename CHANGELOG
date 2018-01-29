@@ -5,6 +5,10 @@ pitrery 2.1
 
   * Add options to the check action to verify backup policy
 
+  * Add RSYNC_WHOLEFILE and RSYNC_BWLIMIT configuration options to
+    tweak the behaviour of rsync when performing base backups.
+
+
 
 pitrery 2.0
 ===========

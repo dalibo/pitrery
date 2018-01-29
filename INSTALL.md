@@ -540,7 +540,13 @@ through pitrery:
   backward compatibility, as mixing formats of backup names would
   break the sorting of backups on restore.
 
+* `RSYNC_WHOLEFILE`, when set to "yes", disable the rsync on the fly
+  comparison algorithm by adding `--whole-file` to the `rsync`
+  commandline. This may improve performance over NFS. Default is "no".
 
+* `RSYNC_BWLIMIT`, limit the bandwidth usage for rsync. This is the
+  value of --bwlimit of rsync. With no unit, it is in kB/s. Leave
+  empty for no limit, there is no limit by default.
 
 
 
