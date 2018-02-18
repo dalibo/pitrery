@@ -1,8 +1,0 @@
-TODO / Roadmap
-
-1.13:
-- check: Check if all archives are available
-- backup: deference symlinks
-- make remote access for xlog fallback to the ones of backups
-
-
