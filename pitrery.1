@@ -559,10 +559,10 @@ the configuration file.
 
 .SS check
 The \fBcheck\fP action is used to check if a configuration file is
-correct. The action tests if the backup directory is reachable, if WAL
-archiving can be done with \fBarchive_xlog\fP(1), if PostgreSQL is up
-and properly configured for PITR and if the current user can actually
-backup the files.
+correct or backup policy and archived WAL files. The action tests if
+the backup directory is reachable, if WAL archiving can be done with
+\fBarchive_xlog\fP(1), if PostgreSQL is up and properly configured for
+PITR and if the current user can actually backup the files.
 
 .TP 4
 .B SYNOPSIS
@@ -581,11 +581,11 @@ The following options are available for the \fBcheck\fP action:
 .TP
 .B "\-C " config_file
 The configuration file to check. It can also be provided using the \-c
-option of \fBpitrery\fP
+option of \fBpitrery\fP.
 
 .TP
-.B \-b
-Check backups instead of the configuration
+.B \-B
+Check backups instead of the configuration.
 
 .TP
 .B "\-m " count
@@ -598,6 +598,14 @@ When checking backups, Fail when the newest backup is older than age
 in days. A time unit can specified: the supported units are "s"
 (seconds), "min" (minutes), "h" (hours) and "d" (days). If not set,
 fallback to the value of \fBPURGE_OLDER_THAN\fP.
+
+.TP
+.B \-A
+Check archived WAL files instead of the configuration.
+
+.TP
+.B "\-a" [[user@]host:]/dir
+Place where WAL files are stored.
 
 .TP
 .B \-n

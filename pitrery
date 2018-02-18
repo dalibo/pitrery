@@ -153,14 +153,18 @@ usage() {
             echo "usage: `basename $0` check [options] [[[user@]host:]/path/to/backups]"
             echo
             echo "options:"
-            echo "    -C conf              Configuration file"
+            echo "    -C conf                Configuration file"
             echo
-            echo "    -b                   Check backups"
-            echo "    -m count             Fail when the number of backups is less than count"
-            echo "    -g age               Fail when the newest backup is older than age"
-            echo "    -n                   Nagios compatible output for -b"
+            echo "    -B                     Check backups"
+            echo "    -m count               Fail when the number of backups is less than count"
+            echo "    -g age                 Fail when the newest backup is older than age"
             echo
-            echo "    -?                   Print help"
+            echo "    -A                     Check WAL archives"
+            echo "    -a [[user@]host:]/dir  Path to WAL archives"
+            echo
+            echo "    -n                     Nagios compatible output for -b and -A"
+            echo
+            echo "    -?                     Print help"
             echo
             exit ${2:-0}
             ;;
@@ -319,8 +323,8 @@ load_config() {
 }
 
 parse_target_uri() {
-    local backup_target=$1
-    local archive_target=$2
+    local backup_target="$1"
+    local archive_target="$2"
 
     if [ -n "$backup_target" ]; then
         # Parse the backuptarget into user, host and path
@@ -338,7 +342,7 @@ parse_target_uri() {
 
     # Ensure the backup directory is an absolute path
     backup_dir="$(readlink -m -- "$backup_dir")"
-    
+
     # Deduce if backup is local
     if [ -z "$backup_host" ]; then
         backup_local="yes"
@@ -351,7 +355,7 @@ parse_target_uri() {
         # Add a shortcut for ssh/rsync commands
         backup_ssh_target="${backup_user:+$backup_user@}$backup_host"
     fi
-    
+
     # Parse archive target the same way
     if [ -n "$archive_target" ]; then
         archive_user="$(echo "$archive_target" | grep '@' | cut -d'@' -f1 )"
@@ -2740,18 +2744,25 @@ case $action in
     check)
         check_conf="yes"
         check_backups="no"
+        check_archives="no"
         
         # Parse args after action
-	while getopts "C:bg:m:n?" arg 2>/dev/null; do
+	while getopts "C:Bg:m:Aa:n?" arg 2>/dev/null; do
 	    case $arg in
                 C) config="$OPTARG";;
-                b) check_backups="yes"; check_conf="no";;
+                B) check_backups="yes"; check_conf="no";;
                 g) check_max_age="$OPTARG";;
                 m) check_min_count="$OPTARG";;
+                A) check_archives="yes"; check_conf="no";;
+                a) archive_path="$OPTARG";;
                 n) output="nagios";;
 		"?") usage "check";;
 	    esac
 	done
+
+        if [[ "$check_backups" == "yes" ]] && [[ "$check_archives" == "yes" ]] && [[ "$output" == "nagios" ]]; then
+            die "cannot check backups and archives at the same time with nagios output"
+        fi
 
         if [[ "$check_conf" = "yes" ]]; then
             # Some extra check, since we are going to manipulate the
@@ -2978,6 +2989,7 @@ case $action in
         fi
 
         if [[ "$check_backups" = "yes" ]]; then
+            load_config
             
             if [ -n "$check_max_age" ]; then
                 # transform age to seconds so that we can compare with backup_timestamp
@@ -3023,10 +3035,10 @@ case $action in
             fi
 
             if [ -z "$age" ] && [ -z "$min" ]; then
-                die "no limit set. -a or -c required"
+                die "no limit set. -m or -g required"
             fi
 
-            parse_target_uri "${@:$OPTIND:1}"
+            parse_target_uri "${@:$OPTIND:1}" "$archive_path"
             list_backups "$backup_dir"
 
             # Count the backups
@@ -3067,54 +3079,263 @@ case $action in
             nts_age_human="$(($nts_age/86400))d $(($nts_age%86400/3600))h $(($nts_age%86400%3600/60))min $(($nts_age%86400%3600%60))s"
 
             # Output the result
-            case $output in
-                "nagios")
-                    if [ -n "$age" ]; then
-                        if [[ $too_old == "yes" ]]; then
-                            out_rc=2
-                        fi
+            if [[ "$output" == "nagios" ]]; then
+                if [ -n "$age" ]; then
+                    if [[ $too_old == "yes" ]]; then
+                        out_rc=2
                     fi
+                fi
 
-                    if [ -n "$min" ]; then
-                        if (( $count < $min )); then
-                            out_rc=2
-                        fi
+                if [ -n "$min" ]; then
+                    if (( $count < $min )); then
+                        out_rc=2
                     fi
+                fi
 
-                    case $out_rc in
-                        0) status="OK";;
-                        2) status="CRITICAL";;
-                    esac
+                case $out_rc in
+                    0) status="OK";;
+                    2) status="CRITICAL";;
+                esac
 
-                    echo "PITRERY BACKUPS $status - count: $count, newest: $nts_age_human | count=${count};${min};${min} newest=${nts_age}s;${age};${age}"
-                    ;;
-                *)
-                    if [[ "$backup_local" == "yes" ]]; then
-                        info "checking local backups in $backup_dir"
-                    else
-                        info "checking backups in $backup_host:$backup_dir"
+                echo "PITRERY BACKUPS $status - count: $count, newest: $nts_age_human | count=${count};${min};${min} newest=${nts_age}s;${age};${age}"
+
+            else
+                if [[ "$backup_local" == "yes" ]]; then
+                    info "checking local backups in $backup_dir"
+                else
+                    info "checking backups in $backup_host:$backup_dir"
+                fi
+                info "newest backup age: ${nts_age_human}"
+                info "number of backups: $count"
+
+                if [ -n "$age" ]; then
+                    if [[ $too_old == "yes" ]]; then
+                        error "backups are too old"
                     fi
-                    info "newest backup age: ${nts_age_human}"
-                    info "number of backups: $count"
+                fi
 
-                    if [ -n "$age" ]; then
-                        if [[ $too_old == "yes" ]]; then
-                            error "backups are too old"
-                        fi
+                if [ -n "$min" ]; then
+                    if (( $count < $min )); then
+                        error "not enough backups, $min required"
                     fi
+                fi
 
-                    if [ -n "$min" ]; then
-                        if (( $count < $min )); then
-                            error "not enough backups, $min required"
-                        fi
-                    fi
+                [[ $out_rc = 0 ]] && info "backups policy checks ok"
 
-                    [[ $out_rc = 0 ]] && info "backups policy checks ok"
-                    ;;
-            esac
+            fi
 
         fi
 
+        if [[ "$check_archives" == "yes" ]]; then
+            load_config
+
+            _arg="${@:$OPTIND:1}"
+            parse_target_uri "$_arg" "$archive_path"
+            list_backups "$backup_dir"
+
+            if [[ "$output" != "nagios" ]]; then
+                if [[ "$archive_local" == "yes" ]]; then
+                    info "checking local archives in $archive_dir"
+                else
+                    info "checking archives in $archive_host:$archive_dir"
+                fi
+            fi
+
+            # Find the oldest backup
+            oldest_ts=
+            oldest_dir=
+            for dir in "${list[@]%/}"; do
+                if [ "$backup_local" = "yes" ]; then
+	            ts=$(< "$dir/backup_timestamp")
+                else
+	            ts=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
+                fi
+
+                # The timestamp must be a string of (only) digits, we do arithmetic with it
+                if [[ $ts =~ ^[[:digit:]]+$ ]]; then
+
+                    # remember the date of the oldest backup
+                    if [ -z "$oldest_ts" ]; then
+                        oldest_ts=$ts
+                        oldest_dir="$dir"
+                    elif (( $ts < $oldest_ts )); then
+                        oldest_ts=$ts
+                        oldest_dir="$dir"
+                    fi
+                fi
+            done
+
+            if [ -n "$oldest_dir" ]; then
+                [[ "$output" != "nagios" ]] && info "oldest backup is: $oldest_dir"
+
+                # find the start wal
+                if [ "$backup_local" = "yes" ]; then
+                    backup_label=$(< "$oldest_dir/backup_label") ||
+	                die "unable to read '$oldest_dir/backup_label'"
+                else
+	            backup_label=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_dir/backup_label")") ||
+	            die "unable to read '$backup_ssh_target:$oldest_dir/backup_label'"
+                fi
+
+                # Extract the name of the WAL file from the backup
+                start_wal_file=$(awk '/^START WAL LOCATION/ { gsub(/[^0-9A-F]/,"",$6); print $6 }' <<< "$backup_label")
+                [[ "$output" != "nagios" ]] && info "start wal file is: $start_wal_file"
+                start_wal_tln=$(( 0x"$(cut -b 1-8 <<< "$start_wal_file")" ))
+                start_wal_wal=$(( 0x"$(cut -b 9-16 <<< "$start_wal_file")" ))
+                start_wal_seg=$(( 0x"$(cut -b 17-24 <<< "$start_wal_file")" ))
+
+                # Get the version of PostgreSQL to determine if we
+                # check WAL files which finish by FF.
+                if [ "$backup_local" = "yes" ]; then
+                    pgvers=$(< "$oldest_dir/PG_VERSION") ||
+                        die "unable to read '$oldest_dir/PG_VERSION'"
+                else
+                    pgvers=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_dir/PG_VERSION")") ||
+                        die "unable to read '$backup_ssh_target:$oldest_dir/PG_VERSION'"
+                fi
+
+                # Ensure we can do integer comparison on the version,
+                # even with the changing in numbering introduced with
+                # PostgreSQL 10
+                if [[ $pgvers =~ \. ]]; then
+                    pgvers=${pgvers//./0}
+                else
+                    pgvers="${pgvers}00"
+                fi
+
+                # Versions before 9.3 skip the FF segment
+                if (( $pgvers <= 903 )); then
+                    max_seg=254
+                else
+                    max_seg=255
+                fi
+
+                [[ "$output" != "nagios" ]] && info "listing WAL files"
+
+                # List the WAL files. The filter is on the nine first
+                # chars so that history files are excluded.
+                wal_list=()
+                if [ "$archive_local" = "yes" ]; then
+                    wal_list=( "$archive_dir/"[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]* )
+                else
+                    while read -r -d '' f; do
+	                wal_list+=("$f")
+                    done < <(
+	                ssh -n -- "$archive_ssh_target" "find $(qw "$archive_dir") -maxdepth 1 -mindepth 1 -name '[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]*' -type f -print0 | sort -z"
+                    )
+                fi
+
+                mc=0
+                start_wal_file_found="no"
+                for wal_file in "${wal_list[@]}"; do
+                    # Skip archived backup_label files
+                    [[ "$wal_file" =~ .*\.backup.* ]] && continue
+
+                    wal_file="$(basename -- "$wal_file")"
+
+                    # Initialize or update the counters
+                    if [ -z "$cur_tln" ]; then
+                        [[ "$output" != "nagios" ]] && info "first WAL file checked is: $wal_file"
+                        cur_tln=$(( 0x"$(cut -b 1-8 <<< "$wal_file")" ))
+                        cur_wal=$(( 0x"$(cut -b 9-16 <<< "$wal_file")" ))
+                        cur_seg=$(( 0x"$(cut -b 17-24 <<< "$wal_file")" ))
+                        continue
+                    else
+                        if (( $cur_seg == $max_seg )); then
+                            cur_seg=0
+                            cur_wal=$((cur_wal + 1))
+                        else
+                            cur_seg=$((cur_seg + 1))
+                        fi
+                    fi
+
+                    # split the name to tln wal seg
+                    tln=$(( 0x"$(cut -b 1-8 <<< "$wal_file")" ))
+                    wal=$(( 0x"$(cut -b 9-16 <<< "$wal_file")" ))
+                    seg=$(( 0x"$(cut -b 17-24 <<< "$wal_file")" ))
+
+                    # check if we have reached the start wal file of the oldest backup
+                    if ( (( $start_wal_tln == $tln )) && (( $start_wal_wal == $wal )) && (( $start_wal_seg == $seg )) ); then
+                        [[ "$output" != "nagios" ]] && info "start WAL file found"
+                        start_wal_file_found="yes"
+                    fi
+                    [[ $start_wal_file_found != "yes" ]] && continue
+
+                    # compare to counters
+                    while ! ( (( $cur_tln == $tln )) && (( $cur_wal == $wal )) && (( $cur_seg == $seg )) ); do
+                        if (( $cur_tln != $tln )); then
+                            # if the timeline has changed, reset the counted to continue the check
+                            # on the new timeline from the current
+                            # wal_file
+                            cur_tln=$tln
+                            cur_wal=$wal
+                            cur_seg=$seg
+                        else
+                            # Only print the first missing file
+                            if [ -z "$missing" ]; then
+                                missing=$(printf "%08X%08X%08X" "$cur_tln" "$cur_wal" "$cur_seg")
+                                [[ "$output" != "nagios" ]] && error "missing WAL file: $missing"
+                            fi
+                            mc=$((mc + 1))
+
+                            if (( $cur_seg == $max_seg )); then
+                                cur_seg=0
+                                cur_wal=$((cur_wal + 1))
+                            else
+                                cur_seg=$((cur_seg + 1))
+                            fi
+                        fi
+                    done
+
+                    if [ -n "$missing" ]; then
+                        [[ "$output" != "nagios" ]] && info "next found is: $(printf "%08X%08X%08X" "$cur_tln" "$cur_wal" "$cur_seg")"
+                        missing=
+                    fi
+                done
+
+                [[ "$output" != "nagios" ]] && info "last WAL file checked is: $wal_file"
+
+                if [[ $start_wal_file_found != "yes" ]]; then
+                    [[ "$output" != "nagios" ]] && error "start WAL file of the oldest backup not found"
+                    out_rc=1
+                else
+                    if (( $mc > 0 )); then
+                        [[ "$output" != "nagios" ]] && info "missing count is: $mc"
+                        out_rc=1
+                    else
+                        [[ "$output" != "nagios" ]] && info "all archived WAL files found"
+                    fi
+                fi
+            else
+                [[ "$output" != "nagios" ]] && info "no backup found"
+                no_backup="yes"
+                out_rc=1
+            fi
+
+            if [[ "$output" == "nagios" ]]; then
+                if [[ "$no_backup" == "yes" ]]; then
+                    out_rc=3
+                else
+                    if (( $mc > 0 )); then
+                        out_rc=2
+                    else
+                        out_rc=0
+                    fi
+
+                    if [[ $start_wal_file_found != "yes" ]]; then
+                        out_rc=2
+                    fi
+                fi
+
+                case $out_rc in
+                    0) status="OK";;
+                    2) status="CRITICAL";;
+                    3) status="UNKNOWN";;
+                esac
+
+                echo "PITRERY WAL ARCHIVES $status - total: ${#wal_list[@]}, missing: $mc | total=${#wal_list[@]};; missing=${mc};;"
+            fi
+        fi
 	;;
 
     configure)
