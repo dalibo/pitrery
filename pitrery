@@ -180,7 +180,7 @@ usage() {
             echo
             echo "    -s mode                Storage method, tar or rsync"
             echo "    -m count               Number of backups to keep when purging"
-            echo "    -g days                Remove backup older than this number of days"
+            echo "    -g days                Remove backups older than this number of days"
             echo "    -D dir                 Path to \$PGDATA"
             echo "    -a [[user@]host:]/dir  Place to store WAL archives"
             echo
@@ -1216,7 +1216,7 @@ case $action in
 
             if [ "$out_rc" != 0 ]; then
                 list_output_json "valid" "false"
-	        error "this backup may be imcomplete or corrupted"
+	        error "this backup may be incomplete or corrupted"
                 # We can safely reset out_rc here: only this for loop may call error()
                 out_rc=0
             else
