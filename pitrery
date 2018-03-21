@@ -48,7 +48,7 @@ PURGE_OLDER_THAN=
 RSYNC_WHOLEFILE="no"
 RSYNC_BWLIMIT=
 
-# We do not hardcode defaults for ARCHIVE_HOST, ARCHIRVE_USER and
+# We do not hardcode defaults for ARCHIVE_HOST, ARCHIVE_USER and
 # ARCHIVE_DIR so that they can be deduced from their BACKUP_
 # counterpart by parse_target_uri()
 ARCHIVE_COMPRESS="yes"
@@ -61,6 +61,11 @@ ARCHIVE_UNCOMPRESS_BIN="gunzip"
 SYSLOG="no"
 SYSLOG_FACILITY="local0"
 SYSLOG_IDENT="postgres"
+
+BACKUP_ENCRYPT="no"
+ARCHIVE_ENCRYPT="no"
+GPG_ENCRYPT_KEYS=""
+GPG_BIN="/usr/bin/gpg"
 
 config_dir="/etc/pitrery"
 config="pitrery.conf"
@@ -92,6 +97,8 @@ usage() {
             echo "    -s mode              Storage method, tar or rsync"
             echo "    -c compress_bin      Compression command for tar method"
             echo "    -e compress_suffix   Suffix added by the compression program"
+            echo "    -E                   Encrypt tar backups with GPG"
+            echo "    -r keys:...          Colon separated list of recipients for GPG encryption"
             echo "    -t                   Use ISO 8601 format to name backups"
             echo "    -T                   Timestamp log messages"
             echo
@@ -183,6 +190,8 @@ usage() {
             echo "    -g days                Remove backups older than this number of days"
             echo "    -D dir                 Path to \$PGDATA"
             echo "    -a [[user@]host:]/dir  Place to store WAL archives"
+            echo "    -E                     Encrypt tar backups with GPG"
+            echo "    -r keys:...            Colon separated list of recipients for GPG encryption"
             echo
             echo "    -P psql                Path to the psql command"
             echo "    -h hostname            Database server host or socket directory"
@@ -260,12 +269,13 @@ cleanup() {
 	        bd=$(qw "$backup_dir")
 	        ssh -n -- "$backup_ssh_target" "test -d $bd && rm -rf -- $bd" 2>/dev/null
             fi
-            
+
             [ -n "$tblspc_list" ] && rm -f -- "$tblspc_list"
             [ -n "$replslot_list" ] && rm -f -- "$replslot_list"
             [ -n "$psql_stderr" ] && rm -f -- "$psql_stderr"
             [ -n "$backup_label_file" ] && rm -f -- "$backup_label_file"
             [ -n "$tablespace_map_file"  ] && rm -f -- "$tablespace_map_file"
+            [ -n "$pg_control_file"   ] && rm -f -- "$pg_control_file"
             ;;
         "check")
             if [ "$output" = "nagios" ]; then
@@ -1086,6 +1096,7 @@ case $action in
             
 	    # Find the storage method of the backup, with compression suffix for tar
             storage=
+            encryption="false"
             if [ "$backup_local" = "yes" ]; then
 	        if [ -d "$dir/pgdata" ]; then
                     storage="rsync"
@@ -1116,6 +1127,9 @@ case $action in
                         list_output_json "compression" ""
                         ;;
                     tar)
+                        if [[ "${tarfile[0]}" =~ pgdata\.tar\.gpg ]]; then
+                            encryption="true"
+                        fi
 		        suffix=${tarfile#$prefix}
 		        list_output_text "  storage" "tar with ${suffix:-"no"} compression"
                         list_output_json "storage" "tar"
@@ -1125,6 +1139,9 @@ case $action in
 		        error "no rsync dir and ${#tarfile[@]} pgdata.tar files found"
                         ;;
                 esac
+
+                list_output_text "  encryption" $encryption
+                list_output_json "encryption" $encryption
 	    fi
 
             # Print the minimum recovery target time with this backup
@@ -1249,12 +1266,14 @@ case $action in
 	load_config
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "D:s:c:e:tTP:h:p:U:d:?" arg 2>/dev/null; do
+	while getopts "D:s:c:e:Er:tTP:h:p:U:d:?" arg 2>/dev/null; do
 	    case $arg in
                 D) PGDATA=$OPTARG;;
 		s) STORAGE=$OPTARG;;
 		c) BACKUP_COMPRESS_BIN=$OPTARG;;
 		e) BACKUP_COMPRESS_SUFFIX=$OPTARG;;
+                E) BACKUP_ENCRYPT="yes";;
+                r) GPG_ENCRYPT_KEYS="$OPTARG";;
                 t) USE_ISO8601_TIMESTAMPS="yes";;
 		T) LOG_TIMESTAMP="yes";;
 
@@ -1284,7 +1303,35 @@ case $action in
         # PGDATA may be used directly from the environment, so check if it is ok
         [ -n "$PGDATA" ] || die "PGDATA is not set"
         [ -d "$PGDATA" ] || die "PGDATA is not a directory"
-        
+
+        # When GPG encryption is used, ensure the storage is tar or print a warning
+        if [ "$BACKUP_ENCRYPT" = "yes" ] && [ "$STORAGE" != "tar" ]; then
+            warn "encryption only available with the 'tar' storage method"
+            BACKUP_ENCRYPT="no"
+        fi
+
+        # Check if we have recipients for encryption
+        if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+            if [ -z "$GPG_ENCRYPT_KEYS" ]; then
+                die "missing recipients for GPG encryption"
+            else
+                # Prepare and check GPG command line
+                gpg_command=( "$GPG_BIN" "--batch" "--yes" "--encrypt" )
+
+                while read -r -d '' o; do
+                    gpg_command+=( "--recipient" "$o" )
+                done < <(tr ':' '\0' <<< "${GPG_ENCRYPT_KEYS}:")
+
+                info "Checking GPG encryption"
+                echo "test" | "${gpg_command[@]}" > /dev/null
+                rc=(${PIPESTATUS[*]})
+                gpg_rc=${rc[1]}
+                if [ "$gpg_rc" != 0 ]; then
+                    die "failed to check GPG encryption. command line:" "${gpg_command[@]}"
+                fi
+            fi
+        fi
+
         # Prepare the text will put in the backup_label
         label_text="pitrery_${version}_`date +%s`"
 
@@ -1543,25 +1590,53 @@ case $action in
 	            die_and_hook "could not change current directory to $PGDATA"
 	        fi
 
+                # prepare the list of files and directories to exclude
+                excluded=("pg_${xlog_or_wal}" 'pg_replslot/*' 'postmaster.*' 'pgsql_tmp' 'restored_config_files' 'backup_label.old' '*.sql')
+                excluded_opts=()
+                for i in "${excluded[@]}"; do
+                    exclude_opts+=("--exclude=$i")
+                done
+                
 	        info "archiving $PGDATA"
 	        if [ "$backup_local" = "yes" ]; then
-	            tar -cpf - --ignore-failed-read --exclude="pg_${xlog_or_wal}" --exclude='pg_replslot/*' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' --exclude='*.sql' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN > "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX"
-	            rc=(${PIPESTATUS[*]})
-	            tar_rc=${rc[0]}
-	            compress_rc=${rc[1]}
-	            if [ "$tar_rc" = 2 ] || [ "$compress_rc" != 0 ]; then
-		        die_and_hook "could not tar PGDATA"
-	            fi
+                    if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                        tar -cpf - --ignore-failed-read "${exclude_opts[@]}" -- * 2>/dev/null | "${gpg_command[@]}" -o "$backup_dir/pgdata.tar.gpg"
+                        rc=(${PIPESTATUS[*]})
+	                tar_rc=${rc[0]}
+                        gpg_rc=${rc[1]}
+                        if [ "$tar_rc" = 2 ] || [ "$gpg_rc" != 0 ]; then
+		            die_and_hook "could not tar PGDATA"
+	                fi
+                    else
+	                tar -cpf - --ignore-failed-read "${exclude_opts[@]}" -- * 2>/dev/null | $BACKUP_COMPRESS_BIN > "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX"
+	                rc=(${PIPESTATUS[*]})
+	                tar_rc=${rc[0]}
+	                compress_rc=${rc[1]}
+	                if [ "$tar_rc" = 2 ] || [ "$compress_rc" != 0 ]; then
+		            die_and_hook "could not tar PGDATA"
+	                fi
+                    fi
 	        else
-	            tar -cpf - --ignore-failed-read --exclude="pg_${xlog_or_wal}" --exclude='pg_replslot/*' --exclude='postmaster.*' --exclude='pgsql_tmp' --exclude='restored_config_files' --exclude='backup_label.old' --exclude='*.sql' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | ssh -- "$backup_ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
-	            rc=(${PIPESTATUS[*]})
-	            tar_rc=${rc[0]}
-	            compress_rc=${rc[1]}
-	            ssh_rc=${rc[2]}
-	            if [ "$tar_rc" = 2 ] || [ "$compress_rc" != 0 ] || [ "$ssh_rc" != 0 ]; then
-		        die_and_hook "could not tar PGDATA"
+                    if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                        tar -cpf - --ignore-failed-read "${exclude_opts[@]}" -- * 2>/dev/null | "${gpg_command[@]}" | ssh -- "$backup_ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.gpg")" 2>/dev/null
+                        rc=(${PIPESTATUS[*]})
+	                tar_rc=${rc[0]}
+                        gpg_rc=${rc[1]}
+                        ssh_rc=${rc[2]}
+                        if [ "$tar_rc" = 2 ] || [ "$gpg_rc" != 0 ] || [ "$ssh_rc" != 0 ]; then
+		            die_and_hook "could not tar PGDATA"
+	                fi
+                    else
+	                tar -cpf - --ignore-failed-read "${exclude_opts[@]}" -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | ssh -- "$backup_ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
+	                rc=(${PIPESTATUS[*]})
+	                tar_rc=${rc[0]}
+	                compress_rc=${rc[1]}
+	                ssh_rc=${rc[2]}
+	                if [ "$tar_rc" = 2 ] || [ "$compress_rc" != 0 ] || [ "$ssh_rc" != 0 ]; then
+		            die_and_hook "could not tar PGDATA"
+	                fi
 	            fi
-	        fi
+                fi
 	        cd -- "$was"
 
 	        # Tar the tablespaces
@@ -1587,23 +1662,44 @@ case $action in
                     # unique.
 	            info "archiving $location"
 	            if [ "$backup_local" = "yes" ]; then
-		        tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN > "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX"
-		        rc=(${PIPESTATUS[*]})
-		        tar_rc=${rc[0]}
-		        compress_rc=${rc[1]}
-		        if [ "$tar_rc" = 2 ] || [ "$compress_rc" != 0 ]; then
-		            die_and_hook "could not tar tablespace \"$name\""
-		        fi
+                        if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                            tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | "${gpg_command[@]}" -o "$backup_dir/tblspc/${_name}.tar.gpg"
+                            rc=(${PIPESTATUS[*]})
+		            tar_rc=${rc[0]}
+                            gpg_rc=${rc[1]}
+		            if [ "$tar_rc" = 2 ] || [ "$gpg_rc" != 0 ]; then
+		                die_and_hook "could not tar tablespace \"$name\""
+		            fi
+                        else
+		            tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN > "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX"
+		            rc=(${PIPESTATUS[*]})
+		            tar_rc=${rc[0]}
+		            compress_rc=${rc[1]}
+		            if [ "$tar_rc" = 2 ] || [ "$compress_rc" != 0 ]; then
+		                die_and_hook "could not tar tablespace \"$name\""
+		            fi
+                        fi
 	            else
-		        tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | ssh -- "$backup_ssh_target" "cat > $(qw "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
-		        rc=(${PIPESTATUS[*]})
-		        tar_rc=${rc[0]}
-		        compress_rc=${rc[1]}
-		        ssh_rc=${rc[2]}
-		        if [ "$tar_rc" = 2 ] || [ "$compress_rc" != 0 ] || [ "$ssh_rc" != 0 ]; then
-		            die_and_hook "could not tar tablespace \"$name\""
-		        fi
-	            fi
+                        if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                            tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | "${gpg_command[@]}" | ssh -- "$backup_ssh_target" "cat > $(qw "$backup_dir/tblspc/${_name}.tar.gpg")" 2>/dev/null
+		            rc=(${PIPESTATUS[*]})
+		            tar_rc=${rc[0]}
+                            gpg_rc=${rc[1]}
+		            ssh_rc=${rc[2]}
+		            if [ "$tar_rc" = 2 ] || [ "$gpg_rc" != 0 ] || [ "$ssh_rc" != 0 ]; then
+		                die_and_hook "could not tar tablespace \"$name\""
+		            fi
+                        else
+		            tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | ssh -- "$backup_ssh_target" "cat > $(qw "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
+		            rc=(${PIPESTATUS[*]})
+		            tar_rc=${rc[0]}
+		            compress_rc=${rc[1]}
+		            ssh_rc=${rc[2]}
+		            if [ "$tar_rc" = 2 ] || [ "$compress_rc" != 0 ] || [ "$ssh_rc" != 0 ]; then
+		                die_and_hook "could not tar tablespace \"$name\""
+		            fi
+	                fi
+                    fi
 
 	            cd -- "$was"
 
@@ -1705,6 +1801,10 @@ case $action in
 	                         "SELECT slot_name,plugin,slot_type,database FROM pg_replication_slots;" \
 	                         -- "$psql_condb" 2>/dev/null > "$replslot_list" ||
 	        die_and_hook "could not get the list of replication slots from PostgreSQL"
+
+            if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                "${gpg_command[@]}" -o "${replslot_list}.gpg" "$replslot_list" || die_and_hook "could not encrypt the list of replication slots"
+            fi
         fi
 
         # Starting from 9.6 and when the backup is from a standby server,
@@ -1713,14 +1813,36 @@ case $action in
         # pg_control file just before ending the backup.
         if (( $pg_version >= 90600 )) && [ "$standby" = "t" ]; then
             info "backup it taken from a standby server, copying the pg_control file"
-            if [ "$backup_local" = "yes" ]; then
-                if ! cp -- "$PGDATA/global/pg_control" "$backup_dir/"; then
-                    die_and_hook "could not copy the pg_control file to $backup_dir"
+
+            if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                # Use a temporary file so that we can encrypt it away from PGDATA
+                if ! pg_control_file=$(mktemp -t backup_pitr.XXXXXXXXXX); then
+                    die_and_hook "could not create temporary file"
+                fi
+
+                "${gpg_command[@]}" -o "$pg_control_file" "$PGDATA/global/pg_control" || \
+                    die_and_hook "could not encrypt the pg_control file"
+
+                if [ "$backup_local" = "yes" ]; then
+                    if ! cp -- "$pg_control_file" "$backup_dir/pg_control.gpg"; then
+                        die_and_hook "could not copy the pg_control file to $backup_dir"
+                    fi
+                else
+                    if ! scp -- "$pg_control_file" "$backup_ssh_target:$(qw "$backup_dir/pg_control.gpg")" > /dev/null; then
+	                die_and_hook "could not copy the pg_control file to $target:$backup_dir"
+                    fi
                 fi
             else
-                if ! scp -- "$PGDATA/global/pg_control" "$backup_ssh_target:$(qw "$backup_dir/")" > /dev/null; then
-	            die_and_hook "could not copy the pg_control file to $target:$backup_dir"
+                if [ "$backup_local" = "yes" ]; then
+                    if ! cp -- "$PGDATA/global/pg_control" "$backup_dir/"; then
+                        die_and_hook "could not copy the pg_control file to $backup_dir"
+                    fi
+                else
+                    if ! scp -- "$PGDATA/global/pg_control" "$backup_ssh_target:$(qw "$backup_dir/")" > /dev/null; then
+                        die_and_hook "could not copy the pg_control file to $target:$backup_dir"
+                    fi
                 fi
+
             fi
         fi
 
@@ -1794,14 +1916,30 @@ case $action in
 
 	        if [ "$backup_local" = "yes" ]; then
 	            mkdir -p -- "$destdir"
-	            if ! cp -- "$file" "$dest"; then
-		        die_and_hook "could not copy $f to backup directory"
-	            fi
+                    if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                        "${gpg_command[@]}" -o "${dest}.gpg" "$file" || \
+                            die_and_hook "could not encrypt $f and store it in backup directory"
+                    else
+	                cp -- "$file" "$dest" || \
+		            die_and_hook "could not copy $f to backup directory"
+                    fi
 	        else
 	            ssh -n -- "$backup_ssh_target" "mkdir -p -- $(qw "$destdir")" 2>/dev/null
-	            if ! scp -- "$file" "$backup_ssh_target:$(qw "$dest")" >/dev/null; then
-		        die_and_hook "could not copy $f to backup directory on $target"
-	            fi
+                    if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                        # Use a temporary file so that we can encrypt it
+                        if ! conf_file=$(mktemp -t backup_pitr.XXXXXXXXXX); then
+                            die_and_hook "could not create temporary file"
+                        fi
+
+                        "${gpg_command[@]}" -o "$conf_file" "$file" || die_and_hook "could not encrypt $f"
+	                if ! scp -- "$conf_file" "$backup_ssh_target:$(qw "${dest}.gpg")" >/dev/null; then
+		            die_and_hook "could not copy $f to backup directory on $target"
+	                fi
+                    else
+                        if ! scp -- "$file" "$backup_ssh_target:$(qw "$dest")" >/dev/null; then
+		            die_and_hook "could not copy $f to backup directory on $target"
+	                fi
+                    fi
 	        fi
             fi
         done < <(
@@ -1840,7 +1978,7 @@ case $action in
 	        die_and_hook "could not rename the backup directory"
             fi
             backup_dir=$new_backup_dir
-            
+
             # Copy the backup history file
             info "copying the backup history file"
             if ! cp -- "$backup_file" "$backup_dir/backup_label"; then
@@ -1873,8 +2011,16 @@ case $action in
             # Save the list of defined replication slots
             if [ -f "$replslot_list" ] && (( $(cat -- "$replslot_list" | wc -l) > 0 )); then
 	        info "copying the replication slots list"
-	        cp -- "$replslot_list" "$backup_dir/replslot_list" ||
-	            die_and_hook "could not copy the replication slots list to $backup_dir"
+                replslot_list_target="$backup_dir/replslot_list"
+                if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                    # since we know there are some replication slots
+                    # to save, we can remove the clear tempfile
+                    rm -- "$replslot_list"
+                    replslot_list="${replslot_list}.gpg"
+                    replslot_list_target="$backup_dir/replslot_list.gpg"
+                fi
+                cp -- "$replslot_list" "$replslot_list_target" ||
+                    die_and_hook "could not copy the replication slots list to $backup_dir"
             fi
 
             # Copy the PG_VERSION file
@@ -1892,7 +2038,7 @@ case $action in
 	        die_and_hook "could not rename the backup directory"
             fi
             backup_dir=$new_backup_dir
-            
+
             # Save the end of backup timestamp to a file
             if [ -n "$timestamp" ]; then
 	        ssh -n -- "$backup_ssh_target" "echo '$timestamp' > $(qw "$backup_dir/backup_timestamp")" 2>/dev/null ||
@@ -1926,7 +2072,15 @@ case $action in
             # Save the list of defined replication slots
             if [ -f "$replslot_list" ] && (( $(cat -- "$replslot_list" | wc -l) > 0 )); then
 	        info "copying the replication slots list"
-	        scp -- "$replslot_list" "$backup_ssh_target:$(qw "$backup_dir/replslot_list")" >/dev/null ||
+                replslot_list_target="$backup_dir/replslot_list"
+                if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                    # since we know there are some replication slots
+                    # to save, we can remove the clear text tempfile
+                    rm -- "$replslot_list"
+                    replslot_list="${replslot_list}.gpg"
+                    replslot_list_target="$backup_dir/replslot_list.gpg"
+                fi
+	        scp -- "$replslot_list" "$backup_ssh_target:$(qw "$replslot_list_target")" >/dev/null ||
 	            die_and_hook "could not copy the replication slots list to $backup_ssh_target:$backup_dir"
             fi
 
@@ -1952,8 +2106,6 @@ case $action in
         [ -n "$tablespace_map_file"  ] && rm -f -- "$tablespace_map_file"
 
         info "done"
-
-        
 	;;
 
     restore)
@@ -2179,6 +2331,9 @@ case $action in
         if [ "$backup_local" = "yes" ]; then
             if [ -f "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX" ]; then
 	        storage="tar"
+            elif [ -f "$backup_dir/pgdata.tar.gpg" ]; then
+                storage="tar"
+                BACKUP_ENCRYPT="yes"
             elif [ -d "$backup_dir/pgdata" ]; then
 	        storage="rsync"
             else
@@ -2186,15 +2341,28 @@ case $action in
 	        storage=$(find "$backup_dir" -mindepth 1 -maxdepth 1 -name 'pgdata.tar.*' -type f -printf '%f' -quit)
             fi
         else
-            storage=$(ssh -n -- "$backup_ssh_target" "if [ -f $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX") ]; then echo 'tar'; elif [ -d $(qw "$backup_dir/pgdata") ]; then echo 'rsync'; else find $(qw "$backup_dir") -maxdepth 1 -name 'pgdata.tar.*' -type f -printf '%f' -quit; fi")
+            storage=$(ssh -n -- "$backup_ssh_target" "if [ -f $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX") ]; then echo 'tar'; elif [ -d $(qw "$backup_dir/pgdata") ]; then echo 'rsync'; else find $(qw "$backup_dir") -maxdepth 1 -mindepth 1 -name 'pgdata.tar.*' -type f -printf '%f' -quit; fi")
+
+            if [ "$storage" = "pgdata.tar.gpg" ]; then
+                storage="tar"
+                BACKUP_ENCRYPT="yes"
+            fi
         fi
 
         [ -n "$storage" ] ||
             error "could not find what storage method is used in ${backup_ssh_target:+$backup_ssh_target:}$backup_dir"
 
-        [[ $storage =~ ^pgdata\.tar\. ]] &&
+        # Check if the compression suffix is unexpected, so that it
+        # can be fixed by the user in the config or commandline
+        if [[ $storage =~ ^pgdata\.tar\. ]]; then
             error "expecting '$BACKUP_COMPRESS_SUFFIX' compression, but found ${backup_ssh_target:+$backup_ssh_target:}$backup_dir/$storage"
+        fi
 
+        # Prepare the decryption commandline, with a gpg-agent
+        if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+            gpg_command=( "$GPG_BIN" "--batch" "--yes" "--decrypt" "--quiet" )
+        fi
+        
         # Check target directories
         check_and_fix_directory "$PGDATA"
 
@@ -2221,22 +2389,43 @@ case $action in
 	        was=`pwd`
 	        cd -- "$PGDATA"
 	        if [ "$backup_local" = "yes" ]; then
-	            $BACKUP_UNCOMPRESS_BIN -c -- "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX" | tar xf -
-	            rc=(${PIPESTATUS[*]})
-	            uncompress_rc=${rc[0]}
-	            tar_rc=${rc[1]}
-	            if [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
-		        error "could not extract $backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX to $PGDATA"
-	            fi
+                    if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                        "${gpg_command[@]}" -o - "$backup_dir/pgdata.tar.gpg" | tar xf -
+                        rc=(${PIPESTATUS[*]})
+                        gpg_rc=${rc[0]}
+	                tar_rc=${rc[1]}
+                        if [ "$gpg_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		            die "could not extract $backup_dir/pgdata.tar.gpg to $PGDATA"
+	                fi
+                    else
+	                $BACKUP_UNCOMPRESS_BIN -c -- "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX" | tar xf -
+	                rc=(${PIPESTATUS[*]})
+	                uncompress_rc=${rc[0]}
+	                tar_rc=${rc[1]}
+	                if [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		            error "could not extract $backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX to $PGDATA"
+	                fi
+                    fi
 	        else
-	            ssh -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null | $BACKUP_UNCOMPRESS_BIN | tar xf - 2>/dev/null
-	            rc=(${PIPESTATUS[*]})
-	            ssh_rc=${rc[0]}
-	            uncompress_rc=${rc[1]}
-	            tar_rc=${rc[2]}
-	            if [ "$ssh_rc" != 0 ] || [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
-		        error "could not extract $backup_ssh_target:$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX to $PGDATA"
-	            fi
+                    if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+	                ssh -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/pgdata.tar.gpg")" 2>/dev/null | "${gpg_command[@]}" | tar xf - 2>/dev/null
+	                rc=(${PIPESTATUS[*]})
+	                ssh_rc=${rc[0]}
+                        gpg_rc=${rc[1]}
+	                tar_rc=${rc[2]}
+	                if [ "$ssh_rc" != 0 ] || [ "$gpg_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		            die "could not extract $backup_ssh_target:$backup_dir/pgdata.tar.gpg to $PGDATA"
+	                fi
+                    else
+                        ssh -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null | $BACKUP_UNCOMPRESS_BIN | tar xf - 2>/dev/null
+	                rc=(${PIPESTATUS[*]})
+	                ssh_rc=${rc[0]}
+	                uncompress_rc=${rc[1]}
+	                tar_rc=${rc[2]}
+	                if [ "$ssh_rc" != 0 ] || [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		            error "could not extract $backup_ssh_target:$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX to $PGDATA"
+	                fi
+                    fi
 	        fi
 	        cd -- "$was"
 	        info "extraction of PGDATA successful"
@@ -2287,7 +2476,7 @@ case $action in
         fi
 
         # Restore the configuration file in a subdirectory of PGDATA
-        restored_conf=$PGDATA/restored_config_files
+        restored_conf="$PGDATA/restored_config_files"
 
         if [ "$backup_local" = "yes" ]; then
             # Check the directory, when configuration files are
@@ -2307,6 +2496,18 @@ case $action in
 	            warn "could not copy $source:$backup_dir/conf to $restored_conf"
 	        fi
             fi
+        fi
+
+        # Decrypt restored config files
+        if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+            _files=( "$restored_conf"/*.gpg )
+            for f in "${_files[@]}"; do
+                if ! "${gpg_command[@]}" -o "$restored_conf/$(basename "$f" .gpg)" "$f"; then
+                    error "could not decrypt configuration file $f"
+                else
+                    rm -- "$f" || error "could not remove $f"
+                fi
+            done
         fi
 
         # change owner of PGDATA to the target owner
@@ -2346,22 +2547,43 @@ case $action in
 	            was=`pwd`
 	            cd -- "$tbldir"
 	            if [ "$backup_local" = "yes" ]; then
-		        $BACKUP_UNCOMPRESS_BIN -c -- "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX" | tar xf -
-		        rc=(${PIPESTATUS[*]})
-		        uncompress_rc=${rc[0]}
-		        tar_rc=${rc[1]}
-		        if [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
-		            error "Could not extract tablespace $name to $tbldir"
-		        fi
+                        if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                            "${gpg_command[@]}" -o - "$backup_dir/tblspc/${_name}.tar.gpg" | tar xf -
+		            rc=(${PIPESTATUS[*]})
+                            gpg_rc=${rc[0]}
+		            tar_rc=${rc[1]}
+		            if [ "$gpg_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		                die "Could not extract tablespace $name to $tbldir"
+		            fi
+                        else
+                            $BACKUP_UNCOMPRESS_BIN -c -- "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX" | tar xf -
+		            rc=(${PIPESTATUS[*]})
+		            uncompress_rc=${rc[0]}
+		            tar_rc=${rc[1]}
+		            if [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		                error "Could not extract tablespace $name to $tbldir"
+		            fi
+                        fi
 	            else
-		        ssh -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null | $BACKUP_UNCOMPRESS_BIN | tar xf - 2>/dev/null
-		        rc=(${PIPESTATUS[*]})
-		        ssh_rc=${rc[0]}
-		        uncompress_rc=${rc[1]}
-		        tar_rc=${rc[2]}
-		        if [ "$ssh_rc" != 0 ] || [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
-		            error "Could not extract tablespace $name to $tbldir"
-		        fi
+                        if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+		            ssh -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/tblspc/${_name}.tar.gpg")" 2>/dev/null | "${gpg_command[@]}" | tar xf - 2>/dev/null
+		            rc=(${PIPESTATUS[*]})
+		            ssh_rc=${rc[0]}
+                            gpg_rc=${rc[1]}
+	                    tar_rc=${rc[2]}
+		            if [ "$ssh_rc" != 0 ] || [ "$gpg_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		                die "Could not extract tablespace $name to $tbldir"
+		            fi
+                        else
+                            ssh -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null | $BACKUP_UNCOMPRESS_BIN | tar xf - 2>/dev/null
+		            rc=(${PIPESTATUS[*]})
+		            ssh_rc=${rc[0]}
+		            uncompress_rc=${rc[1]}
+		            tar_rc=${rc[2]}
+		            if [ "$ssh_rc" != 0 ] || [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
+		                error "Could not extract tablespace $name to $tbldir"
+		            fi
+                        fi
 	            fi
 	            cd -- "$was"
 	            info "extraction of tablespace \"${name}\" successful"
@@ -2404,17 +2626,39 @@ case $action in
         # find the backend end location in the WAL. If we find the pg_control
         # file at the root of the backup directory, resore it.
         if [ "$backup_local" = "yes" ]; then
-            if [ -f "$backup_dir/pg_control" ]; then
-                info "pg_control file found in $backup_dir, restoring it"
-                if ! cp -- "$backup_dir/pg_control" "$PGDATA/global/pg_control"; then
-                    error "could not restore pg_control file to $PGDATA/global/"
+            if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                if [ -f "$backup_dir/pg_control.gpg" ]; then
+                    info "pg_control file found in $backup_dir, restoring it"
+                    if ! "${gpg_command[@]}" -o "$PGDATA/global/pg_control" "$backup_dir/pg_control.gpg"; then
+                        error "could not decrypt and restore pg_control file to $PGDATA/global/"
+                    fi
+                fi
+            else
+                if [ -f "$backup_dir/pg_control" ]; then
+                    info "pg_control file found in $backup_dir, restoring it"
+                    if ! cp -- "$backup_dir/pg_control" "$PGDATA/global/pg_control"; then
+                        error "could not restore pg_control file to $PGDATA/global/"
+                    fi
                 fi
             fi
         else
-            if ssh -n -- "$backup_ssh_target" "test -f $(qw "$backup_dir/pg_control")"; then
-                info "pg_control file found in $backup_dir, restoring it"
-                if ! scp -- "$backup_ssh_target:$(qw "$backup_dir/pg_control")" "$PGDATA/global/pg_control" >/dev/null; then
-                    error "could not restore pg_control file to $PGDATA/global/"
+            if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                if ssh -n -- "$backup_ssh_target" "test -f $(qw "$backup_dir/pg_control.gpg")"; then
+                    info "pg_control file found in $backup_dir, restoring it"
+                    ssh -n --  "$backup_ssh_target" "cat -- $(qw "$backup_dir/pg_control.gpg")" 2>/dev/null | "${gpg_command[@]}" > "$PGDATA/global/pg_control"
+                    rc=(${PIPESTATUS[*]})
+	            ssh_rc=${rc[0]}
+                    gpg_rc=${rc[1]}
+                    if [ "$ssh_rc" != 0 ] || [ "$gpg_rc" != 0 ]; then
+                        error "could not decrypt and restore pg_control file to $PGDATA/global/"
+                    fi
+                fi
+            else
+                if ssh -n -- "$backup_ssh_target" "test -f $(qw "$backup_dir/pg_control")"; then
+                    info "pg_control file found in $backup_dir, restoring it"
+                    if ! scp -- "$backup_ssh_target:$(qw "$backup_dir/pg_control")" "$PGDATA/global/pg_control" >/dev/null; then
+                        error "could not restore pg_control file to $PGDATA/global/"
+                    fi
                 fi
             fi
         fi
@@ -2570,14 +2814,30 @@ case $action in
         replslots_sql=$PGDATA/restore_replication_slots.sql
         rm -f -- "$replslots_sql"
         if [ -n "$pgvers" ] && (( 10#$pgvers >= 904 )); then
+            replslot_list_file="$backup_dir/replslot_list"            
+            if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                replslot_list_file="${replslot_list_file}.gpg"
+            fi
+
             if [ "$backup_local" = "yes" ]; then
-	        if [ -f "$backup_dir/replslot_list" ]; then
-	            replslot_list=$(< "$backup_dir/replslot_list") || error "Failed to read $backup_dir/replslot_list"
-	        fi
+	        if [ -f "$replslot_list_file" ]; then
+                    if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                        replslot_list=$("${gpg_command[@]}" < "$replslot_list_file") || error "Failed to decrypt $replslot_list_file"
+                    else
+	                replslot_list=$(< "$replslot_list_file") || error "Failed to read $replslot_list_file"
+                    fi
+                fi
             else
-	        rfile=$(qw "$backup_dir/replslot_list")
-	        replslot_list=$(ssh -n -- "$backup_ssh_target" "[ ! -f $rfile ] || cat -- $tfile") ||
-                    error "Failed to read $source:$backup_dir/replslot_list"
+	        rfile=$(qw "$replslot_list_file")
+                if [ "$BACKUP_ENCRYPT" = "yes" ]; then
+                    if ssh -n -- "$backup_ssh_target" "[ -f $rfile ]"; then
+                        replslot_list=$(ssh -n -- "$backup_ssh_target" "cat -- $rfile" | "${gpg_command[@]}") ||
+                            error "Failed to read $backup_ssh_target:$replslot_list_file"
+                    fi
+                else
+	            replslot_list=$(ssh -n -- "$backup_ssh_target" "[ ! -f $rfile ] || cat -- $rfile") ||
+                        error "Failed to read $source:$replslot_list_file"
+                fi
             fi
 
             while read -r l; do
@@ -3549,8 +3809,9 @@ case $action in
         storage="tar"
         connect="yes"
         overwrite_config="no"
+        encrypt="no"
 
-        while getopts "o:fCs:m:g:D:a:P:h:p:U:d:?" opt; do
+        while getopts "o:fCs:m:g:D:a:Er:P:h:p:U:d:?" opt; do
             case $opt in
 	        o) output=$OPTARG;;
 	        f) overwrite_config="yes";;
@@ -3560,6 +3821,8 @@ case $action in
 	        g) max_days=$OPTARG;;
 	        D) pgdata=$(readlink -m -- "$OPTARG");;
 	        a) archive_path="$OPTARG";;
+                E) encrypt="yes";;
+                r) gpg_encrypt_keys="$OPTARG";;
 
 	        P) psql=$OPTARG; psql_command=( "$OPTARG" );;
                 h) dbhost=$OPTARG;;
@@ -3577,9 +3840,19 @@ case $action in
             usage "configure"
         fi
 
-        # Only tar and rsync are allowed as storage methode
+        # Only tar and rsync are allowed as storage method
         if [ "$storage" != "tar" ] && [ "$storage" != "rsync" ]; then
             die "storage method must be 'tar' or 'rsync'"
+        fi
+
+        # Only tar can be encrypted
+        if [ "$storage" != "tar" ] && [ "$encrypt" = "yes" ]; then
+            die "encryption only available with tar storage"
+        fi
+
+        # we need recipients
+        if [ "$encrypt" = "yes" ] && [ -z "$gpg_encrypt_keys" ]; then
+            die "list of recipients for GPG encryption missing"
         fi
 
         parse_target_uri "${@:$OPTIND:1}" "$archive_path" || usage "configure"
@@ -3682,6 +3955,21 @@ case $action in
             else
 	        warn "cannot read $pgdata/PG_VERSION, access to PGDATA may not be possible"
             fi
+        fi
+
+        # Check gpg availability
+        gpg_command=( "$GPG_BIN" "--batch" "--yes" "--encrypt" )
+
+        while read -r -d '' o; do
+            gpg_command+=( "--recipient" "$o" )
+        done < <(tr ':' '\0' <<< "${gpg_encrypt_keys}:")
+
+        info "Checking GPG encryption"
+        echo "test" | "${gpg_command[@]}" > /dev/null
+        rc=(${PIPESTATUS[*]})
+        gpg_rc=${rc[1]}
+        if [ "$gpg_rc" != 0 ]; then
+            die "failed to check GPG encryption. command line:" "${gpg_command[@]}"
         fi
 
         info "==> contents of the configuration file"
@@ -3867,6 +4155,25 @@ case $action in
 # "gunzip".
 #BACKUP_UNCOMPRESS_BIN="$BACKUP_UNCOMPRESS_BIN"
 
+####################
+# Encryption (gpg)
+####################
+
+# This only applies to the tar storage, as ciphered files would not be
+# synchronized by rsync. Note that compression options do not apply
+# when encyrpting files as GPG already compresses the output file
+# using zlib by default.
+#BACKUP_ENCRYPT="no"
+
+#ARCHIVE_ENCRYPT="no"
+
+# When gpg encryption is unabled, specifies the recipients to encrypt
+# data to. It can be a colon separated list of recipients. All public
+# keys must be available in the keyring of the user running the
+# PostgreSQL cluster and the user who runs pitrery for base backups if
+# different.
+#GPG_ENCRYPT_KEYS=""
+
 EOF
         fi
 
@@ -3922,6 +4229,11 @@ EOF
             [ "$syslog_facility" != "local0" ] && output_param "SYSLOG_FACILITY" "$syslog_facility" "$conffile"
             [ "$syslog_ident" != "postgres" ] && output_param "SYSLOG_IDENT" "$syslog_ident" "$conffile"
         fi
+
+        output_param "BACKUP_ENCRYPT" "$encrypt" "$conffile"
+        output_param "ARCHIVE_ENCRYPT" "$encrypt" "$conffile"
+        output_param "GPG_ENCRYPT_KEYS" "$gpg_encrypt_keys" "$conffile"
+
         echo
 
         # Write the configuration file

@@ -37,6 +37,9 @@ ARCHIVE_FILE_CHMOD=""
 CONFIG_DIR="/etc/pitrery"
 CONFIG="pitrery.conf"
 
+GPG_BIN="/usr/bin/gpg"
+ARCHIVE_ENCRYPT="no"
+GPG_ENCRYPT_KEYS=""
 
 # Apply an extra level of shell quoting to each of the arguments passed.
 # This is necessary for remote-side arguments of ssh (including commands that
@@ -83,6 +86,9 @@ usage() {
     echo "    -c command     compression command"
     echo "    -s suffix      compressed file suffix (ex: gz)"
     echo
+    echo "    -E             encrypt the file using gpg"
+    echo "    -r keys:...    colon separated list of recipients for GPG encryption"
+    echo
     echo "    -S             send messages to syslog"
     echo "    -f facility    syslog facility"
     echo "    -t ident       syslog ident"
@@ -121,9 +127,9 @@ parse_target_uri() {
        
     else
         # Fallback to the values from the configuration file
-        [ -n "$BACKUP_USER" ] && backup_user=$BACKUP_USER
-        [ -n "$BACKUP_HOST" ] && backup_host=$BACKUP_HOST
-        [ -n "$BACKUP_DIR" ] && backup_dir=$BACKUP_DIR
+        [ -n "$BACKUP_USER" ] && backup_user="$BACKUP_USER"
+        [ -n "$BACKUP_HOST" ] && backup_host="$BACKUP_HOST"
+        [ -n "$BACKUP_DIR" ] && backup_dir="$BACKUP_DIR"
     fi
 
     # Deduce if backup is local
@@ -136,9 +142,18 @@ parse_target_uri() {
         echo $backup_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && backup_host="[${backup_host}]"
 
         # Add a shortcut for ssh/rsync commands
-        backup_ssh_target=${backup_user:+$backup_user@}$backup_host
+        backup_ssh_target="${backup_user:+$backup_user@}$backup_host"
     fi
-    
+
+    if [ -n "$backup_dir" ]; then
+        # Ensure the backup directory is an absolute path
+        if [ "$backup_local" = "yes" ]; then
+            backup_dir="$(readlink -m -- "$backup_dir")"
+        else
+            backup_dir="$(ssh -n -- "$backup_ssh_target" "readlink -m -- $(qw "$backup_dir")")"
+        fi
+    fi
+
     # Parse archive target the same way
     if [ -n "$archive_target" ]; then
         archive_user="$(echo $archive_target | grep '@' | cut -d'@' -f1 )"
@@ -174,10 +189,16 @@ parse_target_uri() {
 
     [ -n "$archive_dir" ] || error "missing archive directory"
 
+    # Ensure the achives directory is an absolute path
+    if [ "$archive_local" = "yes" ]; then
+        archive_dir="$(readlink -m -- "$archive_dir")"
+    else
+        archive_dir="$(ssh -n -- "$archive_ssh_target" "readlink -m -- $(qw "$archive_dir")")"
+    fi
 }
 
 # Command line options
-while getopts "C:a:XOHFc:s:Sf:t:m:T?"  opt; do
+while getopts "C:a:XOHFc:s:Er:Sf:t:m:T?"  opt; do
     case $opt in
         C) CONFIG=$OPTARG;;
         a) archive_path="$OPTARG";;
@@ -185,8 +206,10 @@ while getopts "C:a:XOHFc:s:Sf:t:m:T?"  opt; do
         O) CLI_ARCHIVE_OVERWRITE="no";;
         H) CLI_ARCHIVE_CHECK="yes";;
         F) CLI_ARCHIVE_FLUSH="yes";;
-        c) CLI_ARCHIVE_COMPRESS_BIN=$OPTARG;;
-        s) CLI_ARCHIVE_COMPRESS_SUFFIX=$OPTARG;;
+        c) CLI_ARCHIVE_COMPRESS_BIN="$OPTARG";;
+        s) CLI_ARCHIVE_COMPRESS_SUFFIX="$OPTARG";;
+        E) CLI_ARCHIVE_ENCRYPT="yes";;
+        r) CLI_GPG_ENCRYPT_KEYS="$OPTARG";;
         S) CLI_SYSLOG="yes";;
         f) CLI_SYSLOG_FACILITY=$OPTARG;;
         t) CLI_SYSLOG_IDENT=$OPTARG;;
@@ -210,18 +233,19 @@ if [ -f "$CONFIG" ]; then
 fi
 
 # Overwrite configuration with cli options
-
-[ -n "$CLI_ARCHIVE_COMPRESS" ] && ARCHIVE_COMPRESS=$CLI_ARCHIVE_COMPRESS
-[ -n "$CLI_ARCHIVE_COMPRESS_BIN" ] && ARCHIVE_COMPRESS_BIN=$CLI_ARCHIVE_COMPRESS_BIN
-[ -n "$CLI_ARCHIVE_COMPRESS_SUFFIX" ] && ARCHIVE_COMPRESS_SUFFIX=$CLI_ARCHIVE_COMPRESS_SUFFIX
-[ -n "$CLI_ARCHIVE_OVERWRITE" ] && ARCHIVE_OVERWRITE=$CLI_ARCHIVE_OVERWRITE
-[ -n "$CLI_ARCHIVE_CHECK" ] && ARCHIVE_CHECK=$CLI_ARCHIVE_CHECK
-[ -n "$CLI_ARCHIVE_FLUSH" ] && ARCHIVE_FLUSH=$CLI_ARCHIVE_FLUSH
-[ -n "$CLI_SYSLOG" ] && SYSLOG=$CLI_SYSLOG
-[ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY=$CLI_SYSLOG_FACILITY
-[ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT=$CLI_SYSLOG_IDENT
-[ -n "$CLI_ARCHIVE_FILE_CHMOD" ] && ARCHIVE_FILE_CHMOD=$CLI_ARCHIVE_FILE_CHMOD
-[ -n "$CLI_LOG_TIMESTAMP" ] && LOG_TIMESTAMP=$CLI_LOG_TIMESTAMP
+[ -n "$CLI_ARCHIVE_COMPRESS" ] && ARCHIVE_COMPRESS="$CLI_ARCHIVE_COMPRESS"
+[ -n "$CLI_ARCHIVE_COMPRESS_BIN" ] && ARCHIVE_COMPRESS_BIN="$CLI_ARCHIVE_COMPRESS_BIN"
+[ -n "$CLI_ARCHIVE_COMPRESS_SUFFIX" ] && ARCHIVE_COMPRESS_SUFFIX="$CLI_ARCHIVE_COMPRESS_SUFFIX"
+[ -n "$CLI_ARCHIVE_OVERWRITE" ] && ARCHIVE_OVERWRITE="$CLI_ARCHIVE_OVERWRITE"
+[ -n "$CLI_ARCHIVE_CHECK" ] && ARCHIVE_CHECK="$CLI_ARCHIVE_CHECK"
+[ -n "$CLI_ARCHIVE_FLUSH" ] && ARCHIVE_FLUSH="$CLI_ARCHIVE_FLUSH"
+[ -n "$CLI_SYSLOG" ] && SYSLOG="$CLI_SYSLOG"
+[ -n "$CLI_SYSLOG_FACILITY" ] && SYSLOG_FACILITY="$CLI_SYSLOG_FACILITY"
+[ -n "$CLI_SYSLOG_IDENT" ] && SYSLOG_IDENT="$CLI_SYSLOG_IDENT"
+[ -n "$CLI_ARCHIVE_FILE_CHMOD" ] && ARCHIVE_FILE_CHMOD="$CLI_ARCHIVE_FILE_CHMOD"
+[ -n "$CLI_LOG_TIMESTAMP" ] && LOG_TIMESTAMP="$CLI_LOG_TIMESTAMP"
+[ -n "$CLI_ARCHIVE_ENCRYPT" ] && ARCHIVE_ENCRYPT="$CLI_ARCHIVE_ENCRYPT"
+[ -n "$CLI_GPG_ENCRYPT_KEYS" ] && GPG_ENCRYPT_KEYS="$CLI_GPG_ENCRYPT_KEYS"
 
 # Redirect output to syslog if configured
 if [ "$SYSLOG" = "yes" ]; then
@@ -259,14 +283,39 @@ check_local_dest_exists()
     [ ! -e "$1" ] || error "$1 already exists, refusing to overwrite it."
 }
 
+if [ "$ARCHIVE_ENCRYPT" = "yes" ]; then
+    if [ -z "$GPG_ENCRYPT_KEYS" ]; then
+        error "missing recipients for GPG encryption"
+    else
+        # Prepare and check GPG command line
+        gpg_command=( "$GPG_BIN" "--batch" "--yes" "--encrypt" )
+
+        while read -r -d '' o; do
+            gpg_command+=( "--recipient" "$o" )
+        done < <(tr ':' '\0' <<< "${GPG_ENCRYPT_KEYS}:")
+    fi
+fi
+
 # Copy the wal locally
 if [ "$archive_local" = "yes" ]; then
     dd_rc=0
     mkdir -p -- "$archive_dir" 1>&2 ||
         error "Unable to create target directory '$archive_dir'" $?
 
-    if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
-        dest_path=$archive_dir/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
+    if [ "$ARCHIVE_ENCRYPT" = "yes" ]; then
+        dest_path="$archive_dir/$(basename -- "$xlog").gpg"
+        check_local_dest_exists "$dest_path"
+
+        "${gpg_command[@]}" -o - "$xlog" | dd $ARCHIVE_FLUSH of="$dest_path" 2>/dev/null
+        rc=( ${PIPESTATUS[@]} )
+        gpg_rc=${rc[0]}
+        dd_rc=${rc[1]}
+        if [ $gpg_rc != 0 ]; then
+            rm -f -- "$dest_path"
+            error "Encryption of $xlog failed"
+        fi
+    elif [ "$ARCHIVE_COMPRESS" = "yes" ]; then
+        dest_path="$archive_dir/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX"
         check_local_dest_exists "$dest_path"
 
         $ARCHIVE_COMPRESS_BIN -c < "$xlog" | dd $ARCHIVE_FLUSH of="$dest_path" 2>/dev/null
@@ -278,7 +327,7 @@ if [ "$archive_local" = "yes" ]; then
             error "Compressing $xlog to $dest_path failed"
         fi
     else
-        dest_path=$archive_dir/$(basename -- "$xlog")
+        dest_path="$archive_dir/$(basename -- "$xlog")"
         check_local_dest_exists "$dest_path"
 
         dd $ARCHIVE_FLUSH if="$xlog" of="$dest_path" 2>/dev/null
@@ -316,19 +365,27 @@ else
     # Create remote folder if needed. Return 2 on error.
     REMOTE_CMD="mkdir -p -- $(qw "$archive_dir") || exit 2"
 
-    # Compress the file to a temporary location
-    if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
-        dest_file=$archive_dir/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX
+    if [ "$ARCHIVE_ENCRYPT" = "yes" ]; then
+        dest_file="${dest_file}.gpg"
+        tmp_file=$(mktemp -t pitr_wal.XXXXXXXXXX) ||
+            error "Failed to create temporary file for encrypted WAL" $?
+
+        "${gpg_command[@]}" -o "$tmp_file" "$xlog" || error "Failed to encrypt $xlog" $?
+        src_file="$tmp_file"
+
+    elif [ "$ARCHIVE_COMPRESS" = "yes" ]; then
+        # Compress the file to a temporary location
+        dest_file="${dest_file}.$ARCHIVE_COMPRESS_SUFFIX"
         tmp_file=$(mktemp -t pitr_wal.XXXXXXXXXX) ||
             error "Failed to create temporary file for compressed WAL" $?
-
-        src_file="$tmp_file"
 
         # We take no risk, pipe the content to the compression program
         # and save output elsewhere: the compression program never
         # touches the input file
-        $ARCHIVE_COMPRESS_BIN -c < "$xlog" > "$tmp_file" ||
+        $ARCHIVE_COMPRESS_BIN -c < "$src_file" > "$tmp_file" ||
             error "Compressing $xlog to $tmp_file failed" $?
+
+        src_file="$tmp_file"
     fi
 
     # Check if the file exists on the remote host. If the file exists
@@ -381,11 +438,10 @@ else
     fi
 
     # Remove temp file if exists
-    if [ -n "$tmp_file" ] && [ -s "$tmp_file" ]; then
+    if [ -e "$tmp_file" ]; then
         rm -- "$tmp_file" ||
             warn "Unable to remove temporary compressed file '$tmp_file'"
     fi
-
 fi
 
 exit 0

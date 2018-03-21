@@ -233,7 +233,10 @@ usage is straight forward:
         -F             flush the destination file to disk
         -c command     compression command
         -s suffix      compressed file suffix (ex: gz)
-    
+
+        -E             encrypt the file using gpg
+        -r keys:...    colon separated list of recipients for GPG encryption
+
         -S             send messages to syslog
         -f facility    syslog facility
         -t ident       syslog ident
@@ -303,6 +306,8 @@ local.  Some options are available to create a configuration :
         -g days                Remove backup older than this number of days
         -D dir                 Path to $PGDATA
         -a [[user@]host:]/dir  Place to store WAL archives
+        -E                     Encrypt tar backups with GPG
+        -r keys:...            Colon separated list of recipients for GPG encryption
     
         -P psql                Path to the psql command
         -h hostname            Database server host or socket directory
@@ -434,6 +439,10 @@ configured:
   configuration of PostgreSQL so that the messages of `archive_xlog`
   are written to the logfile of PostgreSQL, otherwise they would be
   lost.
+
+* `ARCHIVE_ENCRYPT` can be set to "yes" to encrypt the WAL file using
+  GnuPG. `GPG_ENCRYPT_KEYS` must be configured to give the list of
+  recipients for encryption
 
 If archiving is set up to a remote host, this host must be reachable
 using SSH in batch mode, meaning that passphraseless access using keys
@@ -602,6 +611,9 @@ Or maximum, but slow, compression with the standard `bzip2`:
     ARCHIVE_COMPRESS_SUFFIX="bz2"
     ARCHIVE_UNCOMPRESS_BIN="bunzip"
 
+When encryption is active, compression is managed by GnuPG. The
+compression options listed before do not apply.
+
 
 Tuning compression of base backups with tar
 -------------------------------------------
@@ -623,6 +635,37 @@ compressed using `gzip`. This can be changed by configuring:
   compression tools such as `gzip`, `bzip2`, `pigz`, `pbzip2`, `xz`
   work this way.
 
+When encryption is active, compression is managed by GnuPG. The
+compression options listed before do not apply.
+
+
+Encryption of base backups and archived WAL files
+-------------------------------------------------
+
+When using tar for storing backups, they can also be encrypted using
+GnuPG. For backup and WAL archiving, the public keys of recipients
+must be in the keyring of the user running the PostgreSQL instance and running
+pitrery.
+
+When restoring, the secret key must be in the keyring of the user
+running pitrery and the PostgreSQL instance.
+
+PostgreSQL can decrypt the restored WAL files without prompting for a
+passphrase if it started with `pg_ctl` in a session where a GnuPG
+Agent is running with the passphrase cached. The simplest way to feed
+the passphrase to the agent is to start PostgreSQL right after
+restoring intarectively. See [Restoring an encrypted backup] below.
+
+The encryption of tar backups is controlled by the following parameters:
+
+* `BACKUP_ENCRYPT` must be set to "yes" to encrypt base backups.
+
+* `ARCHIVE_ENCRYPT` must be set to "yes" to encrypt archived WAL files.
+
+* `GPG_ENCRYPT_KEYS` is a colon separeted list of USER-ID recognized
+  by the --recipient option of `gpg`. The keys must be in the keyring
+  of the user running PostgreSQL in order encrypt WAL files at
+  archiving time.
 
 
 Hooks
@@ -704,6 +747,8 @@ local.  Some options are available to create a configuration :
         -g days                Remove backup older than this number of days
         -D dir                 Path to $PGDATA
         -a [[user@]host:]/dir  Place to store WAL archives
+        -E                     Encrypt tar backups with GPG
+        -r keys:...            Colon separated list of recipients for GPG encryption
     
         -P psql                Path to the psql command
         -h hostname            Database server host or socket directory
@@ -832,6 +877,8 @@ action is:
         -s mode              Storage method, tar or rsync
         -c compress_bin      Compression command for tar method
         -e compress_suffix   Suffix added by the compression program
+            -E                   Encrypt tar backups with GPG
+        -r keys:...          Colon separated list of recipients for GPG encryption
         -t                   Use ISO 8601 format to name backups
         -T                   Timestamp log messages
     
@@ -940,6 +987,7 @@ For example :
       /var/backups/postgresql/2017.10.17_15.03.50
       space used: 5.8M
       storage: tar with gz compression
+      encryption: false
     Minimum recovery target time:
       2017-10-17 15:03:50 CEST
     PGDATA:
@@ -951,7 +999,8 @@ For example :
     Directory:
       /var/backups/postgresql/2017.10.17_15.06.46
       space used: 5.8M
-      storage: tar with gz compression
+      storage: tar with gpg compression
+      encryption: true
     Minimum recovery target time:
       2017-10-17 15:06:46 CEST
     PGDATA:
@@ -1183,6 +1232,34 @@ The options of restore are:
         -T                   Timestamp log messages
     
         -?                   Print help
+
+
+Restoring an encrypted backup
+----------------------------
+
+When the backup is encrypted, decryption is transparent. The user
+running the restore action must have the secret key required to
+decrypt the data in its keyring. Since a restore can take quite a long
+time, it is recommended to start a gpg-agent explicitely for the
+operation with longer cache TTL values (7 days in the example):
+
+    eval $(/usr/bin/gpg-agent --daemon --allow-preset-passphrase \
+      --default-cache-ttl 604800 --max-cache-ttl 604800)
+
+If the restore fails on GnuPG complaining there are no tty for prompting
+the passphrase, get one using `script`:
+
+    script /dev/null
+    export GPG_TTY=$(tty)
+
+This will allow pinentry to prompt for the passphrase.
+
+Since those information are in the shell environment, PostgreSQL can
+use the agent when started using `pg_ctl`. To make the recovery
+process successfully decrypt the archived WAL files, start the
+PostgreSQL instance with `pg_ctl` after the restore in the same
+console session, the restart it using the regular init script/systemd
+unit if needed.
 
 
 Removing old backups

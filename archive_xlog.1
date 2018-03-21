@@ -88,6 +88,20 @@ The compressed file suffix to use (e.g., gz, bz2, xz).  This will override
 the \fBARCHIVE_COMPRESS_SUFFIX\fP option from the configuration file.
 
 .TP
+.BI \-E
+Encrypt the file using GnuPG.  The list of recipients must given using
+the \fB-r\fP option.  When this option is used, compression is
+disabled, as GunPG already compresses the output.  This will override
+the \fBARCHIVE_ENCRYPT\fP option from the configuration file.
+
+.TP
+.BI "\-r " keys:...
+List of public keys for GnuPG encryption, it is a colon separeted list
+of USER-ID recognized by the \fB--recipient\fP option of \fBgpg\fP(1).
+This will override the \fBGPG_ENCRYPT_KEYS\fP option from the
+configuration file.
+
+.TP
 .B \-S
 Send messages to the \fBsyslog\fP(3) instead of \fBstdio\fP(3).  This will
 override the \fBSYSLOG\fP option from the configuration file (forcing it to

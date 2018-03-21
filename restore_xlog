@@ -33,7 +33,7 @@ ARCHIVE_COMPRESS_SUFFIX=gz
 CONFIG_DIR="/etc/pitrery"
 CONFIG="pitrery.conf"
 
-
+GPG_BIN="/usr/bin/gpg"
 
 # Apply an extra level of shell quoting to each of the arguments passed.
 # This is necessary for remote-side arguments of ssh (including commands that
@@ -113,7 +113,16 @@ parse_target_uri() {
         # Add a shortcut for ssh/rsync commands
         backup_ssh_target=${backup_user:+$backup_user@}$backup_host
     fi
-    
+
+    if [ -n "$backup_dir" ]; then
+        # Ensure the backup directory is an absolute path
+        if [ "$backup_local" = "yes" ]; then
+            backup_dir="$(readlink -m -- "$backup_dir")"
+        else
+            backup_dir="$(ssh -n -- "$backup_ssh_target" "readlink -m -- $(qw "$backup_dir")")"
+        fi
+    fi
+
     # Parse archive target the same way
     if [ -n "$archive_target" ]; then
         archive_user="$(echo $archive_target | grep '@' | cut -d'@' -f1 )"
@@ -148,6 +157,13 @@ parse_target_uri() {
     fi
 
     [ -n "$archive_dir" ] || error "missing archive directory"
+
+    # Ensure the achives directory is an absolute path
+    if [ "$archive_local" = "yes" ]; then
+        archive_dir="$(readlink -m -- "$archive_dir")"
+    else
+        archive_dir="$(ssh -n -- "$archive_ssh_target" "readlink -m -- $(qw "$archive_dir")")"
+    fi
 
 }
 
@@ -209,25 +225,40 @@ if [ -z "$xlog" ] || [ -z "$target_path" ]; then
     error "missing xlog filename and/or target path. Please use %f and %p in restore_command"
 fi
 
-# the filename to retrieve depends on compression
-if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
-    xlog_file=${xlog}.$ARCHIVE_COMPRESS_SUFFIX
-    target_file=${target_path}.$ARCHIVE_COMPRESS_SUFFIX
-else
-    xlog_file=$xlog
-    target_file=$target_path
-fi
-
 # Get the file: use cp when the file is on localhost, scp otherwise
 if [ "$archive_local" = "yes" ]; then
-    if [ -f "$archive_dir/$xlog_file" ]; then
-	if ! cp -- "$archive_dir/$xlog_file" "$target_file"; then
-	    error "could not copy $archive_dir/$xlog_file to $target_file"
-	fi
+    if [ -f "$archive_dir/$xlog" ]; then
+        xlog_file="$xlog"
+        target_file="$target_path"
+    elif [ -f "$archive_dir/${xlog}.$ARCHIVE_COMPRESS_SUFFIX" ]; then
+        xlog_file="${xlog}.$ARCHIVE_COMPRESS_SUFFIX"
+        target_file="${target_path}.$ARCHIVE_COMPRESS_SUFFIX"
+    elif [ -f "$archive_dir/${xlog}.gpg" ]; then
+        xlog_file="${xlog}.gpg"
+        target_file="${target_path}.gpg"
+        ARCHIVE_COMPRESS="no"
     else
 	error "could not find $archive_dir/$xlog_file"
     fi
+
+    if ! cp -- "$archive_dir/$xlog_file" "$target_file"; then
+	error "could not copy $archive_dir/$xlog_file to $target_file"
+    fi
 else
+    if ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/$xlog")"; then
+        xlog_file="$xlog"
+        target_file="$target_path"
+    elif ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/${xlog}.$ARCHIVE_COMPRESS_SUFFIX")"; then
+        xlog_file="${xlog}.$ARCHIVE_COMPRESS_SUFFIX"
+        target_file="${target_path}.$ARCHIVE_COMPRESS_SUFFIX"
+    elif ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/${xlog}.gpg")"; then
+        xlog_file="${xlog}.gpg"
+        target_file="${target_path}.gpg"
+        ARCHIVE_COMPRESS="no"
+    else
+	error "could not find $archive_dir/$xlog_file on ${archive_host}"
+    fi
+
     if ! scp -- "${archive_ssh_target}:$(qw "$archive_dir/$xlog_file")" "$target_file" >/dev/null; then
 	error "could not copy ${archive_host}:$archive_dir/$xlog_file to $target_file"
     fi
@@ -238,6 +269,14 @@ if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
     if ! $ARCHIVE_UNCOMPRESS_BIN "$target_file"; then
 	error "could not uncompress $target_file"
     fi
+fi
+
+# Or decrypt it
+if [[ "$target_file" =~ \.gpg$ ]]; then
+    if ! "$GPG_BIN" "--batch" "--yes" "--decrypt" "--quiet" -o "$target_path" "$target_file"; then
+        error "could not decrypt $target_file"
+    fi
+    rm -- "$target_file" || warn "unable to remove $target_file after decryption"
 fi
 
 exit 0
