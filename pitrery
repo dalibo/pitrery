@@ -574,6 +574,13 @@ check_and_fix_directory() {
 }
 
 # Check related functions
+check_psql_command() {
+    # Check if the provided psql works by asking its version
+    if ! "${psql_command[@]}" -V >/dev/null 2>&1; then
+        die "unable to execute psql"
+    fi
+}
+
 check_ssh() {
     local ssh_target=$1
 
@@ -1106,6 +1113,8 @@ case $action in
         [ -n "$dbuser" ] && psql_command+=( "-U" "$dbuser" )
 
         psql_condb=$dbname
+
+        check_psql_command
 
         # Exports for both the pre and post backup hooks.
         export PITRERY_HOOK="pre_backup"
@@ -2917,6 +2926,8 @@ case $action in
             [ -n "$PGUSER" ] && psql_command+=( "-U" "$PGUSER" )
 
             psql_condb=${PGDATABASE:-postgres}
+
+            check_psql_command
 
             # Show the command line of psql and the contents of the environnement
             # variables starting with PG, they may affect the behaviour of psql.
