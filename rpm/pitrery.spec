@@ -1,7 +1,7 @@
 %global pkgname pitrery
 %global confdir %{_sysconfdir}/%{pkgname}
 %{!?pkgversion: %global pkgversion 2.1}
-%{!?pkgrevision: %global pkgrevision 2}
+%{!?pkgrevision: %global pkgrevision 3}
 
 Name:           %{pkgname}
 Version:        %{pkgversion}
@@ -49,6 +49,9 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 %doc %{_mandir}/man1/restore_xlog.1.gz
 
 %changelog
+* Sat Mar 31 2018 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 2.1-3
+- Release 2.1
+
 * Thu Jan 18 2018 Étienne BERSAC <etienne.bersac@dalibo.com> - 2.1-2
 - Drop patch
 

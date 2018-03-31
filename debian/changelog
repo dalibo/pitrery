@@ -1,8 +1,13 @@
 pitrery (2.1-1) unstable; urgency=low
 
   * New upstream release
+  * Restrict permissions of backup directories to the user that created them
+  * Add options to the check action to verify backup policy and archived WAL
+    files
+  * Add RSYNC_WHOLEFILE and RSYNC_BWLIMIT configuration options to tweak the
+    behaviour of rsync when performing base backups.
 
- -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Fri, 15 Dec 2017 17:38:10 +0100
+ -- Nicolas Thauvin <nicolas.thauvin@dalibo.com>  Sat, 31 Mar 2018 21:42:59 +0200
 
 pitrery (2.0-1) unstable; urgency=low
 
