@@ -192,7 +192,7 @@ from the configuration file. A non default configuration can be
 specified *before* the action. The help message is:
 
     $ pitrery -?
-    pitrery 2.0 - PostgreSQL Point In Time Recovery made easy
+    pitrery 2.1 - PostgreSQL Point In Time Recovery made easy
     
     usage: pitrery [options] action [args]
     
@@ -545,7 +545,13 @@ through pitrery:
   backward compatibility, as mixing formats of backup names would
   break the sorting of backups on restore.
 
+* `RSYNC_WHOLEFILE`, when set to "yes", disable the rsync on the fly
+  comparison algorithm by adding `--whole-file` to the `rsync`
+  commandline. This may improve performance over NFS. Default is "no".
 
+* `RSYNC_BWLIMIT`, limit the bandwidth usage for rsync. This is the
+  value of --bwlimit of rsync. With no unit, it is in kB/s. Leave
+  empty for no limit, there is no limit by default.
 
 
 
@@ -1218,24 +1224,110 @@ action will not remove those WAL files.
 
 The options of purge are:
 
-$ pitrery purge -?
-pitrery purge - Clean old base backups and archived WAL files
+    $ pitrery purge -?
+    pitrery purge - Clean old base backups and archived WAL files
 
-usage: pitrery purge [options] [[user@]host:]/path/to/backups
+    usage: pitrery purge [options] [[user@]host:]/path/to/backups
 
-options:
-    -m count               Keep this number of backups
-    -d days                Purge backups older than this number of days
+    options:
+        -m count               Keep this number of backups
+        -d days                Purge backups older than this number of days
 
-    -a [[user@]host:]/dir  Path to WAL archives
+        -a [[user@]host:]/dir  Path to WAL archives
 
-    -N                     Dry run: show what would be purged only
+        -N                     Dry run: show what would be purged only
 
-    -T                     Timestamp log messages
-    -?                     Print help
+        -T                     Timestamp log messages
+        -?                     Print help
 
 
 If unsure about the configuration of the purge, the `-N` switch can be
 used to display what would be done.
 
+Checking the backups and archived WAL files
+-------------------------------------------
+
+The check action can check if there are enough backups and their
+against thresholds. This mode must be selected with the `-B` option of
+the check action.
+
+The check is successful if the number of backups is greater or equal
+than the number provided to the `-m` option or `PURGE_KEEP_COUNT` if
+not specified.  It is also successful if the age of the newest backup
+is less than the interval provided to the `-g` option or
+`PURGE_OLDER_THAN` if not specified.  The age limit is a number of
+days or less if a time unit is specified, the supported units being
+"s" (seconds), "min" (minutes), "h" (hours) and "d" (days), like ine
+the PostgreSQL configuration.
+
+This check mode can behave like a Nagios plugin with the `-n` option.
+
+For example:
+
+    $ pitrery check -B -g 1d -m 2 /home/pgsql/pitrery/r10
+    INFO: checking local backups in: /home/pgsql/pitrery/r10
+    INFO: newest backup age: 16d 20h 31min 30s
+    INFO: number of backups: 3
+    ERROR: backups are too old
+
+With the nagios output:
+
+    $ pitrery check -B -m 3 -g 30d -n localhost:/home/pgsql/pitrery/r10
+    PITRERY BACKUPS OK - count: 3, newest: 16d 20h 40min 15s | count=3;3;3 newest=1456815s;2592000;2592000
+
+
+The check action can check if there are no missing WAL files in the
+archives. Archived WAL files are in a sequence: missing files could
+make a backup impossible to restore or a make a point in time
+unreachable.
+
+To check the archives, use the `-A` option of the check action. The
+path to the directory of the WAL archives can be specified with
+`-a`. Access to the backups is mandatory to find the version of
+PostgreSQL and the number of segments per log (the last segment was
+skipped before PostgreSQL 9.3).
+
+Like the check backups mode, it can behave like a Nagios plugin with
+the `-n` option.  Currently, backups and archives cannot be checked at
+the same time when Nagios plugin output is selected.
+
+For example:
+
+    $ pitrery check -A -a /home/pgsql/pitrery/r10/archived_xlog /home/pgsql/pitrery/r10/
+    INFO: checking local archives in /home/pgsql/pitrery/r10/archived_xlog
+    INFO: oldest backup is: /home/pgsql/pitrery/r10/2017.10.18_22.05.57
+    INFO: start wal file is: 000000010000000000000017
+    INFO: listing WAL files
+    INFO: first WAL file checked is: 00000001000000000000000F.gz
+    INFO: start WAL file found
+    ERROR: missing WAL file: 00000001000000000000001C
+    INFO: next found is: 0000000100000001000000F9
+    INFO: last WAL file checked is: 000000010000000200000003.gz
+    INFO: missing count is: 477
+
+With the Nagios output:
+
+    $ pitrery check -A -a /home/pgsql/pitrery/r10/archived_xlog -n /home/pgsql/pitrery/r10/
+    PITRERY WAL ARCHIVES CRITICAL - total: 32, missing: 477 | total=32;; missing=477;;
+
+The options are:
+
+    $ pitrery check -?
+    pitrery check - Verify configuration and backups integrity
+    
+    usage: pitrery check [options] [[[user@]host:]/path/to/backups]
+    
+    options:
+        -C conf                Configuration file
+    
+        -B                     Check backups
+        -m count               Fail when the number of backups is less than count
+        -g age                 Fail when the newest backup is older than age
+    
+        -A                     Check WAL archives
+        -a [[user@]host:]/dir  Path to WAL archives
+    
+        -n                     Nagios compatible output for -b and -A
+    
+        -?                     Print help
 
