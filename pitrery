@@ -814,6 +814,113 @@ output_param() {
     fi
 }
 
+# Helpers for different formats in the list action
+list_output_indent() {
+    if [ -z "$indent_spc" ]; then
+        indent_spc=0
+    else
+            if [ "$comma" = "yes" ]; then
+                echo ","
+                comma="no"
+            else
+                echo
+            fi
+                    if (( $indent_spc > 0 )); then
+            printf ' %.0s' $(seq 1 $indent_spc)
+        fi
+    fi
+}
+
+list_output_start_hash() {
+    case "$output" in
+        "json")
+            list_output_indent
+            # wrap the lower cased input with double quote before opening
+            echo -n "${1:+"\"${1,,}\": "}{"
+            indent_spc=$(($indent_spc + 2))
+            ;;
+        *)
+            if [ -n "$1" ]; then
+                echo "${1}:"
+            fi
+            ;;
+    esac
+}
+
+list_output_end_hash() {
+    case "$output" in
+        "json")
+            comma="no"
+            (( ${indent_spc:-0} >= 2 )) && indent_spc=$(($indent_spc - 2))
+            list_output_indent
+            echo -n "}"
+            comma="yes"
+            # trailing newline when closing the json object
+            (( ${indent_spc:-0} == 0 )) && echo
+            ;;
+    esac
+}
+
+list_output_text() {
+    if [ "$output" != "json" ]; then
+        echo "${1}${2:+": $2"}"
+    fi
+}
+
+list_output_json() {
+    if [ "$output" = "json" ]; then
+        list_output_indent
+
+        shopt -s extglob
+        p=${1##*( )}
+
+        if [ -z "$2" ]; then
+            # default to null
+            echo -n "\"${p,,}\": null"
+        elif [ "$2" = "true" ] || [ "$2" = "false" ] || [ "$2" = "null" ] || [[ "$2" =~ ^[0-9]+$ ]]; then
+            # do not quote numbers, booleans and null
+            echo -n "\"${p,,}\": $2"
+        else
+            echo -n "\"${p,,}\": \"$2\""
+        fi
+        comma="yes"
+        shopt -u extglob
+    fi
+}
+
+list_output_all() {
+    case "$output" in
+        "json")
+            list_output_json "$@"
+            ;;
+        *)
+            list_output_text "$@"
+            ;;
+    esac
+}
+
+list_output_start_list() {
+    case "$output" in
+        "json")
+            list_output_indent
+            echo -n "${1:+"\"${1,,}\": "}["
+            [ -n "$1" ] && indent_spc=$(($indent_spc + 2))
+            ;;
+    esac
+}
+
+list_output_end_list() {
+    case "$output" in
+        "json")
+            comma="no"
+            (( ${indent_spc:-0} >= 2 )) && indent_spc=$(($indent_spc - 2))
+            list_output_indent
+            echo -n "]"
+            comma="yes"
+            ;;
+    esac
+}
+
 
 init_rsync_opts() {
     if [[ "$RSYNC_WHOLEFILE" == "yes" ]]; then
@@ -886,10 +993,13 @@ opts=()
 case $action in
     list)
 	load_config
+        verbose=""
+        output=""
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "v?" arg 2>/dev/null; do
+	while getopts "jv?" arg 2>/dev/null; do
 	    case $arg in
+                j) output="json"; verbose="yes";;
 		v) verbose="yes";;
 		'?') usage "list";;
 	    esac
@@ -898,15 +1008,30 @@ case $action in
         parse_target_uri "${@:$OPTIND:1}" || usage "list"
 
         list_backups "$backup_dir" # to the list array
+
+        # Begin json
+        list_output_start_hash
         
         # Print a header
         if [ "$backup_local" = "yes" ]; then
-            echo "List of local backups"
+            list_output_text "List of local backups"
+
+            list_output_json "local" "true"
+            list_output_json "host" "$backup_host"
+            list_output_json "user"
         else
-            echo "List of backups on $backup_host"
+            list_output_text "List of backups on $backup_host"
+
+            list_output_json "local" "false"
+            list_output_json "host" "$backup_host"
+            list_output_json "user" "${backup_user:-$(id -un)}"
         fi
 
+        list_output_json "directory" "$backup_dir"
+
         # Print the directory and stop time of each backup
+        list_output_start_list "backups"
+
         for dir in "${list[@]%/}"; do
             # Check the permissions
             if [[ ! -r "$dir" ]] || [[ ! -x "$dir" ]]; then
@@ -916,150 +1041,193 @@ case $action in
 
             # Print the details of the backup dir
             if [ -n "$verbose" ]; then
-	        echo "----------------------------------------------------------------------"
-	        echo -e "Directory:\n  $dir"
+	        list_output_text "----------------------------------------------------------------------"
+                list_output_text "Directory:"
+	        list_output_start_hash
+                list_output_text "  $dir"
+
+                list_output_json "directory" "$dir"
             else
 	        echo -ne "$dir\t"
             fi
 
-            # Get the exact stop date from the backup label
+	    # Compute the size of full backup
+            backup_size=
             if [ "$backup_local" = "yes" ]; then
-	        # Compute the size of full backup
-	        backup_size=( $(du -sh -- "$dir") )
+	        backup_size=( $(du -sh -- "$dir" 2>/dev/null) )
+            else
+                backup_size=( $(ssh -n -- "$backup_ssh_target" "du -sh -- $(qw "$dir") 2>/dev/null" 2>/dev/null) )
+            fi
+
+            if [ -n "$backup_size" ]; then
 	        if [ -n "$verbose" ]; then
-	            echo "  space used: $backup_size"
+                    list_output_all "  space used" "$backup_size"
 	        else
 	            echo -ne "$backup_size\t"
 	        fi
-
-	        # Find the storage method of the backup, with compression suffix for tar
-	        if [ -n "$verbose" ]; then
-	            if [ -d "$dir/pgdata" ]; then
-		        echo "  storage: rsync"
-	            else
-		        prefix=$dir/pgdata.tar.
-		        tarfile=( "$prefix"* )
-		        if (( ${#tarfile[@]} != 1 )); then
-		            error "no rsync dir and ${#tarfile[@]} pgdata.tar files found"
-		        else
-		            suffix=${tarfile#$prefix}
-		            [ -z "$suffix" ] && suffix="unknown"
-		            echo "  storage: tar with $suffix compression"
-		        fi
-	            fi
-	        fi
-
-                # Print the minimum recovery target time with this backup
-	        if [ -f "$dir/backup_label" ]; then
-	            [ -n "$verbose" ] && echo "Minimum recovery target time:"
-	            if stop_time=$(sed -n 's/STOP TIME: /  /p' -- "$dir/backup_label") && [ -n "$stop_time" ]; then
-		        echo "$stop_time"
-	            else
-		        error "could not get \"stop time\" from $dir/backup_label"
-	            fi
-	        else
-	            error "could not find the backup_label file"
-	        fi
-
-                if [ -n "$verbose" ]; then
-	            # Display name, path and sizes of PGDATA and tablespaces
-	            if [ -f "$dir/tblspc_list" ]; then
-		        # Only show sizes of PGDATA if available
-		        if [ -n "`awk -F'|' '{ print $4 }' "$dir/tblspc_list"`" ]; then
-		            echo "PGDATA:"
-		            if ! awk -F'|' '$2 == "" { print "  "$1" "$4 }' "$dir/tblspc_list"; then
-			        error "could not display the list of tablespaces"
-		            fi
-		        fi
-		        echo "Tablespaces:"
-		        if ! awk -F'|' '$2 != "" { print "  \""$1"\" "$2" ("$3") "$4 }' "$dir/tblspc_list"; then
-		            error "could not display the list of tablespaces"
-		        fi
-		        echo
-	            else
-		        error "could not find the list of tablespaces (tblspc_list)"
-	            fi
-	        fi
             else
-	        # Backup size
-	        backup_size=( $(ssh -n -- "$backup_ssh_target" "du -sh -- $(qw "$dir") 2>/dev/null" 2>/dev/null) )
-	        if [ -n "$backup_size" ]; then
-	            if [ -n "$verbose" ]; then
-		        echo "  space used: $backup_size"
-	            else
-		        echo -ne "$backup_size\t"
-	            fi
+                error "could not find size of $dir"
+	    fi
+            
+	    # Find the storage method of the backup, with compression suffix for tar
+            storage=
+            if [ "$backup_local" = "yes" ]; then
+	        if [ -d "$dir/pgdata" ]; then
+                    storage="rsync"
 	        else
-	            error "could not find size of $backup_host:$dir"
-	        fi
-
-                # Storage method with compression suffix for tar
-	        if [ -n "$verbose" ]; then
-	            if ssh -n -- "$backup_ssh_target" "test -d $(qw "$dir/pgdata")" 2>/dev/null; then
-		        echo "  storage: rsync"
-	            else
-		        prefix=$dir/pgdata.tar.
-		        tarfile=()
-		        while read -r -d '' d; do
-		            tarfile+=("$d")
-		        done < <(
-		            ssh -n -- "$backup_ssh_target" "find $(qw "$dir") -maxdepth 1 -name 'pgdata.tar.*' -type f -print0"
-		        )
-
-		        if (( ${#tarfile[@]} != 1 )); then
-		            error "no rsync dir and ${#tarfile[@]} pgdata.tar files found in $backup_host:$dir"
-		        else
-		            suffix=${tarfile#$prefix}
-		            [ -z "$suffix" ] && suffix="unknown"
-		            echo "  storage: tar with $suffix compression"
-		        fi
-	            fi
-	        fi
-
-                # Minimum recovery target time
-	        if ssh -n -- "$backup_ssh_target" "test -f $(qw "$dir/backup_label")" 2>/dev/null; then
-	            [ -n "$verbose" ] && echo "Minimum recovery target time:"
-	            if stop_time=$(ssh -n -- "$backup_ssh_target" "sed -n 's/STOP TIME: /  /p' -- $(qw "$dir/backup_label")") \
-	                    && [ -n "$stop_time" ]; then
-		        echo "$stop_time"
-	            else
-		        error "could not get \"stop time\" from $backup_host:$dir/backup_label"
-	            fi
+		    prefix=$dir/pgdata.tar.
+		    tarfile=( "$prefix"* )
+                    [[ ${#tarfile[@]} == 1 ]] && storage="tar"
+                fi
+            else
+                if ssh -n -- "$backup_ssh_target" "test -d $(qw "$dir/pgdata")" 2>/dev/null; then
+                    storage="rsync"
 	        else
-	            error "could find the backup_label file"
-	        fi
+		    prefix=$dir/pgdata.tar.
+		    tarfile=()
+		    while read -r -d '' d; do
+		        tarfile+=("$d")
+		    done < <(
+		        ssh -n -- "$backup_ssh_target" "find $(qw "$dir") -maxdepth 1 -name 'pgdata.tar.*' -type f -print0"
+		    )
+                    [[ ${#tarfile[@]} == 1 ]] && storage="tar"
+                fi
+            fi
 
-                # Name, path and space used at backup time of PGDATA and tablespaces
-	        if [ -n "$verbose" ]; then
-	            if ssh -n -- "$backup_ssh_target" "test -f $(qw "$dir/tblspc_list")" 2>/dev/null; then
-		        if [ -n "$(ssh -n -- "$backup_ssh_target" "awk -F'|' '{ print \$4 }' $(qw "$dir/tblspc_list")")" ]; then
-		            echo "PGDATA:"
-		            if ts=$(ssh -n -- "$backup_ssh_target" \
-			                "awk -F'|' '\$2 == \"\" { print \"  \"\$1\" \"\$4 }' $(qw "$dir/tblspc_list")"); then
-			        [ -n "$ts" ] && echo "$ts"
-		            else
-			        error "could not display the list of tablespaces"
-		            fi
-		        fi
+            if [ -n "$verbose" ]; then
+                case "$storage" in
+                    rsync)
+                        list_output_all "  storage" "rsync"
+                        list_output_json "compression" ""
+                        ;;
+                    tar)
+		        suffix=${tarfile#$prefix}
+		        list_output_text "  storage" "tar with ${suffix:-"no"} compression"
+                        list_output_json "storage" "tar"
+                        list_output_json "compression" "$suffix"
+                        ;;
+                    *)
+		        error "no rsync dir and ${#tarfile[@]} pgdata.tar files found"
+                        ;;
+                esac
+	    fi
 
-		        echo "Tablespaces:"
-		        if ts=$(ssh -n -- "$backup_ssh_target" \
-			            "awk -F'|' '"'$2 != "" { print "  \""$1"\" "$2" ("$3") "$4 }'"' $(qw "$dir/tblspc_list")"); then
-		            [ -n "$ts" ] && echo "$ts"
-		        else
-		            error "could not display the list of tablespaces"
-		        fi
-		        echo
-	            else
-		        error "could not find the list of tablespaces (tblspc_list)"
-	            fi
+            # Print the minimum recovery target time with this backup
+            stop_time=
+            if [ "$backup_local" = "yes" ]; then
+	        if [ -f "$dir/backup_label" ]; then
+	            if ! stop_time=$(sed -n 's/STOP TIME: //p' -- "$dir/backup_label") || [ -z "$stop_time" ]; then
+                        error "could not get \"stop time\" from $dir/backup_label"
+                    fi
+                else
+                    error "could not find the backup_label file"
+                fi
+            else
+                if ssh -n -- "$backup_ssh_target" "test -f $(qw "$dir/backup_label")" 2>/dev/null; then
+                    if ! stop_time=$(ssh -n -- "$backup_ssh_target" "sed -n 's/STOP TIME: //p' -- $(qw "$dir/backup_label")") || [ -z "$stop_time" ]; then
+                        error "could not get \"stop time\" from $backup_host:$dir/backup_label"
+                    fi
+                else
+                    error "could find the backup_label file"
 	        fi
+            fi
+
+            if [ -n "$stop_time" ]; then
+                if [ -n "$verbose" ]; then
+                    list_output_text "Minimum recovery target time:"
+		    list_output_text "  $stop_time"
+                    list_output_json "stop_time" "$stop_time"
+                else
+                    echo "  $stop_time"
+                fi
+	    fi
+
+            # Name, path and space used at backup time of PGDATA and tablespaces
+            tblspc_list=
+            if [ "$backup_local" = "yes" ]; then
+	        if [ -f "$dir/tblspc_list" ]; then
+		    # Only show sizes of PGDATA if available
+                    tblspc_list=$(< "$dir/tblspc_list") || error "failed to read $dir/tblspc_list"
+                else
+                    error "could not find the list of tablespaces (tblspc_list)"
+                fi
+            else
+                if ssh -n -- "$backup_ssh_target" "test -f $(qw "$dir/tblspc_list")" 2>/dev/null; then
+                    if ! tblspc_list=$(ssh -n -- "$backup_ssh_target" "cat $(qw "$dir/tblspc_list")" 2>/dev/null); then
+                        error "could not read the list of tablespaces (tblspc_list)"
+                    fi
+                else
+                    error "could not find the list of tablespaces (tblspc_list)"
+                fi
+            fi
+
+            if [ -n "$verbose" ]; then
+                list_output_start_list "tablespaces"
+                list_output_text "PGDATA:"
+                if [ -n "$tblspc_list" ]; then
+                    while read -r l; do
+                        tname=$(cut -d '|' -f 1 <<< "$l")
+                        tdir=$(cut -d '|' -f 2 <<< "$l")
+                        toid=$(cut -d '|' -f 3 <<< "$l")
+                        tsize=$(cut -d '|' -f 4 <<< "$l")
+
+                        # only show PGDATA
+                        [ -n "$tdir" ] && continue
+
+                        list_output_text "  $tname $tsize"
+
+                        list_output_start_hash
+                        list_output_json "name" "$tname"
+                        list_output_json "location" "$tdir"
+                        list_output_json "oid" "$toid"
+                        list_output_json "size" "$tsize"
+                        list_output_end_hash
+                        comma="yes"
+                    done <<< "$tblspc_list"
+
+		    list_output_text "Tablespaces:"
+
+                    while read -r l; do
+                        tname=$(cut -d '|' -f 1 <<< "$l")
+                        tdir=$(cut -d '|' -f 2 <<< "$l")
+                        toid=$(cut -d '|' -f 3 <<< "$l")
+                        tsize=$(cut -d '|' -f 4 <<< "$l")
+
+                        # do not show PGDATA
+                        [ -z "$tdir" ] && continue
+
+                        list_output_text "  \"$tname\" $tdir ($toid) $tsize"
+
+                        list_output_start_hash
+                        list_output_json "name" "$tname"
+                        list_output_json "location" "$tdir"
+                        list_output_json "oid" "$toid"
+                        list_output_json "size" "$tsize"
+                        list_output_end_hash
+                        comma="yes"
+                    done <<< "$tblspc_list"
+                else
+                    error "no tablespaces listed"
+	        fi
+                list_output_end_list
+            else
+                [ -n "$tblspc_list" ] || error "no tablespaces listed"
             fi
 
             if [ "$out_rc" != 0 ]; then
-	        echo "!!! This backup may be imcomplete or corrupted !!!"
+                list_output_json "valid" "false"
+	        error "this backup may be imcomplete or corrupted"
+                # We can safely reset out_rc here: only this for loop may call error()
+                out_rc=0
+            else
+                list_output_json "valid" "true"
+                [ -n "$verbose" ] && list_output_text ""
             fi
+
+            list_output_end_hash
         done
+        list_output_end_list
+        list_output_end_hash
         ;;
 
     backup)
