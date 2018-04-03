@@ -1,3 +1,9 @@
+pitrery 2.2
+===========
+
+  * Change the command line switch used to pass a configuration file to pitrery
+    from -c to -f.
+
 pitrery 2.1
 ===========
 
