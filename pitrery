@@ -212,7 +212,7 @@ usage() {
     echo "usage: `basename $0` [options] action [args]"
     echo
     echo "options:"
-    echo "    -c file      Path to the configuration file"
+    echo "    -f file      Path to the configuration file"
     echo "    -l           List configuration files in the default directory"
     echo "    -V           Display the version and exit"
     echo "    -?           Print help"
@@ -936,9 +936,9 @@ init_rsync_opts() {
     fi
 }
 
-while getopts "c:lV?" opt; do
+while getopts "c:f:lV?" opt; do
     case $opt in
-	c)
+	c|f)
             config=$OPTARG
             cli_config="yes"
             ;;
