@@ -1,3 +1,8 @@
+Upgrade to 2.2
+==============
+
+* Modify calls of `pitrery -c` to `pitrery -f` where needed.
+
 Upgrade to 2.1
 ==============
 

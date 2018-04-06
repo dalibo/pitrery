@@ -192,7 +192,7 @@ specified *before* the action. The help message is:
     usage: pitrery [options] action [args]
     
     options:
-        -c file      Path to the configuration file
+        -f file      Path to the configuration file
         -l           List configuration files in the default directory
         -V           Display the version and exit
         -?           Print help
@@ -674,11 +674,11 @@ the configuration files in the default configuration directory.
     pitrery
 
 `pitrery` being the default configuration file, it is not mandatory to
-specify it on the command line. If using another one, use the `-c`
+specify it on the command line. If using another one, use the `-f`
 option in every call to pitrery before the action to perform:
 
-    $ pitrery -c prod check
-    $ pitrery -c prod list -v
+    $ pitrery -f prod check
+    $ pitrery -f prod list -v
 
 
 Configuring pitrery from the command line
@@ -735,7 +735,7 @@ files.
 For example, the following commands checks the `prod.conf`
 configuration file:
 
-    $ pitrery -c prod check
+    $ pitrery -f prod check
     INFO: the configuration file contains:
     PGDATA="/var/lib/postgresql/9.6/main"
     PGPORT=5433
@@ -775,7 +775,7 @@ Here the `check` action reports that PostgreSQL is not properly
 configured for archiving WAL files and that a directory is
 missing. Fixing those error is mandatory to make the backups work:
 
-    $ pitrery -c prod check
+    $ pitrery -f prod check
     INFO: the configuration file contains:
     PGDATA="/var/lib/postgresql/9.6/main"
     PGPORT=5433
@@ -847,7 +847,7 @@ action is:
 
 For example:
 
-    $ pitrery -c prod backup
+    $ pitrery -f prod backup
     INFO: preparing directories in /var/backups/postgresql/
     INFO: listing tablespaces
     INFO: starting the backup process
@@ -918,7 +918,7 @@ The list action allow to find the backups the backup host or the
 localhost depending on the configuration. By default, it prints a
 parsable list of backups, with one backups on each line:
 
-    $ pitrery -c prod list
+    $ pitrery -f prod list
     List of local backups
     /var/backups/postgresql/2017.10.17_14.57.34	5.8M	  2017-10-17 14:57:34 CEST
     /var/backups/postgresql/2017.10.17_15.03.50	5.8M	  2017-10-17 15:03:50 CEST
@@ -933,7 +933,7 @@ for each tablespace :
 
 For example :
 
-    $ pitrery -c prod list -v
+    $ pitrery -f prod list -v
     List of local backups
     ----------------------------------------------------------------------
     Directory:
@@ -1035,7 +1035,7 @@ action with `-r`.
 The command line for the restore action can be tested using the `-n`
 (dry run) option:
 
-    $ pitrery -c prod restore -n
+    $ pitrery -f prod restore -n
     INFO: searching backup directory
     INFO: searching for tablespaces information
     INFO: 
@@ -1056,7 +1056,7 @@ Let's say the target directories are ready for a restore run by the
 production server, ensure the date (or other arguments that need it)
 are properly quoted:
 
-    $ pitrery -c prod restore -d '2017-10-17 15:04:30 +0200'
+    $ pitrery -f prod restore -d '2017-10-17 15:04:30 +0200'
     INFO: searching backup directory
     INFO: searching for tablespaces information
     INFO: 
@@ -1112,7 +1112,7 @@ format of the value of a `-t` option is `tablespace_name_or_oid:new_directory`.
 
 One `-t` option apply to one tablespace. For example:
 
-    $ pitrery -c prod restore -D /var/lib/postgresql/9.6/main2 \
+    $ pitrery -f prod restore -D /var/lib/postgresql/9.6/main2 \
     > -t ts1:/var/lib/postgresql/tblspc/9.6/main/ts1_2
     INFO: searching backup directory
     INFO: searching for tablespaces information
@@ -1204,7 +1204,7 @@ file is used to define the maximum age in days.
 For example, we have three backups on the store and we want to keep only
 one, while `PURGE_KEEP_COUNT=2`:
 
-    $ pitrery -c prod purge -m 1
+    $ pitrery -f prod purge -m 1
     INFO: searching backups
     INFO: Would be purging the following backups:
     INFO:  /var/backups/postgresql/2017.10.17_14.57.34
