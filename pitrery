@@ -3358,10 +3358,14 @@ case $action in
 
                 # Extract the name of the WAL file from the backup
                 start_wal_file=$(awk '/^START WAL LOCATION/ { gsub(/[^0-9A-F]/,"",$6); print $6 }' <<< "$backup_label")
+
+                # This must be only (hex) digits, or the arithmetic operations below will not do what we hope
+                [[ $start_wal_file =~ ^[0-9A-F]{24}$ ]] || die "start wal file '$start_wal_file' does not appear to be a WAL segment file name in backup_label"
+
                 [[ "$output" != "nagios" ]] && info "start wal file is: $start_wal_file"
-                start_wal_tln=$(( 0x"$(cut -b 1-8 <<< "$start_wal_file")" ))
-                start_wal_wal=$(( 0x"$(cut -b 9-16 <<< "$start_wal_file")" ))
-                start_wal_seg=$(( 0x"$(cut -b 17-24 <<< "$start_wal_file")" ))
+                start_wal_tln=$(( 0x$(cut -b 1-8 <<< "$start_wal_file") ))
+                start_wal_wal=$(( 0x$(cut -b 9-16 <<< "$start_wal_file") ))
+                start_wal_seg=$(( 0x$(cut -b 17-24 <<< "$start_wal_file") ))
 
                 # Get the version of PostgreSQL to determine if we
                 # check WAL files which finish by FF.
@@ -3409,15 +3413,18 @@ case $action in
                 for wal_file in "${wal_list[@]}"; do
                     # Skip archived backup_label files
                     [[ "$wal_file" =~ .*\.backup.* ]] && continue
-
                     wal_file="$(basename -- "$wal_file")"
+                    if ! [[ $wal_file =~ ^[0-9A-F]{24}.*$ ]]; then
+                        [[ "$output" != "nagios" ]] && warn "'$wal_file' does not appear to be a WAL segment file name"
+                        continue
+                    fi
 
                     # Initialize or update the counters
                     if [ -z "$cur_tln" ]; then
                         [[ "$output" != "nagios" ]] && info "first WAL file checked is: $wal_file"
-                        cur_tln=$(( 0x"$(cut -b 1-8 <<< "$wal_file")" ))
-                        cur_wal=$(( 0x"$(cut -b 9-16 <<< "$wal_file")" ))
-                        cur_seg=$(( 0x"$(cut -b 17-24 <<< "$wal_file")" ))
+                        cur_tln=$(( 0x$(cut -b 1-8 <<< "$wal_file") ))
+                        cur_wal=$(( 0x$(cut -b 9-16 <<< "$wal_file") ))
+                        cur_seg=$(( 0x$(cut -b 17-24 <<< "$wal_file") ))
                         continue
                     else
                         if (( $cur_seg == $max_seg )); then
@@ -3429,9 +3436,9 @@ case $action in
                     fi
 
                     # split the name to tln wal seg
-                    tln=$(( 0x"$(cut -b 1-8 <<< "$wal_file")" ))
-                    wal=$(( 0x"$(cut -b 9-16 <<< "$wal_file")" ))
-                    seg=$(( 0x"$(cut -b 17-24 <<< "$wal_file")" ))
+                    tln=$(( 0x$(cut -b 1-8 <<< "$wal_file") ))
+                    wal=$(( 0x$(cut -b 9-16 <<< "$wal_file") ))
+                    seg=$(( 0x$(cut -b 17-24 <<< "$wal_file") ))
 
                     # check if we have reached the start wal file of the oldest backup
                     if ( (( $start_wal_tln == $tln )) && (( $start_wal_wal == $wal )) && (( $start_wal_seg == $seg )) ); then
