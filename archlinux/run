@@ -1,0 +1,16 @@
+#!/bin/bash -eux
+
+cd $(readlink -m $0/..)
+
+rm -f /var/lib/pacman/db.lck
+
+pacman -Syy
+pacman -S --noconfirm sudo base-devel gnupg
+
+useradd -m makepkg
+
+cp -a /srv/PKGBUILD  /home/makepkg
+
+su - makepkg -c "gpg --receive-keys A9C12688B6D6A1A66A9FE2BC36B6559CD664AA4D && makepkg -f -c -s"
+
+cp -a /home/makepkg/pitrery-*.tar.xz /srv/
