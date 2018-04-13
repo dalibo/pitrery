@@ -3425,7 +3425,6 @@ case $action in
                         cur_tln=$(( 0x$(cut -b 1-8 <<< "$wal_file") ))
                         cur_wal=$(( 0x$(cut -b 9-16 <<< "$wal_file") ))
                         cur_seg=$(( 0x$(cut -b 17-24 <<< "$wal_file") ))
-                        continue
                     else
                         if (( $cur_seg == $max_seg )); then
                             cur_seg=0
