@@ -340,9 +340,6 @@ parse_target_uri() {
 
     [ -n "$backup_dir" ] || error "missing backup directory"
 
-    # Ensure the backup directory is an absolute path
-    backup_dir="$(readlink -m -- "$backup_dir")"
-
     # Deduce if backup is local
     if [ -z "$backup_host" ]; then
         backup_local="yes"
@@ -354,6 +351,13 @@ parse_target_uri() {
 
         # Add a shortcut for ssh/rsync commands
         backup_ssh_target="${backup_user:+$backup_user@}$backup_host"
+    fi
+
+    # Ensure the backup directory is an absolute path
+    if [ "$backup_local" = "yes" ]; then
+        backup_dir="$(readlink -m -- "$backup_dir")"
+    else
+        backup_dir="$(ssh -n -- "$backup_ssh_target" "readlink -m -- $(qw "$backup_dir")")"
     fi
 
     # Parse archive target the same way
@@ -391,7 +395,11 @@ parse_target_uri() {
     [ -n "$archive_dir" ] || error "missing archive directory"
 
     # Ensure the achives directory is an absolute path
-    archive_dir="$(readlink -m -- "$archive_dir")"
+    if [ "$archive_local" = "yes" ]; then
+        archive_dir="$(readlink -m -- "$archive_dir")"
+    else
+        archive_dir="$(ssh -n -- "$archive_ssh_target" "readlink -m -- $(qw "$archive_dir")")"
+    fi
 
     return $out_rc
 }
