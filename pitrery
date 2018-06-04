@@ -1034,9 +1034,16 @@ case $action in
 
         for dir in "${list[@]%/}"; do
             # Check the permissions
-            if [[ ! -r "$dir" ]] || [[ ! -x "$dir" ]]; then
-                error "acces denied to $dir"
-                continue
+            if [ "$backup_local" = "yes" ]; then
+                if [[ ! -r "$dir" ]] || [[ ! -x "$dir" ]]; then
+                    error "acces denied to $dir"
+                    continue
+                fi
+            else
+                if ! ssh -n -- "$backup_ssh_target" "([ -r $(qw "$dir") ] && [ -x $(qw "$dir") ])"; then
+                   error "acces denied to $dir"
+                   continue
+                fi
             fi
 
             # Print the details of the backup dir
