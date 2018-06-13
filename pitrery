@@ -2350,12 +2350,12 @@ case $action in
         fi
 
         [ -n "$storage" ] ||
-            error "could not find what storage method is used in ${backup_ssh_target:+$backup_ssh_target:}$backup_dir"
+            die "could not find what storage method is used in ${backup_ssh_target:+$backup_ssh_target:}$backup_dir"
 
         # Check if the compression suffix is unexpected, so that it
         # can be fixed by the user in the config or commandline
         if [[ $storage =~ ^pgdata\.tar\. ]]; then
-            error "expecting '$BACKUP_COMPRESS_SUFFIX' compression, but found ${backup_ssh_target:+$backup_ssh_target:}$backup_dir/$storage"
+            die "expecting '$BACKUP_COMPRESS_SUFFIX' compression, but found ${backup_ssh_target:+$backup_ssh_target:}$backup_dir/$storage"
         fi
 
         # Prepare the decryption commandline, with a gpg-agent
@@ -2367,10 +2367,10 @@ case $action in
         check_and_fix_directory "$PGDATA"
 
         if [ -n "$PGXLOG" ]; then
-            [[ $PGXLOG == /* ]] || error "pg_${xlog_or_wal} must be an absolute path"
+            [[ $PGXLOG == /* ]] || die "pg_${xlog_or_wal} must be an absolute path"
 
             if [ "$PGXLOG" = "$PGDATA/pg_${xlog_or_wal}" ]; then
-	        error "pg_${xlog_or_wal} path cannot be \$PGDATA/pg_${xlog_or_wal}, this path is reserved. It seems you do not need -x"
+	        die "pg_${xlog_or_wal} path cannot be \$PGDATA/pg_${xlog_or_wal}, this path is reserved. It seems you do not need -x"
             fi
 
             check_and_fix_directory "$PGXLOG"
@@ -2403,7 +2403,7 @@ case $action in
 	                uncompress_rc=${rc[0]}
 	                tar_rc=${rc[1]}
 	                if [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
-		            error "could not extract $backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX to $PGDATA"
+		            die "could not extract $backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX to $PGDATA"
 	                fi
                     fi
 	        else
@@ -2423,7 +2423,7 @@ case $action in
 	                uncompress_rc=${rc[1]}
 	                tar_rc=${rc[2]}
 	                if [ "$ssh_rc" != 0 ] || [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
-		            error "could not extract $backup_ssh_target:$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX to $PGDATA"
+		            die "could not extract $backup_ssh_target:$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX to $PGDATA"
 	                fi
                     fi
 	        fi
@@ -2442,20 +2442,20 @@ case $action in
 	            rsync $rsync_opts -aq --delete -- "$backup_dir/pgdata/" "$PGDATA/"
 	            rc=$?
 	            if [ $rc != 0 ] && [ $rc != 24 ]; then
-		        error "rsync of PGDATA failed with exit code $rc"
+		        die "rsync of PGDATA failed with exit code $rc"
 	            fi
 	        else
 	            rsync $rsync_opts -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/pgdata/")" "$PGDATA/"
 	            rc=$?
 	            if [ $rc != 0 ] && [ $rc != 24 ]; then
-		        error "rsync of PGDATA failed with exit code $rc"
+		        die "rsync of PGDATA failed with exit code $rc"
 	            fi
 	        fi
 	        info "transfer of PGDATA successful"
 	        ;;
 
             *)
-	        error "Unknown STORAGE method '$storage'"
+	        die "Unknown STORAGE method '$storage'"
 	        ;;
         esac
 
@@ -2466,11 +2466,11 @@ case $action in
         if [ ! -f "$PGDATA/backup_label" ]; then
             if [ "$backup_local" = "yes" ]; then
                 if ! cp -- "$backup_dir/backup_label" "$PGDATA/backup_label"; then
-                    error "could not restore the backup_label file to $PGDATA"
+                    die "could not restore the backup_label file to $PGDATA"
                 fi
             else
                 if ! scp -- "$backup_ssh_target:$backup_dir/backup_label" "$PGDATA/backup_label" >/dev/null; then
-                    error "could not restore the backup_label file to $PGDATA"
+                    die "could not restore the backup_label file to $PGDATA"
                 fi
             fi
         fi
@@ -2484,7 +2484,7 @@ case $action in
             if [ -d "$backup_dir/conf" ]; then
 	        info "restoring configuration files to $restored_conf"
 	        if ! cp -r -- "$backup_dir/conf" "$restored_conf"; then
-	            warn "could not copy $backup_dir/conf to $restored_conf"
+	            die "could not copy $backup_dir/conf to $restored_conf"
 	        fi
             fi
 
@@ -2493,7 +2493,7 @@ case $action in
             if ssh -n -- "$backup_ssh_target" "test -d $confdir" 2>/dev/null; then
 	        info "restoring configuration files to $restored_conf"
 	        if ! scp -r -- "$backup_ssh_target:$confdir" "$restored_conf" >/dev/null; then
-	            warn "could not copy $source:$backup_dir/conf to $restored_conf"
+	            die "could not copy $backup_ssh_target:$backup_dir/conf to $restored_conf"
 	        fi
             fi
         fi
@@ -2503,7 +2503,7 @@ case $action in
             _files=( "$restored_conf"/*.gpg )
             for f in "${_files[@]}"; do
                 if ! "${gpg_command[@]}" -o "$restored_conf/$(basename "$f" .gpg)" "$f"; then
-                    error "could not decrypt configuration file $f"
+                    die "could not decrypt configuration file $f"
                 else
                     rm -- "$f" || error "could not remove $f"
                 fi
@@ -2514,7 +2514,7 @@ case $action in
         if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
             info "setting owner of PGDATA ($PGDATA)"
             if ! chown -R -- "$PGOWNER:" "$PGDATA"; then
-	        error "could not change owner of PGDATA to $PGOWNER"
+	        die "could not change owner of PGDATA to $PGOWNER"
             fi
         fi
 
@@ -2531,7 +2531,7 @@ case $action in
 
             # Change the symlink in pg_tblspc when the tablespace directory changes
             if [ "${tspc_reloc[$i]}" = "yes" ]; then
-	        ln -sf "$tbldir" "$PGDATA/pg_tblspc/$oid" || error "could not update the symbolic of tablespace $name ($oid) to $tbldir"
+	        ln -sf "$tbldir" "$PGDATA/pg_tblspc/$oid" || die "could not update the symbolic of tablespace $name ($oid) to $tbldir"
 
 	        # Ensure the new link has the correct owner, the chown -R
 	        # issued after extraction will not do it
@@ -2561,7 +2561,7 @@ case $action in
 		            uncompress_rc=${rc[0]}
 		            tar_rc=${rc[1]}
 		            if [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
-		                error "Could not extract tablespace $name to $tbldir"
+		                die "Could not extract tablespace $name to $tbldir"
 		            fi
                         fi
 	            else
@@ -2581,7 +2581,7 @@ case $action in
 		            uncompress_rc=${rc[1]}
 		            tar_rc=${rc[2]}
 		            if [ "$ssh_rc" != 0 ] || [ "$uncompress_rc" != 0 ] || [ "$tar_rc" != 0 ]; then
-		                error "Could not extract tablespace $name to $tbldir"
+		                die "Could not extract tablespace $name to $tbldir"
 		            fi
                         fi
 	            fi
@@ -2595,20 +2595,20 @@ case $action in
 		        rsync $rsync_opts -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
 		        rc=$?
 		        if [ $rc != 0 ] && [ $rc != 24 ]; then
-		            error "rsync of tablespace \"${name}\" failed with exit code $rc"
+		            die "rsync of tablespace \"${name}\" failed with exit code $rc"
 		        fi
 	            else
 		        rsync $rsync_opts -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
 		        rc=$?
 		        if [ $rc != 0 ] && [ $rc != 24 ]; then
-		            error "rsync of tablespace \"${name}\" failed with exit code $rc"
+		            die "rsync of tablespace \"${name}\" failed with exit code $rc"
 		        fi
 	            fi
 	            info "transfer of tablespace \"${name}\" successful"
 	            ;;
 
 	        *)
-	            error "Unknown STORAGE method '$storage'"
+	            die "Unknown STORAGE method '$storage'"
 	            ;;
             esac
 
@@ -2616,7 +2616,7 @@ case $action in
             if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
 	        info "setting owner of tablespace \"$name\" ($tbldir)"
 	        if ! chown -R -- "$PGOWNER:" "$tbldir"; then
-	            error "could not change owner of tablespace \"$name\" to $PGOWNER"
+	            die "could not change owner of tablespace \"$name\" to $PGOWNER"
 	        fi
             fi
         done
@@ -2630,14 +2630,14 @@ case $action in
                 if [ -f "$backup_dir/pg_control.gpg" ]; then
                     info "pg_control file found in $backup_dir, restoring it"
                     if ! "${gpg_command[@]}" -o "$PGDATA/global/pg_control" "$backup_dir/pg_control.gpg"; then
-                        error "could not decrypt and restore pg_control file to $PGDATA/global/"
+                        die "could not decrypt and restore pg_control file to $PGDATA/global/"
                     fi
                 fi
             else
                 if [ -f "$backup_dir/pg_control" ]; then
                     info "pg_control file found in $backup_dir, restoring it"
                     if ! cp -- "$backup_dir/pg_control" "$PGDATA/global/pg_control"; then
-                        error "could not restore pg_control file to $PGDATA/global/"
+                        die "could not restore pg_control file to $PGDATA/global/"
                     fi
                 fi
             fi
@@ -2650,14 +2650,14 @@ case $action in
 	            ssh_rc=${rc[0]}
                     gpg_rc=${rc[1]}
                     if [ "$ssh_rc" != 0 ] || [ "$gpg_rc" != 0 ]; then
-                        error "could not decrypt and restore pg_control file to $PGDATA/global/"
+                        die "could not decrypt and restore pg_control file to $PGDATA/global/"
                     fi
                 fi
             else
                 if ssh -n -- "$backup_ssh_target" "test -f $(qw "$backup_dir/pg_control")"; then
                     info "pg_control file found in $backup_dir, restoring it"
                     if ! scp -- "$backup_ssh_target:$(qw "$backup_dir/pg_control")" "$PGDATA/global/pg_control" >/dev/null; then
-                        error "could not restore pg_control file to $PGDATA/global/"
+                        die "could not restore pg_control file to $PGDATA/global/"
                     fi
                 fi
             fi
@@ -2672,7 +2672,7 @@ case $action in
         # versions older than 9.5.
         if [ -f "$PGDATA/tablespace_map" ]; then
             if ! rm -- "$PGDATA/tablespace_map"; then
-                error "could not remove the tablespace_map file"
+                die "could not remove the tablespace_map file"
             fi
         fi
 
@@ -2680,11 +2680,11 @@ case $action in
         if [ -d "$PGXLOG" ]; then
             info "creating symbolic link pg_${xlog_or_wal} to $PGXLOG"
             if ! ln -sf -- "$PGXLOG" "$PGDATA/pg_${xlog_or_wal}"; then
-	        error "could not create $PGDATA/pg_${xlog_or_wal} symbolic link"
+	        die "could not create $PGDATA/pg_${xlog_or_wal} symbolic link"
             fi
             if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
 	        if ! chown -h -- "$PGOWNER:" "$PGDATA/pg_${xlog_or_wal}"; then
-	            error "could not change owner of pg_${xlog_or_wal} symbolic link to $PGOWNER"
+	            die "could not change owner of pg_${xlog_or_wal} symbolic link to $PGOWNER"
 	        fi
             fi
         fi
@@ -2692,16 +2692,16 @@ case $action in
         if [ ! -d "$PGDATA/pg_${xlog_or_wal}/archive_status" ]; then
             info "preparing pg_${xlog_or_wal} directory"
             if ! mkdir -p -- "$PGDATA/pg_${xlog_or_wal}/archive_status"; then
-	        error "could not create $PGDATA/pg_${xlog_or_wal}"
+	        die "could not create $PGDATA/pg_${xlog_or_wal}"
             fi
 
             if ! chmod -- 700 "$PGDATA/pg_${xlog_or_wal}" "$PGDATA/pg_${xlog_or_wal}/archive_status" 2>/dev/null; then
-	        error "could not set permissions of $PGDATA/pg_${xlog_or_wal} and $PGDATA/pg_${xlog_or_wal}/archive_status"
+	        die "could not set permissions of $PGDATA/pg_${xlog_or_wal} and $PGDATA/pg_${xlog_or_wal}/archive_status"
             fi
 
             if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
 	        if ! chown -R -- "$PGOWNER:" "$PGDATA/pg_${xlog_or_wal}"; then
-	            error "could not change owner of $dir to $PGOWNER"
+	            die "could not change owner of $dir to $PGOWNER"
 	        fi
             fi
         fi
@@ -2788,7 +2788,7 @@ case $action in
         # rename it at the end of the recovery
         if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
             if ! chown -R -- "$PGOWNER:" "$PGDATA/recovery.conf"; then
-	        error "could not change owner of recovery.conf to $PGOWNER"
+	        die "could not change owner of recovery.conf to $PGOWNER"
             fi
         fi
 
@@ -2822,9 +2822,9 @@ case $action in
             if [ "$backup_local" = "yes" ]; then
 	        if [ -f "$replslot_list_file" ]; then
                     if [ "$BACKUP_ENCRYPT" = "yes" ]; then
-                        replslot_list=$("${gpg_command[@]}" < "$replslot_list_file") || error "Failed to decrypt $replslot_list_file"
+                        replslot_list=$("${gpg_command[@]}" < "$replslot_list_file") || die "Failed to decrypt $replslot_list_file"
                     else
-	                replslot_list=$(< "$replslot_list_file") || error "Failed to read $replslot_list_file"
+	                replslot_list=$(< "$replslot_list_file") || die "Failed to read $replslot_list_file"
                     fi
                 fi
             else
@@ -2832,11 +2832,11 @@ case $action in
                 if [ "$BACKUP_ENCRYPT" = "yes" ]; then
                     if ssh -n -- "$backup_ssh_target" "[ -f $rfile ]"; then
                         replslot_list=$(ssh -n -- "$backup_ssh_target" "cat -- $rfile" | "${gpg_command[@]}") ||
-                            error "Failed to read $backup_ssh_target:$replslot_list_file"
+                            die "Failed to read $backup_ssh_target:$replslot_list_file"
                     fi
                 else
 	            replslot_list=$(ssh -n -- "$backup_ssh_target" "[ ! -f $rfile ] || cat -- $rfile") ||
-                        error "Failed to read $source:$replslot_list_file"
+                        die "Failed to read $backup_ssh_target:$replslot_list_file"
                 fi
             fi
 
