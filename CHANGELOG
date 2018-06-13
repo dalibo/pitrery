@@ -4,6 +4,11 @@ pitrery 2.2
   * Change the command line switch used to pass a configuration file to pitrery
     from -c to -f.
 
+  * Optionnaly encrypt tar backups and archived WAL files.
+
+  * Store the commandline executed and the configuration file inside the backup
+
+
 pitrery 2.1
 ===========
 
