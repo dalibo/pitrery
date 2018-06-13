@@ -2885,7 +2885,8 @@ case $action in
             info
         fi
         info "please check directories and recovery.conf before starting the cluster"
-        info "and do not forget to update the configuration of pitrery if needed"
+        info "and do not forget to update the configuration of pitrery if needed:"
+        info "  $PGDATA/recovery.conf"
         info
 
         if [ -f "$replslots_sql" ]; then
