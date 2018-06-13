@@ -2286,18 +2286,20 @@ case $action in
 	        tspc_reloc[$i]="no"
 
 	        for t in "${tsmv_list[@]}"; do
-	            tname=$(cut -d ':' -f 1 <<< "$t")
-	            # relocation can be done using the name or the oid of the tablespace
-	            if [ "$tname" = "${tspc_name[$i]}" ] || [ "$tname" = "${tspc_oid[$i]}" ]; then
-		        tdir=$(cut -d ':' -f 2 <<< "$t")
-		        if [ "${tspc_dir[$i]}" != "$tdir" ]; then
-		            tspc_dir[$i]=$tdir
-		            tspc_reloc[$i]="yes"
-		        fi
-		        break
-	            fi
-	        done
-            done <<< "$tblspc_list"
+                    tname=$(cut -s -d ':' -f 1 <<< "$t")
+                    tdir=$(cut -s -d ':' -f 2 <<< "$t")
+                    [ -n "$tdir" ] || die "missing tablespace name in relocation option: $t"
+
+                    # relocation can be done using the name or the oid of the tablespace
+                    if [ "$tname" = "${tspc_name[$i]}" ] || [ "$tname" = "${tspc_oid[$i]}" ]; then
+	                if [ "${tspc_dir[$i]}" != "$tdir" ]; then
+	                    tspc_dir[$i]=$tdir
+	                    tspc_reloc[$i]="yes"
+	                fi
+	                break
+                    fi
+                done
+	    done <<< "$tblspc_list"
         fi
 
         tspc_count=${#tspc_name[@]}
