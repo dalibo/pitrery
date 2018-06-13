@@ -539,30 +539,40 @@ check_and_fix_directory() {
 
     # Check if directory exists
     if [ ! -d "$dir" ]; then
-	info "creating $dir with permission 0700"
-	# Note that if this creates any parent directories, their mode will be set
-	# according to the current umask, only the final leaf dir will be set 0700.
-	mkdir -p -m 700 -- "$dir" || die "could not create $dir"
+        if [ "$dry_run" != "yes" ]; then
+	    info "creating $dir with permission 0700"
+	    # Note that if this creates any parent directories, their mode will be set
+	    # according to the current umask, only the final leaf dir will be set 0700.
+	    mkdir -p -m 700 -- "$dir" || die "could not create $dir"
+        fi
     else
         # Check if directory is empty
 	info "checking if $dir is empty"
 	if [ -n "$(ls -A -- "$dir")" ]; then
-	    [ "$OVERWRITE" = "yes" ] || die "$dir is not empty. Contents won't be overwritten"
+            if [ "$dry_run" != "yes" ]; then
+                [ "$OVERWRITE" = "yes" ] || die "$dir is not empty. Contents won't be overwritten"
 
-	    # Cancel in case there may be a postmaster running.
-	    if [ -e "$dir/postmaster.pid" ]; then
-		die "Found $dir/postmaster.pid. A postmaster may be running. Aborting."
-	    fi
+	        # Cancel in case there may be a postmaster running.
+	        if [ -e "$dir/postmaster.pid" ]; then
+		    die "Found $dir/postmaster.pid. A postmaster may be running. Aborting."
+	        fi
 
-	    info "$dir is not empty, its contents will be overwritten"
-	    # This is called after we know the storage
-	    # method. When using "tar", we must clean the target
-	    # directory. When using "rsync", we just let it do its
-	    # diffs.
-	    if [ "$STORAGE" = "tar" ]; then
-		info "Removing contents of $dir"
-		rm -rf -- "$dir/"*
-	    fi
+	        info "$dir is not empty, its contents will be overwritten"
+	        # This is called after we know the storage
+	        # method. When using "tar", we must clean the target
+	        # directory. When using "rsync", we just let it do its
+	        # diffs.
+	        if [ "$STORAGE" = "tar" ]; then
+		    info "Removing contents of $dir"
+		    rm -rf -- "$dir/"*
+	        fi
+            else
+                if [ "$OVERWRITE" = "yes" ]; then
+                    warn "$dir is not empty, its contents WILL be overwritten"
+                else
+                    error "$dir is not empty, its contents won't be overwritten"
+                fi
+            fi
 	else
 	    # make rsync copy the whole files because target
 	    # directories are empty
@@ -573,21 +583,25 @@ check_and_fix_directory() {
 	dperms=`stat -c %a -- "$dir" 2>/dev/null` || die "Unable to get permissions of $dir"
 
 	if [ "$dperms" != "700" ]; then
-	    info "setting permissions of $dir"
-	    chmod -- 700 "$dir" || die "$dir must have 0700 permission"
+            if [ "$dry_run" != "yes" ]; then
+	        info "setting permissions of $dir"
+	        chmod -- 700 "$dir" || die "$dir must have 0700 permission"
+            fi
 	fi
     fi
-    
-    # Check owner
-    downer=`stat -c %U -- "$dir" 2>/dev/null` || die "Unable to get owner of $dir"
 
-    if [ "$downer" != "$PGOWNER" ]; then
-	if [ "`id -u`" = 0 ]; then
-	    info "setting owner of $dir"
-	    chown -- "$PGOWNER:" "$dir" || die "could not change owner of $dir to $PGOWNER"
-	else
-	    die "$dir must be owned by $PGOWNER"
-	fi
+    if [ "$dry_run" != "yes" ]; then
+        # Check owner
+        downer=`stat -c %U -- "$dir" 2>/dev/null` || die "Unable to get owner of $dir"
+
+        if [ "$downer" != "$PGOWNER" ]; then
+	    if [ "`id -u`" = 0 ]; then
+	        info "setting owner of $dir"
+	        chown -- "$PGOWNER:" "$dir" || die "could not change owner of $dir to $PGOWNER"
+	    else
+	        die "$dir must be owned by $PGOWNER"
+	    fi
+        fi
     fi
 }
 
@@ -2288,43 +2302,6 @@ case $action in
 
         tspc_count=${#tspc_name[@]}
 
-        # Display some info on the restore
-        info
-        info "backup directory:"
-        info "  $backup_dir"
-        info
-        info "destinations directories:"
-        info "  PGDATA -> $PGDATA"
-
-        [ -n "$PGXLOG" ] && info "  PGDATA/pg_${xlog_or_wal} -> $PGXLOG"
-
-        # Populate an array with tablespace directory to check we have duplicates
-        declare -a tspc_dedup
-
-        # Print the tablespace relocation information
-        for (( i=0; i<$tspc_count; ++i )); do
-            info "  tablespace \"${tspc_name[$i]}\" (${tspc_oid[$i]}) -> ${tspc_dir[$i]} (relocated: ${tspc_reloc[$i]})"
-            tspc_dedup+=( ${tspc_dir[$i]} )
-        done
-
-        info
-        info "recovery configuration:"
-        info "  target owner of the restored files: $PGOWNER"
-        info "  restore_command = '$RESTORE_COMMAND'"
-        [ -n "$recovery_target_time" ] && info "  recovery_target_time = '$recovery_target_time'"
-        info 
-
-        # Check if tablespace relocation list have duplicates
-        if (( $(for o in "${tspc_dedup[@]}"; do echo $o; done | sort -u | wc -l) < $tspc_count )); then
-            die "found duplicates in tablespace relocations. Check options and the list of tablespaces of the backup"
-        fi
-
-        if [ "$dry_run" = "yes" ]; then
-            exit 0
-        fi
-
-        # Real work starts here
-        
         # Find out what storage method is used in the backup. If the PGDATA is
         # stored as a gzip'ed tarball, the method is tar, if it is a
         # directory, then we used rsync to put files there.
@@ -2362,6 +2339,40 @@ case $action in
         if [ "$BACKUP_ENCRYPT" = "yes" ]; then
             gpg_command=( "$GPG_BIN" "--batch" "--yes" "--decrypt" "--quiet" )
         fi
+
+        # Display some info on the restore
+        info
+        info "backup:"
+        info "  directory: $backup_dir"
+        info "  storage: $storage"
+        info "  encryption: $BACKUP_ENCRYPT"
+        info
+        info "destinations directories:"
+        info "  PGDATA -> $PGDATA"
+
+        [ -n "$PGXLOG" ] && info "  PGDATA/pg_${xlog_or_wal} -> $PGXLOG"
+
+        # Populate an array with tablespace directory to check we have duplicates
+        declare -a tspc_dedup
+
+        # Print the tablespace relocation information
+        for (( i=0; i<$tspc_count; ++i )); do
+            info "  tablespace \"${tspc_name[$i]}\" (${tspc_oid[$i]}) -> ${tspc_dir[$i]} (relocated: ${tspc_reloc[$i]})"
+            tspc_dedup+=( ${tspc_dir[$i]} )
+        done
+
+        info
+        info "recovery configuration:"
+        info "  target owner of the restored files: $PGOWNER"
+        info "  restore_command = '$RESTORE_COMMAND'"
+        [ -n "$recovery_target_time" ] && info "  recovery_target_time = '$recovery_target_time'"
+        info
+
+        # Check if tablespace relocation list have duplicates
+        if (( $(for o in "${tspc_dedup[@]}"; do echo $o; done | sort -u | wc -l) < $tspc_count )); then
+            die "found duplicates in tablespace relocations. Check options and the list of tablespaces of the backup"
+        fi
+
         
         # Check target directories
         check_and_fix_directory "$PGDATA"
@@ -2380,6 +2391,12 @@ case $action in
         for d in "${tspc_dir[@]}"; do
             check_and_fix_directory "$d"
         done
+
+        if [ "$dry_run" = "yes" ]; then
+            exit 0
+        fi
+
+        # Real work starts here
 
         # Extract everything
         case $storage in
