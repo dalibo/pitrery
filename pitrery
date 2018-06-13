@@ -2042,6 +2042,19 @@ case $action in
             if ! cp -- "$PGDATA/PG_VERSION" "$backup_dir"; then
                 die_and_hook "could not copy PG_VERSION to $backup_dir"
             fi
+
+            # Store the commandline and configuration file
+            echo "workdir: $(pwd)" > "$backup_dir/backup_command" 2>/dev/null
+            echo "command: $0" "$@" >> "$backup_dir/backup_command" 2>/dev/null
+            echo "libpq exported variables:" >> "$backup_dir/backup_command" 2>/dev/null
+            env | grep ^PG 2>/dev/null >> "$backup_dir/backup_command" 2>/dev/null
+            
+            if [ -f "$config" ]; then
+                echo "config: $config" >> "$backup_dir/backup_command" 2>/dev/null
+                if ! cp -- "$config" "$backup_dir/pitrery.conf"; then
+                    warn "could not copy $config to $backup_dir"
+                fi
+            fi
         else
             if ssh -n -- "$backup_ssh_target" "test -e $(qw "$new_backup_dir")" 2>/dev/null; then
 	        die_and_hook "backup directory '$backup_ssh_target:$new_backup_dir' already exists"
@@ -2102,6 +2115,19 @@ case $action in
             info "copying PG_VERSION"
             if ! scp -- "$PGDATA/PG_VERSION" "$backup_ssh_target:$(qw "$backup_dir")" >/dev/null; then
 	        die_and_hook "could not copy PG_VERSION to $backup_ssh_target:$backup_dir"
+            fi
+
+            # Store the commandline and configuration file
+            (echo "workdir: $(pwd)"
+             echo "command: $0" "$@"
+             echo "libpq exported variables:"
+             env | grep ^PG) 2>/dev/null | ssh -- "$backup_ssh_target" "cat > $(qw "$backup_dir/backup_command")" 2>/dev/null
+
+            if [ -f "$config" ]; then
+                echo "config: $config" | ssh -- "$backup_ssh_target" "cat > $(qw "$backup_dir/backup_command")" 2>/dev/null
+                if ! scp -- "$config" "$backup_ssh_target:$(qw "$backup_dir/pitrery.conf")"; then
+                    warn "could not copy $config to $backup_ssh_target:$backup_dir"
+                fi
             fi
         fi
 
