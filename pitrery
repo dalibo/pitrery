@@ -1100,7 +1100,8 @@ case $action in
 
             if [ -n "$backup_size" ]; then
 	        if [ -n "$verbose" ]; then
-                    list_output_all "  space used" "$backup_size"
+                    list_output_text "  space used" "$backup_size"
+                    list_output_json "space_used" "$backup_size"
 	        else
 	            echo -ne "$backup_size\t"
 	        fi
