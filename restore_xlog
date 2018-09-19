@@ -238,7 +238,7 @@ if [ "$archive_local" = "yes" ]; then
         target_file="${target_path}.gpg"
         ARCHIVE_COMPRESS="no"
     else
-	error "could not find $archive_dir/$xlog_file"
+	error "could not find $archive_dir/$xlog"
     fi
 
     if ! cp -- "$archive_dir/$xlog_file" "$target_file"; then
@@ -256,7 +256,7 @@ else
         target_file="${target_path}.gpg"
         ARCHIVE_COMPRESS="no"
     else
-	error "could not find $archive_dir/$xlog_file on ${archive_host}"
+	error "could not find $archive_dir/$xlog on ${archive_host}"
     fi
 
     if ! scp -- "${archive_ssh_target}:$(qw "$archive_dir/$xlog_file")" "$target_file" >/dev/null; then
