@@ -642,6 +642,9 @@ compression options listed before do not apply.
 Encryption of base backups and archived WAL files
 -------------------------------------------------
 
+**Warning: Encryption of backups and archived WAL files is
+experimental and should be used with caution.**
+
 When using tar for storing backups, they can also be encrypted using
 GnuPG. For backup and WAL archiving, the public keys of recipients
 must be in the keyring of the user running the PostgreSQL instance and running
@@ -667,6 +670,9 @@ The encryption of tar backups is controlled by the following parameters:
   of the user running PostgreSQL in order encrypt WAL files at
   archiving time.
 
+It is advised to encrypt with a local public key *and* another key that has its
+private counterpart stored on another machine: if the private keys are lost,
+the backups become unusable.
 
 Hooks
 -----
@@ -1236,6 +1242,9 @@ The options of restore are:
 
 Restoring an encrypted backup
 ----------------------------
+
+**Warning: Encryption of backups and archived WAL files is
+experimental and should be used with caution.**
 
 When the backup is encrypted, decryption is transparent. The user
 running the restore action must have the secret key required to
