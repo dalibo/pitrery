@@ -4005,18 +4005,20 @@ case $action in
         fi
 
         # Check gpg availability
-        gpg_command=( "$GPG_BIN" "--batch" "--yes" "--encrypt" )
+        if [[ "$encrypt" == "yes" ]]; then
+            gpg_command=( "$GPG_BIN" "--batch" "--yes" "--encrypt" )
 
-        while read -r -d '' o; do
-            gpg_command+=( "--recipient" "$o" )
-        done < <(tr ':' '\0' <<< "${gpg_encrypt_keys}:")
+            while read -r -d '' o; do
+                gpg_command+=( "--recipient" "$o" )
+            done < <(tr ':' '\0' <<< "${gpg_encrypt_keys}:")
 
-        info "Checking GPG encryption"
-        echo "test" | "${gpg_command[@]}" > /dev/null
-        rc=(${PIPESTATUS[*]})
-        gpg_rc=${rc[1]}
-        if [ "$gpg_rc" != 0 ]; then
-            die "failed to check GPG encryption. command line:" "${gpg_command[@]}"
+            info "checking GPG encryption"
+            echo "test" | "${gpg_command[@]}" > /dev/null
+            rc=(${PIPESTATUS[*]})
+            gpg_rc=${rc[1]}
+            if [ "$gpg_rc" != 0 ]; then
+                die "failed to check GPG encryption. command line:" "${gpg_command[@]}"
+            fi
         fi
 
         info "==> contents of the configuration file"
@@ -4277,9 +4279,11 @@ EOF
             [ "$syslog_ident" != "postgres" ] && output_param "SYSLOG_IDENT" "$syslog_ident" "$conffile"
         fi
 
-        output_param "BACKUP_ENCRYPT" "$encrypt" "$conffile"
-        output_param "ARCHIVE_ENCRYPT" "$encrypt" "$conffile"
-        output_param "GPG_ENCRYPT_KEYS" "$gpg_encrypt_keys" "$conffile"
+        if [[ "$encrypt" == "yes" ]]; then
+            output_param "BACKUP_ENCRYPT" "$encrypt" "$conffile"
+            output_param "ARCHIVE_ENCRYPT" "$encrypt" "$conffile"
+            output_param "GPG_ENCRYPT_KEYS" "$gpg_encrypt_keys" "$conffile"
+        fi
 
         echo
 
