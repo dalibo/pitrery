@@ -197,7 +197,7 @@ specified *before* the action. The help message is:
     usage: pitrery [options] action [args]
     
     options:
-        -c file      Path to the configuration file
+        -f file      Path to the configuration file
         -l           List configuration files in the default directory
         -V           Display the version and exit
         -?           Print help
@@ -238,7 +238,10 @@ usage is straight forward:
         -F             flush the destination file to disk
         -c command     compression command
         -s suffix      compressed file suffix (ex: gz)
-    
+
+        -E             encrypt the file using gpg
+        -r keys:...    colon separated list of recipients for GPG encryption
+
         -S             send messages to syslog
         -f facility    syslog facility
         -t ident       syslog ident
@@ -308,6 +311,8 @@ local.  Some options are available to create a configuration :
         -g days                Remove backup older than this number of days
         -D dir                 Path to $PGDATA
         -a [[user@]host:]/dir  Place to store WAL archives
+        -E                     Encrypt tar backups with GPG
+        -r keys:...            Colon separated list of recipients for GPG encryption
     
         -P psql                Path to the psql command
         -h hostname            Database server host or socket directory
@@ -439,6 +444,10 @@ configured:
   configuration of PostgreSQL so that the messages of `archive_xlog`
   are written to the logfile of PostgreSQL, otherwise they would be
   lost.
+
+* `ARCHIVE_ENCRYPT` can be set to "yes" to encrypt the WAL file using
+  GnuPG. `GPG_ENCRYPT_KEYS` must be configured to give the list of
+  recipients for encryption
 
 If archiving is set up to a remote host, this host must be reachable
 using SSH in batch mode, meaning that passphraseless access using keys
@@ -607,6 +616,9 @@ Or maximum, but slow, compression with the standard `bzip2`:
     ARCHIVE_COMPRESS_SUFFIX="bz2"
     ARCHIVE_UNCOMPRESS_BIN="bunzip"
 
+When encryption is active, compression is managed by GnuPG. The
+compression options listed before do not apply.
+
 
 Tuning compression of base backups with tar
 -------------------------------------------
@@ -628,7 +640,44 @@ compressed using `gzip`. This can be changed by configuring:
   compression tools such as `gzip`, `bzip2`, `pigz`, `pbzip2`, `xz`
   work this way.
 
+When encryption is active, compression is managed by GnuPG. The
+compression options listed before do not apply.
 
+
+Encryption of base backups and archived WAL files
+-------------------------------------------------
+
+**Warning: Encryption of backups and archived WAL files is
+experimental and should be used with caution.**
+
+When using tar for storing backups, they can also be encrypted using
+GnuPG. For backup and WAL archiving, the public keys of recipients
+must be in the keyring of the user running the PostgreSQL instance and running
+pitrery.
+
+When restoring, the secret key must be in the keyring of the user
+running pitrery and the PostgreSQL instance.
+
+PostgreSQL can decrypt the restored WAL files without prompting for a
+passphrase if it started with `pg_ctl` in a session where a GnuPG
+Agent is running with the passphrase cached. The simplest way to feed
+the passphrase to the agent is to start PostgreSQL right after
+restoring intarectively. See [Restoring an encrypted backup] below.
+
+The encryption of tar backups is controlled by the following parameters:
+
+* `BACKUP_ENCRYPT` must be set to "yes" to encrypt base backups.
+
+* `ARCHIVE_ENCRYPT` must be set to "yes" to encrypt archived WAL files.
+
+* `GPG_ENCRYPT_KEYS` is a colon separeted list of USER-ID recognized
+  by the --recipient option of `gpg`. The keys must be in the keyring
+  of the user running PostgreSQL in order encrypt WAL files at
+  archiving time.
+
+It is advised to encrypt with a local public key *and* another key that has its
+private counterpart stored on another machine: if the private keys are lost,
+the backups become unusable.
 
 Hooks
 -----
@@ -679,11 +728,11 @@ the configuration files in the default configuration directory.
     pitrery
 
 `pitrery` being the default configuration file, it is not mandatory to
-specify it on the command line. If using another one, use the `-c`
+specify it on the command line. If using another one, use the `-f`
 option in every call to pitrery before the action to perform:
 
-    $ pitrery -c prod check
-    $ pitrery -c prod list -v
+    $ pitrery -f prod check
+    $ pitrery -f prod list -v
 
 
 Configuring pitrery from the command line
@@ -709,6 +758,8 @@ local.  Some options are available to create a configuration :
         -g days                Remove backup older than this number of days
         -D dir                 Path to $PGDATA
         -a [[user@]host:]/dir  Place to store WAL archives
+        -E                     Encrypt tar backups with GPG
+        -r keys:...            Colon separated list of recipients for GPG encryption
     
         -P psql                Path to the psql command
         -h hostname            Database server host or socket directory
@@ -740,7 +791,7 @@ files.
 For example, the following commands checks the `prod.conf`
 configuration file:
 
-    $ pitrery -c prod check
+    $ pitrery -f prod check
     INFO: the configuration file contains:
     PGDATA="/var/lib/postgresql/9.6/main"
     PGPORT=5433
@@ -780,7 +831,7 @@ Here the `check` action reports that PostgreSQL is not properly
 configured for archiving WAL files and that a directory is
 missing. Fixing those error is mandatory to make the backups work:
 
-    $ pitrery -c prod check
+    $ pitrery -f prod check
     INFO: the configuration file contains:
     PGDATA="/var/lib/postgresql/9.6/main"
     PGPORT=5433
@@ -837,6 +888,8 @@ action is:
         -s mode              Storage method, tar or rsync
         -c compress_bin      Compression command for tar method
         -e compress_suffix   Suffix added by the compression program
+            -E                   Encrypt tar backups with GPG
+        -r keys:...          Colon separated list of recipients for GPG encryption
         -t                   Use ISO 8601 format to name backups
         -T                   Timestamp log messages
     
@@ -852,7 +905,7 @@ action is:
 
 For example:
 
-    $ pitrery -c prod backup
+    $ pitrery -f prod backup
     INFO: preparing directories in /var/backups/postgresql/
     INFO: listing tablespaces
     INFO: starting the backup process
@@ -923,7 +976,7 @@ The list action allow to find the backups the backup host or the
 localhost depending on the configuration. By default, it prints a
 parsable list of backups, with one backups on each line:
 
-    $ pitrery -c prod list
+    $ pitrery -f prod list
     List of local backups
     /var/backups/postgresql/2017.10.17_14.57.34	5.8M	  2017-10-17 14:57:34 CEST
     /var/backups/postgresql/2017.10.17_15.03.50	5.8M	  2017-10-17 15:03:50 CEST
@@ -938,13 +991,14 @@ for each tablespace :
 
 For example :
 
-    $ pitrery -c prod list -v
+    $ pitrery -f prod list -v
     List of local backups
     ----------------------------------------------------------------------
     Directory:
       /var/backups/postgresql/2017.10.17_15.03.50
       space used: 5.8M
       storage: tar with gz compression
+      encryption: false
     Minimum recovery target time:
       2017-10-17 15:03:50 CEST
     PGDATA:
@@ -956,7 +1010,8 @@ For example :
     Directory:
       /var/backups/postgresql/2017.10.17_15.06.46
       space used: 5.8M
-      storage: tar with gz compression
+      storage: tar with gpg compression
+      encryption: true
     Minimum recovery target time:
       2017-10-17 15:06:46 CEST
     PGDATA:
@@ -1040,7 +1095,7 @@ action with `-r`.
 The command line for the restore action can be tested using the `-n`
 (dry run) option:
 
-    $ pitrery -c prod restore -n
+    $ pitrery -f prod restore -n
     INFO: searching backup directory
     INFO: searching for tablespaces information
     INFO: 
@@ -1061,7 +1116,7 @@ Let's say the target directories are ready for a restore run by the
 production server, ensure the date (or other arguments that need it)
 are properly quoted:
 
-    $ pitrery -c prod restore -d '2017-10-17 15:04:30 +0200'
+    $ pitrery -f prod restore -d '2017-10-17 15:04:30 +0200'
     INFO: searching backup directory
     INFO: searching for tablespaces information
     INFO: 
@@ -1117,7 +1172,7 @@ format of the value of a `-t` option is `tablespace_name_or_oid:new_directory`.
 
 One `-t` option apply to one tablespace. For example:
 
-    $ pitrery -c prod restore -D /var/lib/postgresql/9.6/main2 \
+    $ pitrery -f prod restore -D /var/lib/postgresql/9.6/main2 \
     > -t ts1:/var/lib/postgresql/tblspc/9.6/main/ts1_2
     INFO: searching backup directory
     INFO: searching for tablespaces information
@@ -1190,6 +1245,37 @@ The options of restore are:
         -?                   Print help
 
 
+Restoring an encrypted backup
+----------------------------
+
+**Warning: Encryption of backups and archived WAL files is
+experimental and should be used with caution.**
+
+When the backup is encrypted, decryption is transparent. The user
+running the restore action must have the secret key required to
+decrypt the data in its keyring. Since a restore can take quite a long
+time, it is recommended to start a gpg-agent explicitely for the
+operation with longer cache TTL values (7 days in the example):
+
+    eval $(/usr/bin/gpg-agent --daemon --allow-preset-passphrase \
+      --default-cache-ttl 604800 --max-cache-ttl 604800)
+
+If the restore fails on GnuPG complaining there are no tty for prompting
+the passphrase, get one using `script`:
+
+    script /dev/null
+    export GPG_TTY=$(tty)
+
+This will allow pinentry to prompt for the passphrase.
+
+Since those information are in the shell environment, PostgreSQL can
+use the agent when started using `pg_ctl`. To make the recovery
+process successfully decrypt the archived WAL files, start the
+PostgreSQL instance with `pg_ctl` after the restore in the same
+console session, the restart it using the regular init script/systemd
+unit if needed.
+
+
 Removing old backups
 --------------------
 
@@ -1209,7 +1295,7 @@ file is used to define the maximum age in days.
 For example, we have three backups on the store and we want to keep only
 one, while `PURGE_KEEP_COUNT=2`:
 
-    $ pitrery -c prod purge -m 1
+    $ pitrery -f prod purge -m 1
     INFO: searching backups
     INFO: Would be purging the following backups:
     INFO:  /var/backups/postgresql/2017.10.17_14.57.34
