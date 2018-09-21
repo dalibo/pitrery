@@ -1,0 +1,12 @@
+version: "2"
+
+services:
+  jekyll:
+    image: unws/gh-pages:latest
+    volumes:
+      - .:/src
+    ports:
+      - "4000:4000"
+    entrypoint: /src/run_jekyll
+    command: []
+
