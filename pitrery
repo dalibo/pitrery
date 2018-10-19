@@ -38,7 +38,7 @@ BACKUP_UNCOMPRESS_BIN="gunzip"
 PGPSQL="psql"
 PRE_BACKUP_COMMAND=
 POST_BACKUP_COMMAND=
-LOG_TIMESTAMP="no"
+LOG_TIMESTAMP="yes"
 USE_ISO8601_TIMESTAMPS="no"
 PGOWNER=`id -un`
 OVERWRITE="no"
@@ -3737,7 +3737,6 @@ case $action in
                 # check
                 mc=0
                 chk_c=0
-                prev_chk_c=0
                 tot_c="${#wal_list[@]}"
                 ts_c=$(date +%s)
                 for wal_file in "${wal_list[@]}"; do
@@ -3765,7 +3764,7 @@ case $action in
                                 else
                                     speed=0
                                     delta=$(( $(date +%s) - ts_c ))
-                                    (( $delta > 0 )) && speed=$(( ( chk_c - prev_chk_c ) / delta ))
+                                    (( $delta > 0 )) && speed=$(( chk_c / delta ))
                                     [[ "$output" != "nagios" ]] && info "looking for $(printf "%08X%08X%08X" "$cur_tln" "$cur_wal" "$cur_seg")" \
                                                                         "(checked ${chk_c}/${tot_c}, $speed segs/s)"
                                 fi
