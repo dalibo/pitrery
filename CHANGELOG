@@ -1,3 +1,9 @@
+pitrery 2.3
+===========
+
+  * Add progress information when checking for missing archived WAL files
+
+
 pitrery 2.2
 ===========
 

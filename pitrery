@@ -3730,8 +3730,16 @@ case $action in
                     )
                 fi
 
-                mc=0
                 start_wal_file_found="no"
+
+                # initiate counters, mc for missing count, chk_c and
+                # prev_ch_c for progress and speed, tot_c for total to
+                # check
+                mc=0
+                chk_c=0
+                prev_chk_c=0
+                tot_c="${#wal_list[@]}"
+                ts_c=$(date +%s)
                 for wal_file in "${wal_list[@]}"; do
                     # Skip archived backup_label files
                     [[ "$wal_file" =~ .*\.backup.* ]] && continue
@@ -3748,9 +3756,20 @@ case $action in
                         cur_wal=$(( 0x$(cut -b 9-16 <<< "$wal_file") ))
                         cur_seg=$(( 0x$(cut -b 17-24 <<< "$wal_file") ))
                     else
-                        if (( $cur_seg == $max_seg )); then
+                        if (( $cur_seg >= $max_seg )); then
                             cur_seg=0
                             cur_wal=$((cur_wal + 1))
+                            if (( $(( $cur_wal % 4 )) == 0)); then
+                                if [[ $start_wal_file_found != "yes" ]]; then
+                                    [[ "$output" != "nagios" ]] && info "looking for $(printf "%08X%08X%08X" "$cur_tln" "$cur_wal" "$cur_seg")"
+                                else
+                                    speed=0
+                                    delta=$(( $(date +%s) - ts_c ))
+                                    (( $delta > 0 )) && speed=$(( ( chk_c - prev_chk_c ) / delta ))
+                                    [[ "$output" != "nagios" ]] && info "looking for $(printf "%08X%08X%08X" "$cur_tln" "$cur_wal" "$cur_seg")" \
+                                                                        "(checked ${chk_c}/${tot_c}, $speed segs/s)"
+                                fi
+                            fi
                         else
                             cur_seg=$((cur_seg + 1))
                         fi
@@ -3766,7 +3785,12 @@ case $action in
                         [[ "$output" != "nagios" ]] && info "start WAL file found"
                         start_wal_file_found="yes"
                     fi
-                    [[ $start_wal_file_found != "yes" ]] && continue
+                    if [[ $start_wal_file_found != "yes" ]]; then
+                        tot_c=$((tot_c - 1))
+                        continue
+                    else
+                        chk_c=$((chk_c + 1))
+                    fi
 
                     # compare to counters
                     while ! ( (( $cur_tln == $tln )) && (( $cur_wal == $wal )) && (( $cur_seg == $seg )) ); do
