@@ -3709,7 +3709,7 @@ case $action in
                 fi
 
                 # Versions before 9.3 skip the FF segment
-                if (( $pgvers <= 903 )); then
+                if (( $pgvers < 903 )); then
                     max_seg=254
                 else
                     max_seg=255
