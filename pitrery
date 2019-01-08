@@ -3747,6 +3747,7 @@ case $action in
                     # to compute the maximum number of segments per
                     # log. We take the first segment, uncompress it
                     # and measure its size
+                    [[ "$output" != "nagios" ]] && info "looking for WAL segment size"
                     for wal_file in "${wal_list[@]}"; do
                         [[ "$wal_file" =~ .*\.backup.* ]] && continue
                         first_wal_file="$wal_file"
@@ -3765,15 +3766,18 @@ case $action in
                         fi
                     fi
 
-                    raw_size=$($ARCHIVE_UNCOMPRESS_BIN -c $tmpwal | wc -c)
-                    if [ -z "$raw_size" ]; then
-                        die "Could not uncrompress the WAL to check its size"
+                    [[ "$output" != "nagios" ]] && info "uncompressing $first_wal_file to measure its size"
+                    raw_size=$($ARCHIVE_UNCOMPRESS_BIN -c $tmpwal 2>/dev/null| wc -c)
+                    if [[ -z "$raw_size" ]] || [[ "$raw_size" == 0 ]]; then
+                        die "Could not uncompress the WAL to check its size"
                     fi
 
                     rm -f -- $tmpwal
 
                     # wal_segsize is in bytes, compute the number of segments per log
                     max_seg=$(( 0xFFFFFFFF / $raw_size ))
+                    segsize=$(( $raw_size / 1048576 ))
+                    [[ "$output" != "nagios" ]] && info "WAL segment size: ${segsize}Mb"
                 fi
 
                 [[ "$output" != "nagios" ]] && info "WAL segments per log: $max_seg"
