@@ -168,6 +168,7 @@ usage() {
             echo
             echo "    -A                     Check WAL archives"
             echo "    -a [[user@]host:]/dir  Path to WAL archives"
+            echo "    -c command             Uncompression command"
             echo
             echo "    -n                     Nagios compatible output for -b and -A"
             echo
@@ -276,6 +277,7 @@ cleanup() {
             [ -n "$backup_label_file" ] && rm -f -- "$backup_label_file"
             [ -n "$tablespace_map_file"  ] && rm -f -- "$tablespace_map_file"
             [ -n "$pg_control_file"   ] && rm -f -- "$pg_control_file"
+            [ -n "$tmpwal" ] && rm -f -- "$tmpwal"
             ;;
         "check")
             if [ "$output" = "nagios" ]; then
@@ -1917,6 +1919,17 @@ case $action in
             die_and_hook "Failed to get STOP TIME from '$backup_file'"
         fi
 
+        # Starting from 11, the size of WAL segment can be configured
+        # when running initdb, we need to ask PostgreSQL what is the
+        # size of a segment to make the check action work, keeping the
+        # size of a segment in the backup is an optimisation so that
+        # we do not have to uncompress a WAL file to find out its
+        # size.
+        if (( $pg_version >= 110000 )); then
+            wal_segsize=$(${psql_command[@]} -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'" $psql_conndb) ||
+                warn "could not get the size of a WAL segment from PostgreSQL"
+        fi
+
         # Ask PostgreSQL where are its configuration file. When they are
         # outside PGDATA, copy them in the backup
         _pgdata=`readlink -f -- "$PGDATA"`
@@ -2016,6 +2029,11 @@ case $action in
 	        echo "$timestamp" > "$backup_dir/backup_timestamp" || warn "could not save timestamp"
             fi
 
+            # Save the size of a WAL segment for later check actions
+            if [ -n "$wal_segsize" ]; then
+                echo "$wal_segsize" > "$backup_dir/wal_segsize" || warn "could not save WAL segment size"
+            fi
+
             # Add the name and location of the tablespace to an helper file for
             # the restoration script
             info "copying the tablespaces list"
@@ -2071,6 +2089,12 @@ case $action in
             if [ -n "$timestamp" ]; then
 	        ssh -n -- "$backup_ssh_target" "echo '$timestamp' > $(qw "$backup_dir/backup_timestamp")" 2>/dev/null ||
 	            warn "could not save timestamp"
+            fi
+
+            # Save the size of a WAL segment for latter check actions
+            if [ -n "$wal_segsize" ]; then
+                ssh -n -- "$backup_ssh_target" "echo '$wal_segsize' > $(qw "$backup_dir/wal_segsize")" 2>/dev/null ||
+                    warn "could not save WAL segment size"
             fi
 
             # Copy the backup history file
@@ -3244,15 +3268,17 @@ case $action in
         check_conf="yes"
         check_backups="no"
         check_archives="no"
-        
+        output=
+
         # Parse args after action
-	while getopts "C:Bg:m:Aa:n?" arg 2>/dev/null; do
+	while getopts "C:Bg:m:Ac:a:n?" arg 2>/dev/null; do
 	    case $arg in
                 C) config="$OPTARG";;
                 B) check_backups="yes"; check_conf="no";;
                 g) check_max_age="$OPTARG";;
                 m) check_min_count="$OPTARG";;
                 A) check_archives="yes"; check_conf="no";;
+                c) ARCHIVE_UNCOMPRESS_BIN="$OPTARG";;
                 a) archive_path="$OPTARG";;
                 n) output="nagios";;
 		"?") usage "check";;
@@ -3642,6 +3668,12 @@ case $action in
                 fi
             fi
 
+            if [ -n "$wal_segsize" ]; then
+                if ! [[ "$wal_segsize" =~ ^[0-9]+$ ]]; then
+                    die "wal segment size must a number"
+                fi
+            fi
+
             # Find the oldest backup
             oldest_ts=
             oldest_dir=
@@ -3708,13 +3740,6 @@ case $action in
                     pgvers="${pgvers}00"
                 fi
 
-                # Versions before 9.3 skip the FF segment
-                if (( $pgvers < 903 )); then
-                    max_seg=254
-                else
-                    max_seg=255
-                fi
-
                 [[ "$output" != "nagios" ]] && info "listing WAL files"
 
                 # List the WAL files. The filter is on the nine first
@@ -3729,6 +3754,66 @@ case $action in
 	                ssh -n -- "$archive_ssh_target" "find $(qw "$archive_dir") -maxdepth 1 -mindepth 1 -name '[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]*' -type f -print0 | sort -z"
                     )
                 fi
+
+                # Versions before 9.3 skip the FF segment
+                if (( $pgvers < 903 )); then
+                    max_seg=254
+                elif (( $pgvers < 11 )); then
+                    max_seg=255
+                else
+                    # Starting from 11, the WAL segment size can be
+                    # configured at cluster creation, using
+                    # --wal-segsize of initdb.  This means we have to
+                    # find the size of a segment to compute the
+                    # maximum number of segments per log.
+
+                    # First we check if the wal_segsize exists and
+                    # contains the size of the segments. When it
+                    # fails, we take the first segment, uncompress it
+                    # and measure its size
+                    [[ "$output" != "nagios" ]] && info "looking for WAL segment size"
+
+                    if [ "$backup_local" = "yes" ]; then
+                        wal_segsize=$(cat "$oldest_dir/wal_segsize" 2>/dev/null)
+                    else
+                        wal_segsize=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_dir/wal_segsize")" 2>/dev/null)
+                    fi
+
+                    if [ -z "$wal_segsize" ]; then
+                        for wal_file in "${wal_list[@]}"; do
+                            [[ "$wal_file" =~ .*\.backup.* ]] && continue
+                            first_wal_file="$wal_file"
+                            break
+                        done
+
+                        tmpwal=$(mktemp -t pitr_wal.XXXXXXXXXX) ||
+                            error "Failed to create temporary file"
+                        if [ "$archive_local" = "yes" ]; then
+                            if ! cp "$first_wal_file" $tmpwal; then
+                                die "Could not copy archived wal file"
+                            fi
+                        else
+                            if ! scp -- "${archive_ssh_target}:$(qw "$first_wal_file")" $tmpwal >/dev/null 2>&1; then
+                                die "Could not copy archived wal file from ${archive_ssh_target}"
+                            fi
+                        fi
+
+                        [[ "$output" != "nagios" ]] && info "uncompressing $first_wal_file to measure its size"
+                        wal_segsize=$($ARCHIVE_UNCOMPRESS_BIN -c $tmpwal 2>/dev/null| wc -c)
+                        if [[ -z "$wal_segsize" ]] || [[ "$wal_segsize" == 0 ]]; then
+                            die "Could not uncompress the WAL to check its size"
+                        fi
+
+                        rm -f -- $tmpwal
+                    fi
+
+                    # wal_segsize is in bytes, compute the number of segments per log
+                    max_seg=$(( 0xFFFFFFFF / $wal_segsize ))
+                    segsize=$(( $wal_segsize / 1048576 ))
+                    [[ "$output" != "nagios" ]] && info "WAL segment size: ${segsize}MB"
+                fi
+
+                [[ "$output" != "nagios" ]] && info "WAL segments per log: $max_seg"
 
                 start_wal_file_found="no"
 
