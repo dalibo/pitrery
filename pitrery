@@ -1413,7 +1413,7 @@ case $action in
         fi
 
         # Prepare target directories
-        info "preparing directories in ${target:+$target:}$backup_root/"
+        info "preparing directories in ${backup_ssh_target:+$backup_ssh_target:}$backup_root/"
 
         if [ "$backup_local" = "yes" ]; then
             # Ensure the destination is clean from failed backups and that no
@@ -1849,7 +1849,7 @@ case $action in
                     fi
                 else
                     if ! scp -- "$pg_control_file" "$backup_ssh_target:$(qw "$backup_dir/pg_control.gpg")" > /dev/null; then
-	                die_and_hook "could not copy the pg_control file to $target:$backup_dir"
+	                die_and_hook "could not copy the pg_control file to $backup_ssh_target:$backup_dir"
                     fi
                 fi
             else
@@ -1859,7 +1859,7 @@ case $action in
                     fi
                 else
                     if ! scp -- "$PGDATA/global/pg_control" "$backup_ssh_target:$(qw "$backup_dir/")" > /dev/null; then
-                        die_and_hook "could not copy the pg_control file to $target:$backup_dir"
+                        die_and_hook "could not copy the pg_control file to $backup_ssh_target:$backup_dir"
                     fi
                 fi
 
@@ -1964,11 +1964,11 @@ case $action in
 
                         "${gpg_command[@]}" -o "$conf_file" "$file" || die_and_hook "could not encrypt $f"
 	                if ! scp -- "$conf_file" "$backup_ssh_target:$(qw "${dest}.gpg")" >/dev/null; then
-		            die_and_hook "could not copy $f to backup directory on $target"
+		            die_and_hook "could not copy $f to backup directory on $backup_ssh_target"
 	                fi
                     else
                         if ! scp -- "$file" "$backup_ssh_target:$(qw "$dest")" >/dev/null; then
-		            die_and_hook "could not copy $f to backup directory on $target"
+		            die_and_hook "could not copy $f to backup directory on $backup_ssh_target"
 	                fi
                     fi
 	        fi
