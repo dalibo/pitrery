@@ -24,6 +24,8 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+version="2.3-dev"
+
 # Configuration defaults
 SYSLOG="no"
 ARCHIVE_COMPRESS="yes"
@@ -95,6 +97,7 @@ usage() {
     echo "    -m mode        destination file permission mode in octal (e.g. chmod)"
     echo "    -T             Timestamp log messages"
     echo
+    echo "    -V             Display the version and exit"
     echo "    -?             print help"
     echo
     exit $1
@@ -198,7 +201,7 @@ parse_target_uri() {
 }
 
 # Command line options
-while getopts "C:a:XOHFc:s:Er:Sf:t:m:T?"  opt; do
+while getopts "C:a:XOHFc:s:Er:Sf:t:m:TV?"  opt; do
     case $opt in
         C) CONFIG=$OPTARG;;
         a) archive_path="$OPTARG";;
@@ -215,6 +218,7 @@ while getopts "C:a:XOHFc:s:Er:Sf:t:m:T?"  opt; do
         t) CLI_SYSLOG_IDENT=$OPTARG;;
         m) CLI_ARCHIVE_FILE_CHMOD=$OPTARG;;
         T) CLI_LOG_TIMESTAMP="yes";;
+        V) echo "archive_xlog (pitrery) $version"; exit 0;;
         "?") usage 1;;
         *) error "Unknown error while processing options";;
     esac
