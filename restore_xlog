@@ -24,6 +24,8 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+version="2.3-dev"
+
 # Default configuration
 SYSLOG="no"
 ARCHIVE_COMPRESS="yes"
@@ -79,6 +81,7 @@ usage() {
     echo "    -t ident               Syslog ident"
     echo "    -T                     Timestamp log messages"
     echo
+    echo "    -V                     Display the version and exit"
     echo "    -?                     Print help"
     echo
     exit $1
@@ -168,7 +171,7 @@ parse_target_uri() {
 }
 
 # CLI processing
-while getopts "C:a:Xc:s:Sf:t:?" opt; do
+while getopts "C:a:Xc:s:Sf:t:TV?" opt; do
     case $opt in
 	C) CONFIG=$OPTARG;;
         a) archive_path="$OPTARG";;
@@ -179,6 +182,7 @@ while getopts "C:a:Xc:s:Sf:t:?" opt; do
 	f) CLI_SYSLOG_FACILITY=$OPTARG;;
 	t) CLI_SYSLOG_IDENT=$OPTARG;;
 	T) CLI_LOG_TIMESTAMP="yes";;
+        V) echo "restore_xlog (pitrery) $version"; exit 0;;
 	"?") usage 1;;
 	*) error "Unknown error while processing options";;
     esac
