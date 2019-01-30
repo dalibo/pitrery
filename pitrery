@@ -268,7 +268,10 @@ cleanup() {
 	        fi
             elif [ -n "$backup_ssh_target" ] && [ -n "$backup_dir" ]; then
 	        bd=$(qw "$backup_dir")
-	        ssh -n -- "$backup_ssh_target" "test -d $bd && rm -rf -- $bd" 2>/dev/null
+	        if ! ssh -n -- "$backup_ssh_target" "test -d $bd && rm -rf -- $bd" 2>/dev/null; then
+		    error "cleanup of $backup_dir failed on $backup_ssh_target"
+		    exit 1
+		fi
             fi
 
             [ -n "$tblspc_list" ] && rm -f -- "$tblspc_list"
