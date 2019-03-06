@@ -3281,7 +3281,7 @@ case $action in
                 g) check_max_age="$OPTARG";;
                 m) check_min_count="$OPTARG";;
                 A) check_archives="yes"; check_conf="no";;
-                c) ARCHIVE_UNCOMPRESS_BIN="$OPTARG";;
+                c) archive_compress_bin_override="yes"; CLI_ARCHIVE_UNCOMPRESS_BIN="$OPTARG";;
                 a) archive_path="$OPTARG";;
                 n) output="nagios";;
 		"?") usage "check";;
@@ -3319,6 +3319,7 @@ case $action in
             fi
         else
             load_config
+            [ -n "$archive_compress_bin_override" ] && ARCHIVE_UNCOMPRESS_BIN="$CLI_ARCHIVE_UNCOMPRESS_BIN"
         fi
 
         if [[ "$check_conf" = "yes" ]]; then
@@ -3519,7 +3520,6 @@ case $action in
         fi
 
         if [[ "$check_backups" = "yes" ]]; then
-            load_config
             
             if [ -n "$check_max_age" ]; then
                 # transform age to seconds so that we can compare with backup_timestamp
@@ -3657,7 +3657,6 @@ case $action in
         fi
 
         if [[ "$check_archives" == "yes" ]]; then
-            load_config
 
             _arg="${@:$OPTIND:1}"
             parse_target_uri "$_arg" "$archive_path"
@@ -3801,10 +3800,19 @@ case $action in
                             fi
                         fi
 
-                        [[ "$output" != "nagios" ]] && info "uncompressing $first_wal_file to measure its size"
-                        wal_segsize=$($ARCHIVE_UNCOMPRESS_BIN -c $tmpwal 2>/dev/null| wc -c)
-                        if [[ -z "$wal_segsize" ]] || [[ "$wal_segsize" == 0 ]]; then
-                            die "Could not uncompress the WAL to check its size"
+                        if [ -n "$ARCHIVE_UNCOMPRESS_BIN" ]; then
+                            [[ "$output" != "nagios" ]] && info "uncompressing $first_wal_file to measure its size"
+
+                            wal_segsize=$($ARCHIVE_UNCOMPRESS_BIN -c $tmpwal 2>/dev/null| wc -c)
+                            if [[ -z "$wal_segsize" ]] || [[ "$wal_segsize" == 0 ]]; then
+                                die "Could not uncompress the WAL to check its size"
+                            fi
+                        else
+                            [[ "$output" != "nagios" ]] && info "assuming WAL segments are not compressed"
+                            wal_segsize=$(cat $tmpwal 2>/dev/null| wc -c)
+                            if [[ -z "$wal_segsize" ]] || [[ "$wal_segsize" == 0 ]]; then
+                                die "Could not get the size of the WAL segment"
+                            fi
                         fi
 
                         rm -f -- $tmpwal
