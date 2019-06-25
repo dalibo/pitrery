@@ -501,7 +501,7 @@ stop_backup() {
         # We need a stop time for the backup to make the automatic
         # time-based selection of the backup. The stop time is not
         # part of the output of pg_stop_backup().
-        echo "select to_char(now(), 'IYYY-MM-DD HH24:MI:SS TZ');" >&${COPROC[1]}
+        echo "select to_char(now(), 'YYYY-MM-DD HH24:MI:SS TZ');" >&${COPROC[1]}
         if [ $? != 0 ]; then
             check_psql_stderr || cat $psql_stderr
             die_and_hook "could not get the stop time of the backup"
