@@ -16,7 +16,7 @@ pitrery automates [Continuous Archiving and Point-in-Time Recovery (PITR)](http:
 * Do only PITR, log-shipping and replication is outside of the scope
 * Be the least possible intrusive about archiving
 
-Pitrery has been tested and works with all currently supported versions of PostgreSQL.
+Pitrery has been tested and works with all currently supported versions of PostgreSQL, up to 11 included.
 
 It is free software licensed under the PostgreSQL License.
 
