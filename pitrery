@@ -2844,7 +2844,7 @@ case $action in
 	        echo "#recovery_target_timeline = 'latest'"
 	        echo "#recovery_target_action = 'pause'"
 	        ;;
-            1000|1100|1200)
+            1000|1100)
 	        echo "#recovery_end_command = ''"
 	        echo "#recovery_target_name = ''	# e.g. 'daily backup 2011-01-26'"
 	        echo "#recovery_target_xid = ''"
