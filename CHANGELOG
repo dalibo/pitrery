@@ -3,6 +3,10 @@ pitrery 2.3
 
   * Add progress information when checking for missing archived WAL files
 
+  * Support different WAL sizes in check, introduced in PostgreSQL 11
+
+  * Bugfixes in check command
+
 
 pitrery 2.2
 ===========

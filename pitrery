@@ -24,7 +24,7 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-version="2.3-dev"
+version="2.3"
 
 # Hardcoded configuration
 PGXLOG=
