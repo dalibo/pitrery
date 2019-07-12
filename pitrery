@@ -2888,6 +2888,9 @@ case $action in
               die "could not create the $PGDATA/$recovery_file file"
             fi
           fi
+
+          # ¿¿ TODO should we update the postgresql.conf file ??
+          # configuration parameters are to be updated in the postgresql.conf file
         fi
 
         # Ensure recovery file as the correct owner so that PostgreSQL can
