@@ -1,6 +1,7 @@
 pitrery 3.0
 ===========
 
+  * Add support for recovery modes in PostgreSQL 12
 
 
 pitrery 2.4
