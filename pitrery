@@ -45,6 +45,7 @@ USE_ISO8601_TIMESTAMPS="no"
 PGOWNER=`id -un`
 OVERWRITE="no"
 RESTORE_COMMAND=
+RESTORE_MODE=
 PURGE_KEEP_COUNT=
 PURGE_OLDER_THAN=
 RSYNC_WHOLEFILE="no"
@@ -132,6 +133,7 @@ usage() {
             echo "    -e compress_suffix   Suffix added by the compression program"
             echo "    -r command           Command line to use in restore_command"
             echo "    -C config            Configuration file for restore_xlog in restore_command"
+            echo "    -m restore_mode      restore either in \"standby\" or \"recovery\" mode"
             echo "    -T                   Timestamp log messages"
             echo
             echo "    -?                   Print help"
@@ -2184,7 +2186,7 @@ case $action in
 	load_config
 
 	# Parse args after action: they should take precedence over the configuration
-	while getopts "D:x:d:O:t:nRc:e:r:C:T?" arg 2>/dev/null; do
+	while getopts "D:x:d:O:t:nRc:e:m:r:C:T?" arg 2>/dev/null; do
 	    case $arg in
 		D) PGDATA=$OPTARG;;
 		x) PGXLOG=$OPTARG;;
@@ -2195,6 +2197,7 @@ case $action in
 		R) OVERWRITE="yes";;
 		c) BACKUP_UNCOMPRESS_BIN="$OPTARG";;
 		e) BACKUP_COMPRESS_SUFFIX="$OPTARG";;
+		m) RESTORE_MODE="$OPTARG";;
 		r) RESTORE_COMMAND="$OPTARG";;
 		C) restore_xlog_config=$OPTARG;;
 		T) LOG_TIMESTAMP="yes";;
@@ -2252,7 +2255,7 @@ case $action in
             # Target recovery time in seconds since the epoch, for easy archive searching.
             target_timestamp=$(date -d "$target_date" '+%s') || die "invalid target date '$target_date'"
 
-            # Target recovery time in a format suitable for use in recovery.conf
+            # Target recovery time in a format suitable for use in recovery configuration
             recovery_target_time=$(date -d "$target_date" '+%F %T %z') || die "invalid target date '$target_date'"
 
             # The timestamp must be a string of (only) digits, we do arithmetic with it below.
@@ -2419,6 +2422,7 @@ case $action in
         info
         info "recovery configuration:"
         info "  target owner of the restored files: $PGOWNER"
+        [ -n "$RESTORE_MODE" ] && info "  restore_mode = '$RESTORE_MODE'"
         info "  restore_command = '$RESTORE_COMMAND'"
         [ -n "$recovery_target_time" ] && info "  recovery_target_time = '$recovery_target_time'"
         info
@@ -2554,7 +2558,7 @@ case $action in
             # Check the directory, when configuration files are
             # inside PGDATA it does not exist
             if [ -d "$backup_dir/conf" ]; then
-	        info "restoring configuration files to $restored_conf"
+                info "restoring configuration files to $restored_conf"
 	        if ! cp -r -- "$backup_dir/conf" "$restored_conf"; then
 	            die "could not copy $backup_dir/conf to $restored_conf"
 	        fi
@@ -2696,7 +2700,7 @@ case $action in
         # Starting from 9.6 and when the backup is from a standby server,
         # PostgreSQL relies on the pg_control file being backed up last to
         # find the backend end location in the WAL. If we find the pg_control
-        # file at the root of the backup directory, resore it.
+        # file at the root of the backup directory, restore it.
         if [ "$backup_local" = "yes" ]; then
             if [ "$BACKUP_ENCRYPT" = "yes" ]; then
                 if [ -f "$backup_dir/pg_control.gpg" ]; then
@@ -2793,75 +2797,105 @@ case $action in
             warn "PG_VERSION file is missing"
         fi
 
-        # Create a recovery.conf file in $PGDATA
-        info "preparing recovery.conf file"
-        echo "restore_command = '$RESTORE_COMMAND'" > "$PGDATA/recovery.conf"
+        # either recovery.conf or recovery.signal or standby.signal
+        recovery_file=""
 
-        # Put the given target date in recovery.conf
-        if [ -n "$recovery_target_time" ]; then
+        if (( 10#$pgvers < 1200 )); then
+          # Create a recovery.conf file in $PGDATA
+          info "preparing recovery.conf file"
+          echo "restore_command = '$RESTORE_COMMAND'" > "$PGDATA/recovery.conf"
+
+          # Put the given target date in recovery.conf
+          if [ -n "$recovery_target_time" ]; then
             echo "recovery_target_time = '$recovery_target_time'" >> "$PGDATA/recovery.conf"
-        else
+          else
             echo "#recovery_target_time = ''	# e.g. '2004-07-14 22:39:00 EST'" >> "$PGDATA/recovery.conf"
+          fi
+
+          # Add all possible parameters for recovery, commented out.
+          case $pgvers in
+            802|803)
+               echo "#recovery_target_xid = ''             # 'number'"
+               echo "#recovery_target_inclusive = 'true'   # 'true' or 'false'"
+               echo "#recovery_target_timeline = ''        # number or 'latest'"
+               ;;
+            804)
+               echo "#recovery_end_command = ''"
+               echo "#recovery_target_xid = ''             # 'number'"
+               echo "#recovery_target_inclusive = 'true'   # 'true' or 'false'"
+               echo "#recovery_target_timeline = ''        # number or 'latest'"
+               ;;
+            901|902|903)
+               echo "#recovery_end_command = ''"
+               echo "#recovery_target_name = ''  # e.g. 'daily backup 2011-01-26'"
+               echo "#recovery_target_xid = ''"
+               echo "#recovery_target_inclusive = true"
+               echo "#recovery_target_timeline = 'latest'"
+               echo "#pause_at_recovery_target = true"
+               ;;
+            904)
+               echo "#recovery_end_command = ''"
+               echo "#recovery_target_name = ''  # e.g. 'daily backup 2011-01-26'"
+               echo "#recovery_target_xid = ''"
+               echo "#recovery_target_inclusive = true"
+               echo "#recovery_target = 'immediate'"
+               echo "#recovery_target_timeline = 'latest'"
+               echo "#pause_at_recovery_target = true"
+               ;;
+            905|906)
+               echo "#recovery_end_command = ''"
+               echo "#recovery_target_name = ''  # e.g. 'daily backup 2011-01-26'"
+               echo "#recovery_target_xid = ''"
+               echo "#recovery_target_inclusive = true"
+               echo "#recovery_target = 'immediate'"
+               echo "#recovery_target_timeline = 'latest'"
+               echo "#recovery_target_action = 'pause'"
+               ;;
+            1000|1100)
+               echo "#recovery_end_command = ''"
+               echo "#recovery_target_name = ''  # e.g. 'daily backup 2011-01-26'"
+               echo "#recovery_target_xid = ''"
+               echo "#recovery_target_lsn = ''   # e.g. '0/70006B8'"
+               echo "#recovery_target_inclusive = true"
+               echo "#recovery_target = 'immediate'"
+               echo "#recovery_target_timeline = 'latest'"
+               echo "#recovery_target_action = 'pause'"
+               ;;
+          esac >> "$PGDATA/recovery.conf"
+          recovery_file="recovery.conf"
+
+        else
+          # PostgreSQL >= 12
+          # Create a *.signal file in $PGDATA
+          case "$RESTORE_MODE" in
+            "standby" | "recovery")
+              recovery_file="$RESTORE_MODE.signal"
+              ;;
+
+            *)
+							if [ -n "$RESTORE_MODE" ]; then
+								warn "RESTORE_MODE configuration not valid ('$RESTORE_MODE')"
+								info "RESTORE_MODE should be set either to 'standby' or 'recovery'"
+							fi
+							info "no .signal file created. You should manually create it in $PGDATA"
+              ;;
+
+          esac
+
+          if [ -n "$recovery_file" ]; then
+            info "Create the $PGDATA/$recovery_file file ($RESTORE_MODE mode)"
+            if ! touch $PGDATA/$recovery_file; then
+              die "could not create the $PGDATA/$recovery_file file"
+            fi
+          fi
         fi
 
-        # Add all possible parameters for recovery, commented out.
-        case $pgvers in
-            802|803)
-	        echo "#recovery_target_xid = ''		# 'number'"
-	        echo "#recovery_target_inclusive = 'true'		# 'true' or 'false'"
-	        echo "#recovery_target_timeline = ''		# number or 'latest'"
-	        ;;
-            804)
-	        echo "#recovery_end_command = ''"
-	        echo "#recovery_target_xid = ''		# 'number'"
-	        echo "#recovery_target_inclusive = 'true'		# 'true' or 'false'"
-	        echo "#recovery_target_timeline = ''		# number or 'latest'"
-	        ;;
-            901|902|903)
-	        echo "#recovery_end_command = ''"
-	        echo "#recovery_target_name = ''  # e.g. 'daily backup 2011-01-26'"
-	        echo "#recovery_target_xid = ''"
-	        echo "#recovery_target_inclusive = true"
-	        echo "#recovery_target_timeline = 'latest'"
-	        echo "#pause_at_recovery_target = true"
-	        ;;
-            904)
-	        echo "#recovery_end_command = ''"
-	        echo "#recovery_target_name = ''	# e.g. 'daily backup 2011-01-26'"
-	        echo "#recovery_target_xid = ''"
-	        echo "#recovery_target_inclusive = true"
-	        echo "#recovery_target = 'immediate'"
-	        echo "#recovery_target_timeline = 'latest'"
-	        echo "#pause_at_recovery_target = true"
-	        ;;
-            905|906)
-	        echo "#recovery_end_command = ''"
-	        echo "#recovery_target_name = ''	# e.g. 'daily backup 2011-01-26'"
-	        echo "#recovery_target_xid = ''"
-	        echo "#recovery_target_inclusive = true"
-	        echo "#recovery_target = 'immediate'"
-	        echo "#recovery_target_timeline = 'latest'"
-	        echo "#recovery_target_action = 'pause'"
-	        ;;
-            1000|1100)
-	        echo "#recovery_end_command = ''"
-	        echo "#recovery_target_name = ''	# e.g. 'daily backup 2011-01-26'"
-	        echo "#recovery_target_xid = ''"
-                echo "#recovery_target_lsn = ''	# e.g. '0/70006B8'"
-	        echo "#recovery_target_inclusive = true"
-	        echo "#recovery_target = 'immediate'"
-	        echo "#recovery_target_timeline = 'latest'"
-	        echo "#recovery_target_action = 'pause'"
-                ;;
-        esac >> "$PGDATA/recovery.conf"
-
-
-        # Ensure recovery.conf as the correct owner so that PostgreSQL can
+        # Ensure recovery file as the correct owner so that PostgreSQL can
         # rename it at the end of the recovery
-        if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
-            if ! chown -R -- "$PGOWNER:" "$PGDATA/recovery.conf"; then
-	        die "could not change owner of recovery.conf to $PGOWNER"
-            fi
+        if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ] && [ -n "$recovery_file" ]; then
+          if ! chown -R -- "$PGOWNER:" "$PGDATA/$recovery_file"; then
+            die "could not change owner of $recovery_file to $PGOWNER"
+          fi
         fi
 
         # Generate a SQL file in PGDATA to update the catalog when tablespace
@@ -2937,10 +2971,19 @@ case $action in
             info "  $restored_conf"
             info
         fi
-        info "please check directories and recovery.conf before starting the cluster"
-        info "and do not forget to update the configuration of pitrery if needed:"
-        info "  $PGDATA/recovery.conf"
-        info
+        if (( 10#$pgvers < 1200 )); then
+          info "please check directories and recovery.conf before starting the cluster"
+          info "and do not forget to update the configuration of pitrery if needed:"
+          info "  $PGDATA/recovery.conf"
+          info
+        else
+          # Get the configuration file path from PostgreSQL
+          info "please check directories and recovery configuration before starting the"
+          info "cluster and do not forget to update the configuration of pitrery if"
+          info "needed:"
+          info "  $restored_conf/postgresql.conf"
+          info
+        fi
 
         if (( $pgvers > $latest_supported_pg_version )) ; then
             warn "This version of PostgreSQL is not tested with Pitrery $version!"
@@ -4206,11 +4249,18 @@ case $action in
 #BACKUP_USER="$BACKUP_USER"
 
 # After restoring from a backup, PostgreSQL will need a command to run
-# to get archived WAL segments that need to be replayed on the
-# cluster files.  This can be any valid command or script for the
-# restore_command parameter of PostgreSQL (in recovery.conf).  The
-# restore_xlog script is intended to be used here: leave empty to use it
+# to get archived WAL segments that need to be replayed on the cluster
+# files. This can be any valid command or script for the restore_command
+# parameter of PostgreSQL (in recovery configuration).
+# The restore_xlog script is intended to be used here: leave empty to use it
 #RESTORE_COMMAND=
+
+# In PostgreSQL version 12 and greater, after restoring from a backup
+# either a "standby.signal" or "recovery.signal" file must be created in
+# $PGDATA to start the "recovery" in the desired mode.
+# Use "standby" for the creation of the standby cluster
+# Use "recovery" to restore the cluster at a given point in time
+#RESTORE_MODE=
 
 # The old backups can be removed by setting one of those two
 # parameters, one can keep at most PURGE_KEEP_COUNT backups or keep
