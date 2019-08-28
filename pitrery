@@ -25,6 +25,7 @@
 #
 
 version="2.3"
+latest_supported_pg_version=1100
 
 # Hardcoded configuration
 PGXLOG=
@@ -2939,6 +2940,11 @@ case $action in
         info "and do not forget to update the configuration of pitrery if needed:"
         info "  $PGDATA/recovery.conf"
         info
+
+        if (( $pgvers > $latest_supported_pg_version )) ; then
+            warn "This version of PostgreSQL is not tested with Pitrery $version!"
+            warn "It is likely that the cluster needs manual tweaks before starting."
+        fi
 
         if [ -f "$replslots_sql" ]; then
             if [[ $(cat "$replslots_sql" | wc -l) > 0 ]]; then
