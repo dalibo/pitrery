@@ -5,13 +5,13 @@
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
 # are met:
-# 
+#
 #  1. Redistributions of source code must retain the above copyright
 #     notice, this list of conditions and the following disclaimer.
 #  2. Redistributions in binary form must reproduce the above copyright
 #     notice, this list of conditions and the following disclaimer in the
 #     documentation and/or other materials provided with the distribution.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR
 # IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
 # OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
@@ -418,7 +418,7 @@ parse_target_uri() {
 
 list_backups() {
     local dir="$1"
-    
+
     if [ "$backup_local" = "yes" ]; then
         list=( "$dir/"[0-9]*/ )
 
@@ -1045,7 +1045,7 @@ case $action in
 
         # Begin json
         list_output_start_hash
-        
+
         # Print a header
         if [ "$backup_local" = "yes" ]; then
             list_output_text "List of local backups"
@@ -1110,7 +1110,7 @@ case $action in
             else
                 error "could not find size of $dir"
 	    fi
-            
+
 	    # Find the storage method of the backup, with compression suffix for tar
             storage=
             encryption="false"
@@ -1613,7 +1613,7 @@ case $action in
                 for i in "${excluded[@]}"; do
                     exclude_opts+=("--exclude=$i")
                 done
-                
+
 	        info "archiving $PGDATA"
 	        if [ "$backup_local" = "yes" ]; then
                     if [ "$BACKUP_ENCRYPT" = "yes" ]; then
@@ -1882,7 +1882,7 @@ case $action in
             # Use an alternative name so we do not have to check the version
             # to remove this temp file
             backup_file=$backup_label_file
-            
+
             echo $label_contents | tr '|' '\n' > $backup_file
             if [ $? != 0 ]; then
                 die_and_hook "could not write temporary backup_label file"
@@ -1906,7 +1906,7 @@ case $action in
             # select this backup on restore.
             backup_file="$PGDATA/pg_${xlog_or_wal}/$start_backup_label_file"
 
-            # Get the stop date of the backup. 
+            # Get the stop date of the backup.
             stop_time=$(sed -n 's/STOP TIME: //p' -- "$backup_file")
         fi
 
@@ -2067,7 +2067,7 @@ case $action in
             echo "command: $0" "$@" >> "$backup_dir/backup_command" 2>/dev/null
             echo "libpq exported variables:" >> "$backup_dir/backup_command" 2>/dev/null
             env | grep ^PG 2>/dev/null >> "$backup_dir/backup_command" 2>/dev/null
-            
+
             if [ -f "$config" ]; then
                 echo "config: $config" >> "$backup_dir/backup_command" 2>/dev/null
                 if ! cp -- "$config" "$backup_dir/pitrery.conf"; then
@@ -2178,7 +2178,7 @@ case $action in
         tsmv_list=()
         target_date=
         restore_xlog_config=$config
-        
+
 	load_config
 
 	# Parse args after action: they should take precedence over the configuration
@@ -2426,7 +2426,7 @@ case $action in
             die "found duplicates in tablespace relocations. Check options and the list of tablespaces of the backup"
         fi
 
-        
+
         # Check target directories
         check_and_fix_directory "$PGDATA"
 
@@ -2884,7 +2884,7 @@ case $action in
         replslots_sql=$PGDATA/restore_replication_slots.sql
         rm -f -- "$replslots_sql"
         if [ -n "$pgvers" ] && (( 10#$pgvers >= 904 )); then
-            replslot_list_file="$backup_dir/replslot_list"            
+            replslot_list_file="$backup_dir/replslot_list"
             if [ "$BACKUP_ENCRYPT" = "yes" ]; then
                 replslot_list_file="${replslot_list_file}.gpg"
             fi
@@ -2957,7 +2957,7 @@ case $action in
         fi
 
 
-        
+
 	;;
 
     purge)
@@ -3455,7 +3455,7 @@ case $action in
                 echo $v | grep -q "^PG" || continue
                 info "  $v"
             done < <(env -0 2>/dev/null || warn "could not read the environment: env -0 failed")
-            
+
             check_postgresql_config || out_rc=1
 
             info "==> checking access to PGDATA"
@@ -3517,7 +3517,7 @@ case $action in
         fi
 
         if [[ "$check_backups" = "yes" ]]; then
-            
+
             if [ -n "$check_max_age" ]; then
                 # transform age to seconds so that we can compare with backup_timestamp
                 if [[ "$check_max_age" =~ ^[[:digit:]]+(s|min|h|d)?$ ]]; then
