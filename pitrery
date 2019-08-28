@@ -246,11 +246,8 @@ usage() {
 # This makes it safe for them to include spaces or other special characters
 # which should not be interpreted or cause word-splitting on the remote side.
 qw() {
-    while (( $# > 1 )); do
-	printf "%q " "$1"
-	shift
-    done
-    (( $# == 1 )) && printf "%q" "$1"
+    printf -v out "%q " "$@"
+    echo "${out::-1}"  # Skip the final space.
 }
 
 can_cleanup="no"
