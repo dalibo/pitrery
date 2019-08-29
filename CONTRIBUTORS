@@ -1,8 +1,0 @@
-Thomas Reiss <thomas.reiss@dalibo.com> - intensive tests
-Vincent Gross <vincent.gross@atasta.net> - bugfix
-Ron <ron@debian.org> - refactoring, hardening
-Flavie Perette <flavie.perette@dalibo.com> - translation
-Jehan-Guillaume de Rorthais <jgdr@dalibo.com> - refactoring for archive_xlog
-Gilles Darold <gilles.darold@dalibo.com> - bugfix
-Thibaut Madelaine <thibaut.madelaine@dalibo.com> - bugfix
-Étienne BERSAC <etienne.bersac@dalibo.com> - rpm packaging
