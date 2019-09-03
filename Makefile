@@ -41,7 +41,7 @@ disttag: checkversion
 	git diff --quiet FETCH_HEAD..HEAD
 	git commit -m "Version $(VERSION)" config.mk $(SRCS) CHANGELOG
 	git diff --quiet  # Require clean worktree.
-	git tag --sign v$(VERSION)
+	git tag --sign v$(VERSION) --message="Version $(VERSION)"
 	git push --tags $(DISTREMOTE)
 
 options:
