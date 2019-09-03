@@ -1,16 +1,13 @@
-%global pkgname pitrery
-%global confdir %{_sysconfdir}/%{pkgname}
-%{!?pkgversion: %global pkgversion 2.3}
-%{!?pkgrevision: %global pkgrevision 1}
+%global confdir %{_sysconfdir}/pitrery
 
-Name:           %{pkgname}
-Version:        %{pkgversion}
-Release:        %{pkgrevision}%{?dist}
+Name:           pitrery
+Version:        2.4
+Release:        1
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
 Group:          Applications/Databases
-URL:            https://github.com/dalibo/pitrery
-Source0:        https://dl.dalibo.com/public/pitrery/%{pkgname}-%{version}.tar.gz
+URL:            https://dalibo.github.io/pitrery
+Source0:        https://github.com/dalibo/pitrery/releases/download/v%{version}/pitrery-%{version}.tar.gz
 BuildArch:      noarch
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires:       bash, rsync
@@ -49,6 +46,11 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 %doc %{_mandir}/man1/restore_xlog.1.gz
 
 %changelog
+* Tue Sep  3 2019 Étienne BERSAC <etienne.bersac@dalibo.com> - 2.4-1
+- Release 2.4
+- Simplified spec
+- Download from GitHub releases
+
 * Fri Jul 12 2019 Étienne BERSAC <etienne.bersac@dalibo.com> - 2.3-1
 - Release 2.3
 
@@ -116,4 +118,3 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
 * Mon Aug  8 2011 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.0rc2-1
 - New package
-

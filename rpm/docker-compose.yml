@@ -1,9 +1,9 @@
 version: "2"
 
 services:
-  rpmbuild:
+  centos7:
     image: rpmbuild/centos7
     volumes:
     - .:/srv
-    entrypoint: /srv/pkg
-    command: []
+    working_dir: /srv
+    command: [/srv/pkg]

@@ -1,9 +1,0 @@
-The rpm/ directory contains a spec file to create RPM files.
-
-The `./pkg` script builds the rpm package from this spec file. You can override
-version by passing it as first argument: `./pkg 2.0`. The rpm is saved in usual
-rpmbuild location.
-
-A `docker-compose.yml` file is shipped to generate rpm in a clean environment.
-Pass the wanted version as `run` argument : `docker-compose run --rm rpmbuild
-2.0`. The RPM file is saved in `noarch/` directory.

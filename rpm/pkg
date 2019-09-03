@@ -2,10 +2,24 @@
 
 cd $(readlink -m $0/..)
 SPEC=pitrery.spec
-VERSION=${1-${VERSION-$(rpmspec --query --queryformat '%{VERSION}' ${SPEC})}}
+
+#       S E T U P
+
+# Trim .centos prefix added by rpmbuild docker image.
+sudo sed -i /^%dist/s/.centos// /etc/rpm/macros.dist
+cat /etc/rpm/macros.dist
 sudo yum-builddep -y ${SPEC}
+
+#       B U I L D
+
 rpmbuild \
     --define "_rpmdir ${PWD}" \
-    --define "pkgversion ${VERSION}" \
     --undefine _disable_source_fetch \
     -ba ${SPEC}
+
+#       T E S T
+
+VERSION=$(rpmspec --query --queryformat '%{VERSION}-%{RELEASE}' ${SPEC})
+ln -nfvs noarch/pitrery-${VERSION}*.noarch.rpm last-build.rpm
+sudo yum install -y last-build.rpm
+/usr/bin/pitrery -V
