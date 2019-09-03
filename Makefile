@@ -19,7 +19,30 @@ SRCMANPAGES = pitrery.1 archive_xlog.1 restore_xlog.1
 MANPAGES = $(addprefix ${BUILDDIR}/, $(SRCMANPAGES))
 BINS = $(addprefix ${BUILDDIR}/, $(SRCS))
 
+DIST=pitrery-$(VERSION).tar.gz
+DISTREMOTE=git@github.com:dalibo/pitrery.git
+
 all: options $(BINS) $(CONFS) $(DOCS) $(MANPAGES)
+
+checkversion:
+	grep -q 'VERSION = $(VERSION)$$' config.mk
+	! grep ^version= $(SRCS) | grep -v '"$(VERSION)"'
+	grep -q 'pitrery $(VERSION)$$' CHANGELOG
+
+dist: $(DIST)
+$(DIST):
+	git archive --prefix=pitrery-$(VERSION)/ -o $@ v$(VERSION)
+
+distsign: $(DIST)
+	gpg --detach-sign --armor $^
+
+disttag: checkversion
+	git fetch $(DISTREMOTE)
+	git diff --quiet FETCH_HEAD..HEAD
+	git commit -m "Version $(VERSION)" config.mk $(SRCS) CHANGELOG
+	git diff --quiet  # Require clean worktree.
+	git tag --sign v$(VERSION)
+	git push --tags $(DISTREMOTE)
 
 options:
 	@echo ${NAME} ${VERSION} install options:
@@ -71,4 +94,4 @@ uninstall:
 	@echo removing man pages from ${DESTDIR}${MANDIR}
 	@rm $(addprefix ${DESTDIR}${MANDIR}/man1/, $(MANPAGES:${BUILDDIR}/%=%))
 
-.PHONY: all options clean install uninstall
+.PHONY: all checkversion dist distsign disttag options clean install uninstall
