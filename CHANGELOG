@@ -1,3 +1,11 @@
+pitrery 2.4
+===========
+
+  * New maintainer: Thibaut Madelaine.
+
+  * Warn about untested major version on restore.
+
+
 pitrery 2.3
 ===========
 
