@@ -10,7 +10,7 @@ charset = utf-8
 end_of_line = lf
 # Use spaces for indentation
 indent_style = tab
-# Each indent should contain 2 spaces
+# Each indent should contain 4 spaces
 indent_size = 4
 # No whitespace at the end of line
 trim_trailing_whitespace = true
