@@ -1,17 +1,18 @@
 #!/bin/bash
 #
-# Copyright 2011-2018 Nicolas Thauvin. All rights reserved.
+# Copyright 2011-2019 Nicolas Thauvin. All rights reserved.
+# Copyright 2019 Dalibo. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
 # are met:
-# 
+#
 #  1. Redistributions of source code must retain the above copyright
 #     notice, this list of conditions and the following disclaimer.
 #  2. Redistributions in binary form must reproduce the above copyright
 #     notice, this list of conditions and the following disclaimer in the
 #     documentation and/or other materials provided with the distribution.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR
 # IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
 # OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
@@ -24,7 +25,7 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-version="2.4"
+version="3.0dev"
 
 # Default configuration
 SYSLOG="no"
@@ -93,7 +94,7 @@ parse_target_uri() {
         backup_user="$(echo $backup_target | grep '@' | cut -d'@' -f1 )"
         backup_host="$(echo $backup_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
         backup_dir="$(echo $backup_target | sed -re 's/(.*):(.*)/\2/')"
-       
+
     else
         # Fallback to the values from the configuration file
         [ -n "$BACKUP_USER" ] && backup_user=$BACKUP_USER
