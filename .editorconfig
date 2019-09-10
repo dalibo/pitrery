@@ -1,21 +1,12 @@
-# editorconfig.org
-
-# This is the project's root directory
 root = true
 
 [*]
-# The files are utf-8 encoded
 charset = utf-8
-# Use Unix line endings
-end_of_line = lf
-# Use spaces for indentation
+end_of_line = lf  # Single \n as EOF
 indent_style = tab
-# Each indent should contain 4 spaces
 indent_size = 4
-# No whitespace at the end of line
-trim_trailing_whitespace = true
-# A file must end with an empty line - this is good for version control systems
 insert_final_newline = true
+trim_trailing_whitespace = true
 
 [*.yml]
 indent_style = space
