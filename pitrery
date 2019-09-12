@@ -45,7 +45,7 @@ USE_ISO8601_TIMESTAMPS="no"
 PGOWNER=`id -un`
 OVERWRITE="no"
 RESTORE_COMMAND=
-RESTORE_MODE=
+RESTORE_MODE="recovery"
 PURGE_KEEP_COUNT=
 PURGE_OLDER_THAN=
 RSYNC_WHOLEFILE="no"
@@ -2797,7 +2797,7 @@ case $action in
             warn "PG_VERSION file is missing"
         fi
 
-        # either recovery.conf or recovery.signal or standby.signal
+        # either recovery.conf or postgresql.conf(Pg12+)
         recovery_file=""
 
         if (( 10#$pgvers < 1200 )); then
@@ -2864,12 +2864,20 @@ case $action in
           esac >> "$PGDATA/recovery.conf"
           recovery_file="recovery.conf"
 
+          # Ensure recovery file as the correct owner so that PostgreSQL can
+          # rename it at the end of the recovery
+          if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ] && [ -n "$recovery_file" ]; then
+            if ! chown -R -- "$PGOWNER:" "$PGDATA/$recovery_file"; then
+              die "could not change owner of $recovery_file to $PGOWNER"
+            fi
+          fi
+
         else
           # PostgreSQL >= 12
           # Create a *.signal file in $PGDATA
           case "$RESTORE_MODE" in
             "standby" | "recovery")
-              recovery_file="$RESTORE_MODE.signal"
+              restore_mode_file="$RESTORE_MODE.signal"
               ;;
 
             *)
@@ -2882,23 +2890,24 @@ case $action in
 
           esac
 
-          if [ -n "$recovery_file" ]; then
-            info "Create the $PGDATA/$recovery_file file ($RESTORE_MODE mode)"
-            if ! touch $PGDATA/$recovery_file; then
-              die "could not create the $PGDATA/$recovery_file file"
+          if [ -n "$restore_mode_file" ]; then
+            info "Create the $PGDATA/$restore_mode_file file ($RESTORE_MODE mode)"
+            if ! touch $PGDATA/$restore_mode_file; then
+              die "could not create the $PGDATA/$restore_mode_file file"
             fi
           fi
 
-          # ¿¿ TODO should we update the postgresql.conf file ??
-          # configuration parameters are to be updated in the postgresql.conf file
-        fi
-
-        # Ensure recovery file as the correct owner so that PostgreSQL can
-        # rename it at the end of the recovery
-        if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ] && [ -n "$recovery_file" ]; then
-          if ! chown -R -- "$PGOWNER:" "$PGDATA/$recovery_file"; then
-            die "could not change owner of $recovery_file to $PGOWNER"
+          # Ensure signal file as the correct owner so that PostgreSQL can
+          # delete it at the end of the recovery
+          if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ] && [ -n "$restore_mode_file" ]; then
+            if ! chown -R -- "$PGOWNER:" "$PGDATA/$restore_mode_file"; then
+              die "could not change owner of $restore_mode_file to $PGOWNER"
+            fi
           fi
+
+          # TODO we update the postgresql.conf file
+          # configuration parameters are to be updated in the postgresql.conf file
+	  # parameters are : restore_command and recovery_target_time 
         fi
 
         # Generate a SQL file in PGDATA to update the catalog when tablespace
@@ -4261,9 +4270,9 @@ case $action in
 # In PostgreSQL version 12 and greater, after restoring from a backup
 # either a "standby.signal" or "recovery.signal" file must be created in
 # $PGDATA to start the "recovery" in the desired mode.
+# Use "recovery" (default) to restore the cluster at a given point in time
 # Use "standby" for the creation of the standby cluster
-# Use "recovery" to restore the cluster at a given point in time
-#RESTORE_MODE=
+#RESTORE_MODE="recovery"
 
 # The old backups can be removed by setting one of those two
 # parameters, one can keep at most PURGE_KEEP_COUNT backups or keep
