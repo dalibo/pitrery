@@ -2881,7 +2881,7 @@ case $action in
               ;;
 
             *)
-              if [ -n "$RESTORE_MODE" ]; then
+              if [ -n "${RESTORE_MODE+Pitrery}" ]; then
                 warn "RESTORE_MODE configuration not valid ('$RESTORE_MODE')"
                 info "RESTORE_MODE should be set either to 'standby' or 'recovery'"
               fi
@@ -3396,6 +3396,12 @@ case $action in
             # configured, otherwise purge won't work
             if [ -z "$PURGE_KEEP_COUNT" ] && [ -z "$PURGE_OLDER_THAN" ]; then
                 error "purge not configured, either PURGE_KEEP_COUNT or PURGE_OLDER_THAN must be set"
+                conf_ok=0
+            fi
+
+            # Only recovery or standby are allowed as restore mode (Pg12+)
+            if [ -n "${RESTORE_MODE+Pitrery}" ] && [ "$RESTORE_MODE" != "recovery" ] && [ "$RESTORE_MODE" != "standby" ]; then
+                error "restore mode (RESTORE_MODE) must be 'recovery' or 'standby'"
                 conf_ok=0
             fi
 
