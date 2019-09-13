@@ -2911,10 +2911,10 @@ case $action in
             die "could not locate postgresql.conf to apply recovery settings"
           fi
           
-	  # Modify postgresql.conf
+          # Modify postgresql.conf
           info "preparing postgresql.conf file"
           echo >> "$recovery_settings_file_path"
-	  echo "## Pitrery generated the lines below ($(date))" >> "$recovery_settings_file_path"
+          echo "## Pitrery generated the lines below ($(date))" >> "$recovery_settings_file_path"
 
           # Comment all occurence of restore_command before add the new value of this setting
           sed -ie "s/^[[:blank:]]*restore_command.*/#&/" "$recovery_settings_file_path"
