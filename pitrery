@@ -2797,10 +2797,8 @@ case $action in
             warn "PG_VERSION file is missing"
         fi
 
-        # either recovery.conf or postgresql.conf(Pg12+)
-        recovery_file=""
-
         if (( 10#$pgvers < 1200 )); then
+          recovery_file=""
           # Create a recovery.conf file in $PGDATA
           info "preparing recovery.conf file"
           echo "restore_command = '$RESTORE_COMMAND'" > "$PGDATA/recovery.conf"
@@ -2905,9 +2903,44 @@ case $action in
             fi
           fi
 
-          # TODO we update the postgresql.conf file
-          # configuration parameters are to be updated in the postgresql.conf file
-	  # parameters are : restore_command and recovery_target_time 
+	  if [ -f "$PGDATA/restored_config_files/postgresql.conf" ]; then
+            recovery_settings_file_path="$PGDATA/restored_config_files/postgresql.conf"
+          else
+            recovery_settings_file_path="$PGDATA/postgresql.conf"
+          fi
+          
+          # Modify postgresql.conf
+          info "preparing postgresql.conf file"
+          echo >> "$recovery_settings_file_path"
+          echo "## Pitrery generated the lines below ($(date))" >> "$recovery_settings_file_path"
+
+          # Comment all occurence of restore_command before add the new value of this setting
+          sed -ie "s/^[[:blank:]]*restore_command.*/#&/" "$recovery_settings_file_path"
+          echo "restore_command = '$RESTORE_COMMAND'" >> "$recovery_settings_file_path"
+
+          # Put the given target date in postgresql.conf if needed,
+          # in all cases, all occurrences of recovery_target_time are commented before
+          sed -ie "s/^[[:blank:]]*recovery_target_time.*/#&/" "$recovery_settings_file_path"
+          if [ -n "$recovery_target_time" ]; then
+            echo "recovery_target_time = '$recovery_target_time'" >> "$recovery_settings_file_path"
+          else
+            echo "#recovery_target_time = ''	# e.g. '2019-11-07 15:30:00 EST'" >> "$recovery_settings_file_path"
+          fi
+
+          case $pgvers in
+            1200)
+               echo "#recovery_end_command = ''"
+               echo "#recovery_target_name = ''  # e.g. 'daily backup 2019-11-07'"
+               echo "#recovery_target_xid = ''"
+               echo "#recovery_target_lsn = ''   # e.g. '0/70006B8'"
+               echo "#recovery_target_inclusive = true"
+               echo "#recovery_target = 'immediate'"
+               echo "#recovery_target_timeline = 'latest'"
+               echo "#recovery_target_action = 'pause'"
+               ;;
+          esac >> "$recovery_settings_file_path"
+          echo "## End of generated settings by Pitrery" >> "$recovery_settings_file_path"
+
         fi
 
         # Generate a SQL file in PGDATA to update the catalog when tablespace
