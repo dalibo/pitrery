@@ -1,7 +1,7 @@
 Source: pitrery
 Section: database
 Priority: optional
-Maintainer: Nicolas Thauvin <nicolas.thauvin@dalibo.com>
+Maintainer: Thibaut Madelaine <thibaud.madelaine@dalibo.com>
 Build-Depends: debhelper (>= 7.0.15)
 Standards-Version: 3.9.6.1
 Homepage: https://github.com/dalibo/pitrery
