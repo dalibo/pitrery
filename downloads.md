@@ -18,10 +18,8 @@ The source code of releases is available [here](https://dl.dalibo.com/public/pit
 RPM
 ---
 
-RPM packages of pitrery for RHEL and CentOS 7 are available [here](https://dl.dalibo.com/public/pitrery/rpms/):
-
-* RPM: [pitrery-2.3-1.el7.centos.noarch.rpm](https://dl.dalibo.com/public/pitrery/rpms/pitrery-2.3-1.el7.centos.noarch.rpm)
-* PGP signature: [pitrery-2.3-1.el7.centos.noarch.rpm.asc](https://dl.dalibo.com/public/pitrery/rpms/pitrery-2.3-1.el7.centos.noarch.rpm.asc)
+Latest RPM packages of pitrery for RHEL and CentOS 7 are available at
+[yum.dalibo.org/labs](https://yum.dalibo.orgs/labs).
 
 These packages should work with other flavours of RHEL and other versions.
 
