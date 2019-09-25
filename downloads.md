@@ -9,7 +9,8 @@ Downloads
 Source code
 -----------
 
-The source code of releases is available [here](https://dl.dalibo.com/public/pitrery/):
+The source code of releases is available at
+[github.com/dalibo/pitrery](https://github.com/dalibo/pitrery/releases):
 
 * tarball:
 [pitrery-2.4.tar.gz](https://github.com/dalibo/pitrery/releases/download/v2.4/pitrery-2.4.tar.gz)
