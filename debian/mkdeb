@@ -1,0 +1,68 @@
+#!/bin/bash -eux
+#
+# Debian packaging is strict and have many variations. This script is our Debian
+# Developer. His way of packaging is old-school. He downloads source tarball,
+# injects debian related files and build.
+#
+# This script handle the process of updating the package. First by reproducing a
+# clean working environment for the last debianized version, then fetch lastest
+# tarball and update the debianization. Finally, new package is built and
+# changes are pushed back to versionned source-tree;
+
+shopt -s nullglob
+
+exec 0<&-  # Close stdin to fail on interaction.
+
+workdir=$(mktemp -t --directory pitrery-deb-XXXX)
+
+cdlast() {
+	# Move to latest package directory. We list pitrery package directory
+	# directories. Eases moving around current and new packagings.
+	packages=(../pitrery-*/)
+	cd ${packages[-1]}
+}
+
+teardown() {
+	trap - INT EXIT TERM
+	rm -rf $workdir
+}
+trap 'teardown' INT EXIT TERM
+
+top_srcdir=${PWD}
+distdir=$(readlink -m dist/)
+
+# Create worktree to build last debianized release.
+mkdir -p $workdir/pitrery
+cd $_
+cp -r $top_srcdir/debian .
+uscan --download-current-version
+origtargz --unpack
+cdlast  # Go to current version.
+
+# Retrieve new upstream orig. See debian/watch for details.
+uscan --verbose
+cdlast  # Go to next version.
+codename=$(grep -Po 'VERSION_CODENAME=\K.+' /usr/lib/os-release)
+sed -i 1s/UNRELEASED/$codename/ debian/changelog
+sed -i 3d debian/changelog  # Remove empty changelog item uupdate.
+debuild --build=all --no-sign
+cut --fields=1 --delimiter=' ' debian/files > $distdir/debianfiles
+ls ../pitrery*.changes | xargs basename >> $distdir/debianfiles
+files=$(<$distdir/debianfiles)
+debclean
+
+# Report back changes to versionned source tree.
+cp -vr debian/ $top_srcdir/
+
+# Test it.
+dpkg -i ../pitrery_*.deb
+/usr/bin/pitrery -V
+
+# Push artefacts back in work tree.
+mkdir -p $distdir
+cd ..
+chown $(stat -c %u:%g $top_srcdir/.git) \
+	$distdir \
+	$distdir/debianfiles \
+	$files
+cp --force $files --target-directory $distdir/
