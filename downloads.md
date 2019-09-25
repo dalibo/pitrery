@@ -28,3 +28,13 @@ Debian
 ------
 
 Packages for Debian are available at [apt.dalibo.org/labs](https://apt.dalibo.org/labs).
+
+
+Old releases
+------------
+
+Here are the old URL for previous releases:
+
+- [sources tarballs](https://dl.dalibo.com/public/pitrery).
+- [RPM](https://dl.dalibo.com/public/pitrery/rpms).
+- [DEB](https://dl.dalibo.com/public/pitrery/debian).
