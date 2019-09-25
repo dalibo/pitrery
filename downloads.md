@@ -26,9 +26,4 @@ These packages should work with other flavours of RHEL and other versions.
 Debian
 ------
 
-Packages for Debian are available [here](https://dl.dalibo.com/public/pitrery/debian/):
-
-* DEB: [pitrery\_2.3-1\_all.deb](https://dl.dalibo.com/public/pitrery/debian/pitrery_2.3-1_all.deb)
-* PGP signature: [pitrery\_2.3-1\_all.deb.asc](https://dl.dalibo.com/public/pitrery/debian/pitrery_2.3-1_all.deb.asc)
-
-
+Packages for Debian are available at [apt.dalibo.org/labs](https://apt.dalibo.org/labs).
