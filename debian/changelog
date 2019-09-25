@@ -1,3 +1,9 @@
+pitrery (2.4-1) buster; urgency=medium
+
+  * New upstream release
+
+ -- Étienne BERSAC <etienne.bersac@dalibo.com>  Wed, 25 Sep 2019 14:30:36 +0000
+
 pitrery (2.2-1) unstable; urgency=low
 
   * New upstream release
