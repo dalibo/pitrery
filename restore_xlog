@@ -45,132 +45,132 @@ GPG_BIN="/usr/bin/gpg"
 # This makes it safe for them to include spaces or other special characters
 # which should not be interpreted or cause word-splitting on the remote side.
 qw() {
-    printf -v out "%q " "$@"
-    echo "${out::-1}"  # Skip the final space.
+	printf -v out "%q " "$@"
+	echo "${out::-1}"  # Skip the final space.
 }
 
 # Message functions
 now() {
-    [ "$LOG_TIMESTAMP" = "yes" ] && echo "$(date "+%F %T %Z ")"
+	[ "$LOG_TIMESTAMP" = "yes" ] && echo "$(date "+%F %T %Z ")"
 }
 
 error() {
-    echo "$(now)ERROR: $*" 1>&2
-    exit 1
+	echo "$(now)ERROR: $*" 1>&2
+	exit 1
 }
 
 warn() {
-    echo "$(now)WARNING: $*" 1>&2
+	echo "$(now)WARNING: $*" 1>&2
 }
 
 # Script help
 usage() {
-    echo "$(basename $0) - Restore a WAL segment"
-    echo
-    echo "usage: `basename $0` [options] xlogfile destination"
-    echo "options:"
-    echo "    -C conf                Configuration file"
-    echo "    -a [[user@]host:]/dir  Place to get the archive"
-    echo "    -X                     Do not uncompress"
-    echo "    -c command             Uncompression command"
-    echo "    -s suffix              Compressed file suffix (ex: gz)"
-    echo "    -S                     Send messages to syslog"
-    echo "    -f facility            Syslog facility"
-    echo "    -t ident               Syslog ident"
-    echo "    -T                     Timestamp log messages"
-    echo
-    echo "    -V                     Display the version and exit"
-    echo "    -?                     Print help"
-    echo
-    exit $1
+	echo "$(basename $0) - Restore a WAL segment"
+	echo
+	echo "usage: `basename $0` [options] xlogfile destination"
+	echo "options:"
+	echo "    -C conf                Configuration file"
+	echo "    -a [[user@]host:]/dir  Place to get the archive"
+	echo "    -X                     Do not uncompress"
+	echo "    -c command             Uncompression command"
+	echo "    -s suffix              Compressed file suffix (ex: gz)"
+	echo "    -S                     Send messages to syslog"
+	echo "    -f facility            Syslog facility"
+	echo "    -t ident               Syslog ident"
+	echo "    -T                     Timestamp log messages"
+	echo
+	echo "    -V                     Display the version and exit"
+	echo "    -?                     Print help"
+	echo
+	exit $1
 }
 
 parse_target_uri() {
-    local backup_target=$1
-    local archive_target=$2
+	local backup_target=$1
+	local archive_target=$2
 
-    if [ -n "$backup_target" ]; then
-        # Parse the backuptarget into user, host and path
-        backup_user="$(echo $backup_target | grep '@' | cut -d'@' -f1 )"
-        backup_host="$(echo $backup_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
-        backup_dir="$(echo $backup_target | sed -re 's/(.*):(.*)/\2/')"
+	if [ -n "$backup_target" ]; then
+		# Parse the backuptarget into user, host and path
+		backup_user="$(echo $backup_target | grep '@' | cut -d'@' -f1 )"
+		backup_host="$(echo $backup_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
+		backup_dir="$(echo $backup_target | sed -re 's/(.*):(.*)/\2/')"
 
-    else
-        # Fallback to the values from the configuration file
-        [ -n "$BACKUP_USER" ] && backup_user=$BACKUP_USER
-        [ -n "$BACKUP_HOST" ] && backup_host=$BACKUP_HOST
-        [ -n "$BACKUP_DIR" ] && backup_dir=$BACKUP_DIR
-    fi
+	else
+		# Fallback to the values from the configuration file
+		[ -n "$BACKUP_USER" ] && backup_user=$BACKUP_USER
+		[ -n "$BACKUP_HOST" ] && backup_host=$BACKUP_HOST
+		[ -n "$BACKUP_DIR" ] && backup_dir=$BACKUP_DIR
+	fi
 
-    # Deduce if backup is local
-    if [ -z "$backup_host" ]; then
-        backup_local="yes"
-    else
-        backup_local="no"
+	# Deduce if backup is local
+	if [ -z "$backup_host" ]; then
+		backup_local="yes"
+	else
+		backup_local="no"
 
-        # Wrap IPv6 addresses with brackets
-        echo $backup_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && backup_host="[${backup_host}]"
+		# Wrap IPv6 addresses with brackets
+		echo $backup_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && backup_host="[${backup_host}]"
 
-        # Add a shortcut for ssh/rsync commands
-        backup_ssh_target=${backup_user:+$backup_user@}$backup_host
-    fi
+		# Add a shortcut for ssh/rsync commands
+		backup_ssh_target=${backup_user:+$backup_user@}$backup_host
+	fi
 
-    if [ -n "$backup_dir" ]; then
-        # Ensure the backup directory is an absolute path
-        if [ "$backup_local" = "yes" ]; then
-            backup_dir="$(readlink -m -- "$backup_dir")"
-        else
-            backup_dir="$(ssh -n -- "$backup_ssh_target" "readlink -m -- $(qw "$backup_dir")")"
-        fi
-    fi
+	if [ -n "$backup_dir" ]; then
+		# Ensure the backup directory is an absolute path
+		if [ "$backup_local" = "yes" ]; then
+			backup_dir="$(readlink -m -- "$backup_dir")"
+		else
+			backup_dir="$(ssh -n -- "$backup_ssh_target" "readlink -m -- $(qw "$backup_dir")")"
+		fi
+	fi
 
-    # Parse archive target the same way
-    if [ -n "$archive_target" ]; then
-        archive_user="$(echo $archive_target | grep '@' | cut -d'@' -f1 )"
-        archive_host="$(echo $archive_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
-        archive_dir="$(echo $archive_target | sed -re 's/(.*):(.*)/\2/')"
-    else
-        # Fallback to the values of the configuration file. When the
-        # path is not provided in the config file, fallback to backup values
-        if [ -n "$ARCHIVE_DIR" ]; then
-            [ -n "$ARCHIVE_USER" ] && archive_user=$ARCHIVE_USER
-            [ -n "$ARCHIVE_HOST" ] && archive_host=$ARCHIVE_HOST
-            archive_dir=$ARCHIVE_DIR
-        else
-            archive_user="$backup_user"
-            archive_host="$backup_host"
-            # avoid trying to create directory in /
-            [ -n "$backup_dir" ] && archive_dir="$backup_dir/archived_xlog"
-        fi
-    fi
+	# Parse archive target the same way
+	if [ -n "$archive_target" ]; then
+		archive_user="$(echo $archive_target | grep '@' | cut -d'@' -f1 )"
+		archive_host="$(echo $archive_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
+		archive_dir="$(echo $archive_target | sed -re 's/(.*):(.*)/\2/')"
+	else
+		# Fallback to the values of the configuration file. When the
+		# path is not provided in the config file, fallback to backup values
+		if [ -n "$ARCHIVE_DIR" ]; then
+			[ -n "$ARCHIVE_USER" ] && archive_user=$ARCHIVE_USER
+			[ -n "$ARCHIVE_HOST" ] && archive_host=$ARCHIVE_HOST
+			archive_dir=$ARCHIVE_DIR
+		else
+			archive_user="$backup_user"
+			archive_host="$backup_host"
+			# avoid trying to create directory in /
+			[ -n "$backup_dir" ] && archive_dir="$backup_dir/archived_xlog"
+		fi
+	fi
 
-    # Deduce if archives are local
-    if [ -z "$archive_host" ]; then
-	archive_local="yes"
-    else
-	archive_local="no"
+	# Deduce if archives are local
+	if [ -z "$archive_host" ]; then
+		archive_local="yes"
+	else
+		archive_local="no"
 
-        # Wrap IPv6 addresses with brackets
-        echo $archive_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
+		# Wrap IPv6 addresses with brackets
+		echo $archive_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
 
-        # Add a shortcut for ssh/rsync commands
-        archive_ssh_target=${archive_user:+$archive_user@}$archive_host
-    fi
+		# Add a shortcut for ssh/rsync commands
+		archive_ssh_target=${archive_user:+$archive_user@}$archive_host
+	fi
 
-    [ -n "$archive_dir" ] || error "missing archive directory"
+	[ -n "$archive_dir" ] || error "missing archive directory"
 
-    # Ensure the achives directory is an absolute path
-    if [ "$archive_local" = "yes" ]; then
-        archive_dir="$(readlink -m -- "$archive_dir")"
-    else
-        archive_dir="$(ssh -n -- "$archive_ssh_target" "readlink -m -- $(qw "$archive_dir")")"
-    fi
+	# Ensure the achives directory is an absolute path
+	if [ "$archive_local" = "yes" ]; then
+		archive_dir="$(readlink -m -- "$archive_dir")"
+	else
+		archive_dir="$(ssh -n -- "$archive_ssh_target" "readlink -m -- $(qw "$archive_dir")")"
+	fi
 
 }
 
 # CLI processing
 while getopts "C:a:Xc:s:Sf:t:TV?" opt; do
-    case $opt in
+	case $opt in
 	C) CONFIG=$OPTARG;;
 	a) archive_path="$OPTARG";;
 	X) CLI_ARCHIVE_COMPRESS="no";;
@@ -183,19 +183,19 @@ while getopts "C:a:Xc:s:Sf:t:TV?" opt; do
 	V) echo "restore_xlog (pitrery) $version"; exit 0;;
 	"?") usage 1;;
 	*) error "Unknown error while processing options";;
-    esac
+	esac
 done
 
 # Check if the config option is a path or just a name in the
 # configuration directory.  Prepend the configuration directory and
 # .conf when needed.
 if [[ $CONFIG != */* ]]; then
-    CONFIG="$CONFIG_DIR/$(basename -- "$CONFIG" .conf).conf"
+	CONFIG="$CONFIG_DIR/$(basename -- "$CONFIG" .conf).conf"
 fi
 
 # Load configuration file
 if [ -f "$CONFIG" ]; then
-    . "$CONFIG"
+	. "$CONFIG"
 fi
 
 # Override configuration with cli options
@@ -209,11 +209,11 @@ fi
 
 # Redirect output to syslog if configured
 if [ "$SYSLOG" = "yes" ]; then
-    SYSLOG_FACILITY=${SYSLOG_FACILITY:-local0}
-    SYSLOG_IDENT=${SYSLOG_IDENT:-postgres}
+	SYSLOG_FACILITY=${SYSLOG_FACILITY:-local0}
+	SYSLOG_IDENT=${SYSLOG_IDENT:-postgres}
 
-    exec 1> >(logger -t "$SYSLOG_IDENT" -p "${SYSLOG_FACILITY}.info")
-    exec 2> >(logger -t "$SYSLOG_IDENT" -p "${SYSLOG_FACILITY}.err")
+	exec 1> >(logger -t "$SYSLOG_IDENT" -p "${SYSLOG_FACILITY}.info")
+	exec 2> >(logger -t "$SYSLOG_IDENT" -p "${SYSLOG_FACILITY}.err")
 fi
 
 parse_target_uri "" "$archive_path"
@@ -224,61 +224,61 @@ xlog=${@:$OPTIND:1}
 target_path=${@:$(($OPTIND+1)):1}
 
 if [ -z "$xlog" ] || [ -z "$target_path" ]; then
-    error "missing xlog filename and/or target path. Please use %f and %p in restore_command"
+	error "missing xlog filename and/or target path. Please use %f and %p in restore_command"
 fi
 
 # Get the file: use cp when the file is on localhost, scp otherwise
 if [ "$archive_local" = "yes" ]; then
-    if [ -f "$archive_dir/$xlog" ]; then
-        xlog_file="$xlog"
-        target_file="$target_path"
-    elif [ -f "$archive_dir/${xlog}.$ARCHIVE_COMPRESS_SUFFIX" ]; then
-        xlog_file="${xlog}.$ARCHIVE_COMPRESS_SUFFIX"
-        target_file="${target_path}.$ARCHIVE_COMPRESS_SUFFIX"
-    elif [ -f "$archive_dir/${xlog}.gpg" ]; then
-        xlog_file="${xlog}.gpg"
-        target_file="${target_path}.gpg"
-        ARCHIVE_COMPRESS="no"
-    else
-	error "could not find $archive_dir/$xlog"
-    fi
+	if [ -f "$archive_dir/$xlog" ]; then
+		xlog_file="$xlog"
+		target_file="$target_path"
+	elif [ -f "$archive_dir/${xlog}.$ARCHIVE_COMPRESS_SUFFIX" ]; then
+		xlog_file="${xlog}.$ARCHIVE_COMPRESS_SUFFIX"
+		target_file="${target_path}.$ARCHIVE_COMPRESS_SUFFIX"
+	elif [ -f "$archive_dir/${xlog}.gpg" ]; then
+		xlog_file="${xlog}.gpg"
+		target_file="${target_path}.gpg"
+		ARCHIVE_COMPRESS="no"
+	else
+		error "could not find $archive_dir/$xlog"
+	fi
 
-    if ! cp -- "$archive_dir/$xlog_file" "$target_file"; then
-	error "could not copy $archive_dir/$xlog_file to $target_file"
-    fi
+	if ! cp -- "$archive_dir/$xlog_file" "$target_file"; then
+		error "could not copy $archive_dir/$xlog_file to $target_file"
+	fi
 else
-    if ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/$xlog")"; then
-        xlog_file="$xlog"
-        target_file="$target_path"
-    elif ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/${xlog}.$ARCHIVE_COMPRESS_SUFFIX")"; then
-        xlog_file="${xlog}.$ARCHIVE_COMPRESS_SUFFIX"
-        target_file="${target_path}.$ARCHIVE_COMPRESS_SUFFIX"
-    elif ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/${xlog}.gpg")"; then
-        xlog_file="${xlog}.gpg"
-        target_file="${target_path}.gpg"
-        ARCHIVE_COMPRESS="no"
-    else
-	error "could not find $archive_dir/$xlog on ${archive_host}"
-    fi
+	if ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/$xlog")"; then
+		xlog_file="$xlog"
+		target_file="$target_path"
+	elif ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/${xlog}.$ARCHIVE_COMPRESS_SUFFIX")"; then
+		xlog_file="${xlog}.$ARCHIVE_COMPRESS_SUFFIX"
+		target_file="${target_path}.$ARCHIVE_COMPRESS_SUFFIX"
+	elif ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/${xlog}.gpg")"; then
+		xlog_file="${xlog}.gpg"
+		target_file="${target_path}.gpg"
+		ARCHIVE_COMPRESS="no"
+	else
+		error "could not find $archive_dir/$xlog on ${archive_host}"
+	fi
 
-    if ! scp -- "${archive_ssh_target}:$(qw "$archive_dir/$xlog_file")" "$target_file" >/dev/null; then
-	error "could not copy ${archive_host}:$archive_dir/$xlog_file to $target_file"
-    fi
+	if ! scp -- "${archive_ssh_target}:$(qw "$archive_dir/$xlog_file")" "$target_file" >/dev/null; then
+		error "could not copy ${archive_host}:$archive_dir/$xlog_file to $target_file"
+	fi
 fi
 
 # Uncompress the file if needed
 if [ "$ARCHIVE_COMPRESS" = "yes" ]; then
-    if ! $ARCHIVE_UNCOMPRESS_BIN "$target_file"; then
-	error "could not uncompress $target_file"
-    fi
+	if ! $ARCHIVE_UNCOMPRESS_BIN "$target_file"; then
+		error "could not uncompress $target_file"
+	fi
 fi
 
 # Or decrypt it
 if [[ "$target_file" =~ \.gpg$ ]]; then
-    if ! "$GPG_BIN" "--batch" "--yes" "--decrypt" "--quiet" -o "$target_path" "$target_file"; then
-        error "could not decrypt $target_file"
-    fi
-    rm -- "$target_file" || warn "unable to remove $target_file after decryption"
+	if ! "$GPG_BIN" "--batch" "--yes" "--decrypt" "--quiet" -o "$target_path" "$target_file"; then
+		error "could not decrypt $target_file"
+	fi
+	rm -- "$target_file" || warn "unable to remove $target_file after decryption"
 fi
 
 exit 0
