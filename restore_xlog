@@ -172,7 +172,7 @@ parse_target_uri() {
 while getopts "C:a:Xc:s:Sf:t:TV?" opt; do
     case $opt in
 	C) CONFIG=$OPTARG;;
-        a) archive_path="$OPTARG";;
+	a) archive_path="$OPTARG";;
 	X) CLI_ARCHIVE_COMPRESS="no";;
 	c) CLI_ARCHIVE_UNCOMPRESS_BIN=$OPTARG;;
 	s) CLI_ARCHIVE_COMPRESS_SUFFIX=$OPTARG;;
@@ -180,7 +180,7 @@ while getopts "C:a:Xc:s:Sf:t:TV?" opt; do
 	f) CLI_SYSLOG_FACILITY=$OPTARG;;
 	t) CLI_SYSLOG_IDENT=$OPTARG;;
 	T) CLI_LOG_TIMESTAMP="yes";;
-        V) echo "restore_xlog (pitrery) $version"; exit 0;;
+	V) echo "restore_xlog (pitrery) $version"; exit 0;;
 	"?") usage 1;;
 	*) error "Unknown error while processing options";;
     esac
