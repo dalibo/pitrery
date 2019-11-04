@@ -20,7 +20,8 @@ setup your editor to follow it.
 - Build source tarball and sign it with `make distsign`.
 - Attach tar.gz and .tar.gz.asc to GitHub release.
 - Update rpm/pitrery.spec, build and push with `make -C rpm/ build push`.
-- [Update debian/changelog, build and push debs](./debian).
+- Build and push deb with `make -C debian/ build push`.
+- Push these commits.
 - Update website in `gh-pages` branch.
   - Create news entry.
   - Update download and documentation page.

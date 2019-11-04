@@ -1,0 +1,15 @@
+#!/bin/bash -eux
+#
+# Upload last changes to any codename in repository.
+#
+# Usage: push [CODENAME]
+
+exec 0<&-  # Close stdin to ensure non-interactivity.
+
+distdir=$(readlink -m $0/../../dist)
+changes=${distdir}/$(grep changes $distdir/debianfiles)
+defaultdist=$(grep -Po 'Distribution: \K.+' $changes.orig)
+cp -f $changes.orig $changes
+sed -i s/$defaultdist/${1}/ $_
+debsign --re-sign $_
+dput --force ${DPUT_HOST-labs} $_

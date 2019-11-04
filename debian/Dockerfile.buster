@@ -1,0 +1,9 @@
+FROM debian:buster
+
+RUN set -eu; \
+	apt-get update -qy ; \
+	apt-get install -qy \
+        devscripts \
+        ; \
+	apt-get clean ; \
+    :

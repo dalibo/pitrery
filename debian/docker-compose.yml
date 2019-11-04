@@ -1,0 +1,17 @@
+version: "3.0"
+
+services:
+  buster:
+    build:
+      context: .
+      dockerfile: Dockerfile.buster
+    image: dalibo/pitrery-debuild:buster
+    container_name: pitrery_buster
+    environment:
+    - DEBFULLNAME
+    - DEBEMAIL
+    - HISTFILE=/workspace/debian/bash_history
+    volumes:
+    - ..:/workspace
+    working_dir: /workspace
+    entrypoint: [/workspace/debian/mkdeb]
