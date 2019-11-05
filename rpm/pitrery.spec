@@ -33,17 +33,17 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
 %files
 %config(noreplace) /etc/pitrery/pitrery.conf
-/usr/bin/archive_xlog
+/usr/bin/archive_wal
 /usr/bin/pitrery
-/usr/bin/restore_xlog
+/usr/bin/restore_wal
 %doc /usr/share/doc/pitrery/COPYRIGHT
 %doc /usr/share/doc/pitrery/INSTALL.md
 %doc /usr/share/doc/pitrery/UPGRADE.md
 %doc /usr/share/doc/pitrery/pitrery.conf
 %doc /usr/share/doc/pitrery/CHANGELOG
 %doc %{_mandir}/man1/pitrery.1.gz
-%doc %{_mandir}/man1/archive_xlog.1.gz
-%doc %{_mandir}/man1/restore_xlog.1.gz
+%doc %{_mandir}/man1/archive_wal.1.gz
+%doc %{_mandir}/man1/restore_wal.1.gz
 
 %changelog
 * Tue Sep  3 2019 Étienne BERSAC <etienne.bersac@dalibo.com> - 2.4-1

@@ -9,10 +9,10 @@ include config.mk
 BUILDDIR = _build
 
 # Files to install
-SRCS = archive_xlog restore_xlog pitrery
+SRCS = archive_wal restore_wal pitrery
 CONFS = pitrery.conf
 DOCS = COPYRIGHT INSTALL.md UPGRADE.md CHANGELOG
-SRCMANPAGES = pitrery.1 archive_xlog.1 restore_xlog.1
+SRCMANPAGES = pitrery.1 archive_wal.1 restore_wal.1
 
 # Files that we temporary store into BUILDDIR before copying them to
 # their target destination
