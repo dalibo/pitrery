@@ -29,7 +29,7 @@ version="3.0dev"
 latest_supported_pg_version=1200
 
 # Hardcoded configuration
-PGXLOG=
+PGWAL=
 BACKUP_DIR="/var/lib/pgsql/backups/pitr"
 STORAGE="tar"
 BACKUP_HOST=
@@ -122,7 +122,7 @@ usage() {
 			echo
 			echo " options:"
 			echo "    -D dir               Path to target \$PGDATA"
-			echo "    -x dir               Path to the xlog directory (only if outside \$PGDATA)"
+			echo "    -x dir               Path to the wal directory (only if outside \$PGDATA)"
 			echo "    -d date              Restore until this date"
 			echo "    -O user              If run by root, owner of the files"
 			echo "    -t tblspc:dir        Change the target directory of tablespace \"tblspc\""
@@ -132,7 +132,7 @@ usage() {
 			echo "    -c compress_bin      Uncompression command for tar method"
 			echo "    -e compress_suffix   Suffix added by the compression program"
 			echo "    -r command           Command line to use in restore_command"
-			echo "    -C config            Configuration file for restore_xlog in restore_command"
+			echo "    -C config            Configuration file for restore_wal in restore_command"
 			echo "    -m restore_mode      restore either in \"standby\" or \"recovery\" mode"
 			echo "    -T                   Timestamp log messages"
 			echo
@@ -391,7 +391,7 @@ parse_target_uri() {
 		else
 			archive_user="$backup_user"
 			archive_host="$backup_host"
-			archive_dir="$backup_dir/archived_xlog"
+			archive_dir="$backup_dir/archived_wal"
 		fi
 	fi
 
@@ -1554,7 +1554,7 @@ case $action in
 			fi
 		else
 			# Force a checkpoint for version >= 8.4. We add some
-			# parsing of the result of pg_xlogfile_name_offset (or
+			# parsing of the result of pg_walfile_name_offset (or
 			# pg_walfile_name_offset as of 10) on the LSN returned by
 			# pg_start_backup, so that we have the name of the
 			# backup_label that will be archived after pg_stop_backup
@@ -2181,7 +2181,7 @@ case $action in
 		dry_run="no"
 		tsmv_list=()
 		target_date=
-		restore_xlog_config=$config
+		restore_wal_config=$config
 		recovery_settings_file_path="postgresql.conf" # temp value for pg12+
 		load_config
 
@@ -2189,7 +2189,7 @@ case $action in
 		while getopts "D:x:d:O:t:nRc:e:m:r:C:T?" arg 2>/dev/null; do
 			case $arg in
 				D) PGDATA=$OPTARG;;
-				x) PGXLOG=$OPTARG;;
+				x) PGWAL=$OPTARG;;
 				d) target_date=$OPTARG;;
 				O) PGOWNER=$OPTARG;;
 				t) tsmv_list+=( "$OPTARG" );;
@@ -2199,7 +2199,7 @@ case $action in
 				e) BACKUP_COMPRESS_SUFFIX="$OPTARG";;
 				m) RESTORE_MODE="$OPTARG";;
 				r) RESTORE_COMMAND="$OPTARG";;
-				C) restore_xlog_config=$OPTARG;;
+				C) restore_wal_config=$OPTARG;;
 				T) LOG_TIMESTAMP="yes";;
 				'?') usage "restore";;
 			esac
@@ -2213,10 +2213,10 @@ case $action in
 			die "the target owner cannot be root. Use -O when restoring as root"
 		fi
 
-		# When no restore_command is given, build it using restore_xlog
+		# When no restore_command is given, build it using restore_wal
 		if [ -z "$RESTORE_COMMAND" ]; then
-			[[ "$restore_xlog_config" == */* ]] && restore_xlog_config=$(readlink -m "$restore_xlog_config")
-			RESTORE_COMMAND="restore_xlog${restore_xlog_config:+ -C $(qw "$restore_xlog_config")} %f %p"
+			[[ "$restore_wal_config" == */* ]] && restore_wal_config=$(readlink -m "$restore_wal_config")
+			RESTORE_COMMAND="restore_wal${restore_wal_config:+ -C $(qw "$restore_wal_config")} %f %p"
 		fi
 
 		# The parent directory of all backups must be saved so that we
@@ -2408,7 +2408,7 @@ case $action in
 		info "destinations directories:"
 		info "  PGDATA -> $PGDATA"
 
-		[ -n "$PGXLOG" ] && info "  PGDATA/pg_${xlog_or_wal} -> $PGXLOG"
+		[ -n "$PGWAL" ] && info "  PGDATA/pg_${xlog_or_wal} -> $PGWAL"
 
 		# Populate an array with tablespace directory to check we have duplicates
 		declare -a tspc_dedup
@@ -2436,14 +2436,14 @@ case $action in
 		# Check target directories
 		check_and_fix_directory "$PGDATA"
 
-		if [ -n "$PGXLOG" ]; then
-			[[ $PGXLOG == /* ]] || die "pg_${xlog_or_wal} must be an absolute path"
+		if [ -n "$PGWAL" ]; then
+			[[ $PGWAL == /* ]] || die "pg_${xlog_or_wal} must be an absolute path"
 
-			if [ "$PGXLOG" = "$PGDATA/pg_${xlog_or_wal}" ]; then
+			if [ "$PGWAL" = "$PGDATA/pg_${xlog_or_wal}" ]; then
 				die "pg_${xlog_or_wal} path cannot be \$PGDATA/pg_${xlog_or_wal}, this path is reserved. It seems you do not need -x"
 			fi
 
-			check_and_fix_directory "$PGXLOG"
+			check_and_fix_directory "$PGWAL"
 		fi
 
 		# Check the tablespaces directory and create them if possible
@@ -2753,9 +2753,9 @@ case $action in
 		fi
 
 		# Create or symlink pg_xlog/pg_wal directory if needed
-		if [ -d "$PGXLOG" ]; then
-			info "creating symbolic link pg_${xlog_or_wal} to $PGXLOG"
-			if ! ln -sf -- "$PGXLOG" "$PGDATA/pg_${xlog_or_wal}"; then
+		if [ -d "$PGWAL" ]; then
+			info "creating symbolic link pg_${xlog_or_wal} to $PGWAL"
+			if ! ln -sf -- "$PGWAL" "$PGDATA/pg_${xlog_or_wal}"; then
 				die "could not create $PGDATA/pg_${xlog_or_wal} symbolic link"
 			fi
 			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
@@ -3199,8 +3199,8 @@ case $action in
 		fi
 
 
-		# To be able to purge the archived xlogs, the backup_label of the oldest backup
-		# is needed to find the oldest xlog file to keep.
+		# To be able to purge the archived wals, the backup_label of the oldest backup
+		# is needed to find the oldest wal file to keep.
 
 		# The easy case, where every directory had a valid backup_timestamp when we scanned them.
 		# This is all we should ever need normally.
@@ -3530,10 +3530,10 @@ case $action in
 				fi
 			fi
 
-			# Archiving with archive_xlog is not mandatory, so tell the user that
+			# Archiving with archive_wal is not mandatory, so tell the user that
 			# it may be unusable
 			if [[ $arch_ok == "no" ]]; then
-				error "archiving may not work with archive_xlog and the current configuration"
+				error "archiving may not work with archive_wal and the current configuration"
 				error "please consider another way to archive WAL files"
 			fi
 
@@ -4127,15 +4127,15 @@ case $action in
 
 		parse_target_uri "${@:$OPTIND:1}" "$archive_path" || usage "configure"
 
-		# the configuration for archive_xlog must be an absolute path or
+		# the configuration for archive_wal must be an absolute path or
 		# relative to PGDATA. Just convert it to a absolute path if needed,
 		# because we cannot garantee what the user provides is relative to
 		# PGDATA.
 		if [ -n "$output" ]; then
 			if [[ "$output" == */* ]]; then
-				restore_xlog_config=$(readlink -m "$output")
+				restore_wal_config=$(readlink -m "$output")
 			else
-				restore_xlog_config="$output"
+				restore_wal_config="$output"
 			fi
 		fi
 
@@ -4155,10 +4155,10 @@ case $action in
 
 			check_postgresql_config
 
-			if [ -n "$restore_xlog_config" ]; then
-				info "please ensure archive_command includes 'archive_xlog -C $restore_xlog_config %p'"
+			if [ -n "$restore_wal_config" ]; then
+				info "please ensure archive_command includes 'archive_wal -C $restore_wal_config %p'"
 			else
-				info "please ensure archive_command includes a call to archive_xlog"
+				info "please ensure archive_command includes a call to archive_wal"
 			fi
 		fi
 
@@ -4168,10 +4168,10 @@ case $action in
 			info "==> PostgreSQL configuration to change in 'postgresql.conf':"
 			info "  wal_level = archive # or higher (>= 9.0 and < 9.6), replica or higher >= 9.6"
 			info "  archive_mode = on # (>= 8.3)"
-			if [ -n "$restore_xlog_config" ]; then
-				info "  archive_command = 'archive_xlog -C $restore_xlog_config %p'"
+			if [ -n "$restore_wal_config" ]; then
+				info "  archive_command = 'archive_wal -C $restore_wal_config %p'"
 			else
-				info "  archive_command = 'archive_xlog -C {your_conf} %p'"
+				info "  archive_command = 'archive_wal -C {your_conf} %p'"
 			fi
 		fi
 
@@ -4289,7 +4289,7 @@ case $action in
 # If the transaction logs directory is outside PGDATA (see -X option
 # of initdb), specify its path here to recreate the symbolic link when
 # restoring.
-#PGXLOG=$PGXLOG
+#PGWAL=$PGWAL
 
 # Directory where to store the files.  Each backup has its own
 # subdirectory named after the date and time it was launched.
@@ -4309,7 +4309,7 @@ case $action in
 # to get archived WAL segments that need to be replayed on the cluster
 # files. This can be any valid command or script for the restore_command
 # parameter of PostgreSQL (in recovery configuration).
-# The restore_xlog script is intended to be used here: leave empty to use it
+# The restore_wal script is intended to be used here: leave empty to use it
 #RESTORE_COMMAND=
 
 # In PostgreSQL version 12 and greater, after restoring from a backup
@@ -4362,7 +4362,7 @@ case $action in
 ####################
 
 # The host storing the archived WAL files. Must not be set to trigger local
-# archiving for archive_xlog and restore_xlog.
+# archiving for archive_wal and restore_wal.
 #ARCHIVE_HOST="$ARCHIVE_HOST"
 
 # The user for login to ARCHIVE_HOST through SSH. If blank, PostgreSQL
@@ -4370,7 +4370,7 @@ case $action in
 #ARCHIVE_USER="$ARCHIVE_USER"
 
 # The directory where to look for archived WAL files on BACKUP_HOST.
-#ARCHIVE_DIR="\$BACKUP_DIR/archived_xlog"
+#ARCHIVE_DIR="\$BACKUP_DIR/archived_wal"
 
 # Compress the WAL segment
 #ARCHIVE_COMPRESS="$ARCHIVE_COMPRESS"
