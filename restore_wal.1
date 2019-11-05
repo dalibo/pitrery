@@ -1,0 +1,126 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.\" First parameter, NAME, should be all caps
+.\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
+.\" other parameters are allowed: see man(7), man(1)
+.TH RESTORE_WAL 1 "October 11, 2015"
+.\" Please adjust this date whenever revising the manpage.
+.\"
+.\" Some roff macros, for reference:
+.\" .nh        disable hyphenation
+.\" .hy        enable hyphenation
+.\" .ad l      left justify
+.\" .ad b      justify to both left and right margins
+.\" .nf        disable filling
+.\" .fi        enable filling
+.\" .br        insert line break
+.\" .sp <n>    insert n+1 empty lines
+.\" for manpage-specific macros, see man(7)
+.SH NAME
+restore_wal \- retrieve WAL segment files during database recovery
+
+.SH SYNOPSIS
+.B restore_wal
+.RI [ options ]
+.I walfile destination
+
+
+.SH DESCRIPTION
+The \fBrestore_wal\fP script is the default action that is used for the
+\fBpostgres\fP(1) \fIrestore_command\fP in \fIrecovery.conf\fP by
+\fBpitrery\ restore\fP.  It is responsible for retrieving the archived WAL
+segments that are needed during the recovery operation.
+
+
+.SH OPTIONS
+The following options are available:
+
+.TP
+.BI "\-C " conf
+Use option settings from the specified configuration file instead of the
+default \fIpitrery.conf\fP file.  This may be a full path to the file to use,
+or the name of a configuration file in \fI/etc/pitrery\fP.
+
+.TP
+.BI "\-a " [[user@]host:]/dir
+The directory on the (local or remote) host where WAL segment files will be
+stored.  This will override the \fBARCHIVE_DIR\fP option from the
+configuration file.  When the host name is omited, the archiving is local.
+
+.TP
+.B \-X
+Retrieve WAL segment files that are not compressed.  This will override the
+\fBARCHIVE_COMPRESS\fP option from the configuration file (forcing it to be
+"no").
+
+.TP
+.BI "\-c " command
+The command to use for uncompressing WAL segment files.  This will override
+the \fBARCHIVE_UNCOMPRESS_BIN\fP option from the configuration file.
+
+.TP
+.BI "\-s " suffix
+The compressed file suffix to expect (e.g., gz, bz2, xz).  This will override
+the \fBARCHIVE_COMPRESS_SUFFIX\fP option from the configuration file.
+
+.TP
+.B \-S
+Send messages to the \fBsyslog\fP(3) instead of \fBstdio\fP(3).  This will
+override the \fBSYSLOG\fP option from the configuration file (forcing it to
+be "yes").  Messages sent to \fIstdout\fP will be logged with \fBLOG_INFO\fP
+priority, while messages to \fIstderr\fP will be logged with \fBLOG_ERR\fP
+priority.
+
+.TP
+.BI "\-f " facility
+Specify the \fBsyslog\fP facility to use.  This will override the
+\fBSYSLOG_FACILITY\fP option from the configuration file.  Defaults to use
+\fBlocal0\fP if not otherwise explicitly set.  See \fBlogger\fP(1) for details
+of the valid facility strings that can be used here.
+
+.TP
+.BI "\-t " ident
+An identifier to prefix \fBsyslog\fP output with.  This will override the
+\fBSYSLOG_IDENT\fP option from the configuration file.  Defaults to use the
+string "postgres" if not otherwise explicitly set.
+
+.TP
+.B \-T
+Timestamp the log messages.  This will override the \fBLOG_TIMESTAMP\fP option
+from the configuration file (forcing it to be "yes").
+
+.TP
+.B \-?
+Output the brief help summarising the above options.
+
+.TP
+.I walfile
+The name of the WAL segment to restore, relative to the configured
+archive directory. It must be set to \fB%f\fP inside
+\fIrecovery.conf\fP when configuring restore_command.
+
+.TP
+.I destination
+The target path where to restore the file. It must be set to \fB%p\fP
+inside \fIrecovery.conf\fP when configuring restore_command.
+
+.SH FILES
+.TP
+.I /etc/pitrery/pitrery.conf
+The default \fBrestore_wal\fP configuration file if not explicitly specified.
+
+.TP
+.I $PGATA/recovery.conf
+The file created in the \fBPGDATA\fP directory by \fBpitrery\ restore\fP which
+configures if and/or how to use \fBrestore_wal\fP to retrieve any needed WAL
+segment files during database recovery.
+
+
+.SH SEE ALSO
+.BR archive_wal (1),
+.BR pitrery (1).
+
+
+.SH AUTHOR
+.B restore_wal
+was written by Nicolas Thauvin <nicolas.thauvin@dalibo.com>.
+This man page was written by Ron <ron@debian.org>.
