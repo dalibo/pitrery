@@ -2182,7 +2182,7 @@ case $action in
 		tsmv_list=()
 		target_date=
 		restore_xlog_config=$config
-
+		recovery_settings_file_path="postgresql.conf" # temp value for pg12+
 		load_config
 
 		# Parse args after action: they should take precedence over the configuration
@@ -3030,7 +3030,7 @@ case $action in
 			info "please check directories and recovery configuration before starting the"
 			info "cluster and do not forget to update the configuration of pitrery if"
 			info "needed:"
-			info "  $restored_conf/postgresql.conf"
+			info "  $recovery_settings_file_path"
 			info
 		fi
 
