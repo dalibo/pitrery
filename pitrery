@@ -2803,6 +2803,10 @@ case $action in
 			info "preparing recovery.conf file"
 			echo "restore_command = '$RESTORE_COMMAND'" > "$PGDATA/recovery.conf"
 
+			if (( 10#$pgvers >= 900 )) && [ "$RESTORE_MODE" == "standby" ] ; then
+				echo "standby_mode = on" >> "$PGDATA/recovery.conf"
+			fi
+
 			# Put the given target date in recovery.conf
 			if [ -n "$recovery_target_time" ]; then
 				echo "recovery_target_time = '$recovery_target_time'" >> "$PGDATA/recovery.conf"
