@@ -174,7 +174,7 @@ usage() {
 			echo "    -a [[user@]host:]/dir  Path to WAL archives"
 			echo "    -c command             Uncompression command"
 			echo
-			echo "    -n                     Nagios compatible output for -b and -A"
+			echo "    -n                     Nagios compatible output for -B and -A"
 			echo
 			echo "    -?                     Print help"
 			echo
