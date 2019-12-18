@@ -3345,7 +3345,7 @@ case $action in
 					# command with too many arguments.
 					if [ "$archive_local" = "yes" ]; then
 						for wal in "${wal_purge_list[@]}"; do
-              echo "rm -- \"${wal}\""
+							echo "rm -- \"${wal}\""
 						done | bash || die "unable to remove wal files"
 					else
 						for wal in "${wal_purge_list[@]}"; do
