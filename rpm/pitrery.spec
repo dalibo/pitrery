@@ -33,10 +33,10 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
 %preun
 if [ $1 -eq 1 ] ; then
-	if [ -e /usr/bin/archive_xlog ] ; then
+	if [ -e /usr/bin/archive_xlog ] && [ ! -h /usr/bin/archive_xlog ] ; then
 		touch %{_localstatedir}/lib/rpm-state/pitrery/archive_xlog_to_wal
 	fi
-	if [ -e /usr/bin/restore_xlog ] ; then
+	if [ -e /usr/bin/restore_xlog ] && [ ! -h /usr/bin/restore_xlog ] ; then
 		touch %{_localstatedir}/lib/rpm-state/pitrery/restore_xlog_to_wal
 	fi
 fi
