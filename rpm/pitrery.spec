@@ -31,6 +31,28 @@ make DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 %install
 make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
+%preun
+if [ $1 -eq 1 ] ; then
+	if [ -e /usr/bin/archive_xlog ] ; then
+		touch %{_localstatedir}/lib/rpm-state/pitrery/archive_xlog_to_wal
+	fi
+	if [ -e /usr/bin/restore_xlog ] ; then
+		touch %{_localstatedir}/lib/rpm-state/pitrery/restore_xlog_to_wal
+	fi
+fi
+
+%postun
+if [ $1 -eq 1 ] ; then
+	if [ -e %{_localstatedir}/lib/rpm-state/pitrery/archive_xlog_to_wal ] ; then
+		ln -s /usr/bin/archive_xlog /usr/bin/archive_wal
+		rm -f %{_localstatedir}/lib/rpm-state/pitrery/archive_xlog_to_wal
+	fi
+	if [ -e /usr/bin/restore_xlog ] ; then
+		ln -s /usr/bin/restore_xlog /usr/bin/restore_wal
+		rm -f %{_localstatedir}/lib/rpm-state/pitrery/restore_xlog_to_wal
+	fi
+fi
+
 %files
 %config(noreplace) /etc/pitrery/pitrery.conf
 /usr/bin/archive_wal
