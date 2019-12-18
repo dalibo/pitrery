@@ -44,12 +44,12 @@ fi
 %postun
 if [ $1 -eq 1 ] ; then
 	if [ -e %{_localstatedir}/lib/rpm-state/pitrery/archive_xlog_to_wal ] ; then
-		ln -s /usr/bin/archive_xlog /usr/bin/archive_wal
 		rm -f %{_localstatedir}/lib/rpm-state/pitrery/archive_xlog_to_wal
+		ln -s /usr/bin/archive_wal /usr/bin/archive_xlog
 	fi
 	if [ -e /usr/bin/restore_xlog ] ; then
-		ln -s /usr/bin/restore_xlog /usr/bin/restore_wal
 		rm -f %{_localstatedir}/lib/rpm-state/pitrery/restore_xlog_to_wal
+		ln -s /usr/bin/restore_wal /usr/bin/restore_xlog
 	fi
 fi
 
