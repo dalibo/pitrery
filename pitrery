@@ -251,7 +251,7 @@ usage() {
 # which should not be interpreted or cause word-splitting on the remote side.
 qw() {
 	printf -v out "%q " "$@"
-	echo "${out::-1}"  # Skip the final space.
+	echo ${out%?}  # Skip the final space.
 }
 
 can_cleanup="no"
@@ -3345,11 +3345,11 @@ case $action in
 					# command with too many arguments.
 					if [ "$archive_local" = "yes" ]; then
 						for wal in "${wal_purge_list[@]}"; do
-							echo "rm -- $(qw "$wal")"
+							echo "rm -- \"${wal}\""
 						done | bash || die "unable to remove wal files"
 					else
 						for wal in "${wal_purge_list[@]}"; do
-							echo "rm -- $(qw "$wal")"
+							echo "rm -- \"${wal}\""
 						done | ssh -- "$archive_ssh_target" "cat | sh" || die "unable to remove wal files on $archive_host"
 					fi
 				fi
