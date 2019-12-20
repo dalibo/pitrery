@@ -2182,7 +2182,7 @@ case $action in
 		tsmv_list=()
 		target_date=
 		restore_xlog_config=$config
-
+		recovery_settings_file_path="postgresql.conf" # temp value for pg12+
 		load_config
 
 		# Parse args after action: they should take precedence over the configuration
@@ -2919,12 +2919,12 @@ case $action in
 			echo "## Pitrery generated the lines below ($(date))" >> "$recovery_settings_file_path"
 
 			# Comment all occurence of restore_command before add the new value of this setting
-			sed -ie "s/^[[:blank:]]*restore_command.*/#&/" "$recovery_settings_file_path"
+			sed -i "s/^[[:blank:]]*restore_command.*/#&/" "$recovery_settings_file_path"
 			echo "restore_command = '$RESTORE_COMMAND'" >> "$recovery_settings_file_path"
 
 			# Put the given target date in postgresql.conf if needed,
 			# in all cases, all occurrences of recovery_target_time are commented before
-			sed -ie "s/^[[:blank:]]*recovery_target_time.*/#&/" "$recovery_settings_file_path"
+			sed -i "s/^[[:blank:]]*recovery_target_time.*/#&/" "$recovery_settings_file_path"
 			if [ -n "$recovery_target_time" ]; then
 				echo "recovery_target_time = '$recovery_target_time'" >> "$recovery_settings_file_path"
 			else
@@ -3030,7 +3030,7 @@ case $action in
 			info "please check directories and recovery configuration before starting the"
 			info "cluster and do not forget to update the configuration of pitrery if"
 			info "needed:"
-			info "  $restored_conf/postgresql.conf"
+			info "  $recovery_settings_file_path"
 			info
 		fi
 
