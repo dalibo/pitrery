@@ -3902,13 +3902,15 @@ case $action in
 							fi
 						fi
 
-						if [ -n "$ARCHIVE_UNCOMPRESS_BIN" ]; then
+						if [ "$ARCHIVE_COMPRESS" = "yes" ] && [ -n "$ARCHIVE_UNCOMPRESS_BIN" ]; then
 							[[ "$output" != "nagios" ]] && info "uncompressing $first_wal_file to measure its size"
 
 							wal_segsize=$($ARCHIVE_UNCOMPRESS_BIN -c $tmpwal 2>/dev/null| wc -c)
 							if [[ -z "$wal_segsize" ]] || [[ "$wal_segsize" == 0 ]]; then
 								die "Could not uncompress the WAL to check its size"
 							fi
+						elif [ "$ARCHIVE_COMPRESS" = "yes" ]; then
+              die "No uncompress command is defined"
 						else
 							[[ "$output" != "nagios" ]] && info "assuming WAL segments are not compressed"
 							wal_segsize=$(cat $tmpwal 2>/dev/null| wc -c)
