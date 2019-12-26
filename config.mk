@@ -1,5 +1,6 @@
 NAME = pitrery
 VERSION = 2.5
+BRANCH = pitrery_2
 
 # Customize below to fit your system
 
