@@ -1,7 +1,7 @@
 %global confdir %{_sysconfdir}/pitrery
 
 Name:           pitrery
-Version:        2.4
+Version:        3.0dev
 Release:        1
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
@@ -68,6 +68,9 @@ fi
 %doc %{_mandir}/man1/restore_wal.1.gz
 
 %changelog
+* Fri Dec 27 2019 Thibaut MADELAINE <thibaut.madelaine@dalibo.com> - 3.0-1
+- Release 3.0dev
+
 * Tue Sep  3 2019 Étienne BERSAC <etienne.bersac@dalibo.com> - 2.4-1
 - Release 2.4
 - Simplified spec

@@ -1,3 +1,9 @@
+pitrery (3.0dev-1) buster; urgency=medium
+
+  * New upstream release
+
+ -- Thibaut MADELAINE <thibaut.madelaine@dalibo.com> Fri, 27 Dec 2019 11:32:00 +000
+
 pitrery (2.4-1) buster; urgency=medium
 
   * New upstream release
