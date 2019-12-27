@@ -67,7 +67,7 @@ warn() {
 usage() {
 	echo "$(basename $0) - Restore a WAL segment"
 	echo
-	echo "usage: `basename $0` [options] xlogfile destination"
+	echo "usage: `basename $0` [options] walfile destination"
 	echo "options:"
 	echo "    -C conf                Configuration file"
 	echo "    -a [[user@]host:]/dir  Place to get the archive"
@@ -140,7 +140,7 @@ parse_target_uri() {
 			archive_user="$backup_user"
 			archive_host="$backup_host"
 			# avoid trying to create directory in /
-			[ -n "$backup_dir" ] && archive_dir="$backup_dir/archived_xlog"
+			[ -n "$backup_dir" ] && archive_dir="$backup_dir/archived_wal"
 		fi
 	fi
 
@@ -180,7 +180,7 @@ while getopts "C:a:Xc:s:Sf:t:TV?" opt; do
 	f) CLI_SYSLOG_FACILITY=$OPTARG;;
 	t) CLI_SYSLOG_IDENT=$OPTARG;;
 	T) CLI_LOG_TIMESTAMP="yes";;
-	V) echo "restore_xlog (pitrery) $version"; exit 0;;
+	V) echo "restore_wal (pitrery) $version"; exit 0;;
 	"?") usage 1;;
 	*) error "Unknown error while processing options";;
 	esac
@@ -218,51 +218,51 @@ fi
 
 parse_target_uri "" "$archive_path"
 
-# Check input: the name of the xlog file (%f) is needed as well has the target path (%p)
+# Check input: the name of the wal file (%f) is needed as well has the target path (%p)
 # PostgreSQL gives those two when executing restore_command
-xlog=${@:$OPTIND:1}
+wal=${@:$OPTIND:1}
 target_path=${@:$(($OPTIND+1)):1}
 
-if [ -z "$xlog" ] || [ -z "$target_path" ]; then
-	error "missing xlog filename and/or target path. Please use %f and %p in restore_command"
+if [ -z "$wal" ] || [ -z "$target_path" ]; then
+	error "missing wal filename and/or target path. Please use %f and %p in restore_command"
 fi
 
 # Get the file: use cp when the file is on localhost, scp otherwise
 if [ "$archive_local" = "yes" ]; then
-	if [ -f "$archive_dir/$xlog" ]; then
-		xlog_file="$xlog"
+	if [ -f "$archive_dir/$wal" ]; then
+		wal_file="$wal"
 		target_file="$target_path"
-	elif [ -f "$archive_dir/${xlog}.$ARCHIVE_COMPRESS_SUFFIX" ]; then
-		xlog_file="${xlog}.$ARCHIVE_COMPRESS_SUFFIX"
+	elif [ -f "$archive_dir/${wal}.$ARCHIVE_COMPRESS_SUFFIX" ]; then
+		wal_file="${wal}.$ARCHIVE_COMPRESS_SUFFIX"
 		target_file="${target_path}.$ARCHIVE_COMPRESS_SUFFIX"
-	elif [ -f "$archive_dir/${xlog}.gpg" ]; then
-		xlog_file="${xlog}.gpg"
+	elif [ -f "$archive_dir/${wal}.gpg" ]; then
+		wal_file="${wal}.gpg"
 		target_file="${target_path}.gpg"
 		ARCHIVE_COMPRESS="no"
 	else
-		error "could not find $archive_dir/$xlog"
+		error "could not find $archive_dir/$wal"
 	fi
 
-	if ! cp -- "$archive_dir/$xlog_file" "$target_file"; then
-		error "could not copy $archive_dir/$xlog_file to $target_file"
+	if ! cp -- "$archive_dir/$wal_file" "$target_file"; then
+		error "could not copy $archive_dir/$wal_file to $target_file"
 	fi
 else
-	if ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/$xlog")"; then
-		xlog_file="$xlog"
+	if ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/$wal")"; then
+		wal_file="$wal"
 		target_file="$target_path"
-	elif ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/${xlog}.$ARCHIVE_COMPRESS_SUFFIX")"; then
-		xlog_file="${xlog}.$ARCHIVE_COMPRESS_SUFFIX"
+	elif ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/${wal}.$ARCHIVE_COMPRESS_SUFFIX")"; then
+		wal_file="${wal}.$ARCHIVE_COMPRESS_SUFFIX"
 		target_file="${target_path}.$ARCHIVE_COMPRESS_SUFFIX"
-	elif ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/${xlog}.gpg")"; then
-		xlog_file="${xlog}.gpg"
+	elif ssh -- "${archive_ssh_target}" "test -f $(qw "$archive_dir/${wal}.gpg")"; then
+		wal_file="${wal}.gpg"
 		target_file="${target_path}.gpg"
 		ARCHIVE_COMPRESS="no"
 	else
-		error "could not find $archive_dir/$xlog on ${archive_host}"
+		error "could not find $archive_dir/$wal on ${archive_host}"
 	fi
 
-	if ! scp -- "${archive_ssh_target}:$(qw "$archive_dir/$xlog_file")" "$target_file" >/dev/null; then
-		error "could not copy ${archive_host}:$archive_dir/$xlog_file to $target_file"
+	if ! scp -- "${archive_ssh_target}:$(qw "$archive_dir/$wal_file")" "$target_file" >/dev/null; then
+		error "could not copy ${archive_host}:$archive_dir/$wal_file to $target_file"
 	fi
 fi
 

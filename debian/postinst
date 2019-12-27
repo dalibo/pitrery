@@ -1,0 +1,16 @@
+#! /bin/sh
+
+set -e
+
+case "$1" in
+	upgrade)
+		if [ -e /usr/bin/archive_xlog_to_wal ] ; then
+			rm -f /usr/bin/archive_xlog_to_wal
+			ln -s /usr/bin/archive_wal /usr/bin/archive_xlog
+		fi
+		if [ -e /usr/bin/restore_xlog_to_wal ] ; then
+			rm -f /usr/bin/restore_xlog_to_wal
+			ln -s /usr/bin/restore_wal /usr/bin/restore_xlog
+		fi
+	;;
+esac

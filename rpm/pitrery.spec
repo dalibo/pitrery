@@ -31,19 +31,41 @@ make DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 %install
 make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
+%preun
+if [ $1 -eq 1 ] ; then
+	if [ -e /usr/bin/archive_xlog ] && [ ! -h /usr/bin/archive_xlog ] ; then
+		touch %{_localstatedir}/lib/rpm-state/pitrery/archive_xlog_to_wal
+	fi
+	if [ -e /usr/bin/restore_xlog ] && [ ! -h /usr/bin/restore_xlog ] ; then
+		touch %{_localstatedir}/lib/rpm-state/pitrery/restore_xlog_to_wal
+	fi
+fi
+
+%postun
+if [ $1 -eq 1 ] ; then
+	if [ -e %{_localstatedir}/lib/rpm-state/pitrery/archive_xlog_to_wal ] ; then
+		rm -f %{_localstatedir}/lib/rpm-state/pitrery/archive_xlog_to_wal
+		ln -s /usr/bin/archive_wal /usr/bin/archive_xlog
+	fi
+	if [ -e /usr/bin/restore_xlog ] ; then
+		rm -f %{_localstatedir}/lib/rpm-state/pitrery/restore_xlog_to_wal
+		ln -s /usr/bin/restore_wal /usr/bin/restore_xlog
+	fi
+fi
+
 %files
 %config(noreplace) /etc/pitrery/pitrery.conf
-/usr/bin/archive_xlog
+/usr/bin/archive_wal
 /usr/bin/pitrery
-/usr/bin/restore_xlog
+/usr/bin/restore_wal
 %doc /usr/share/doc/pitrery/COPYRIGHT
 %doc /usr/share/doc/pitrery/INSTALL.md
 %doc /usr/share/doc/pitrery/UPGRADE.md
 %doc /usr/share/doc/pitrery/pitrery.conf
 %doc /usr/share/doc/pitrery/CHANGELOG
 %doc %{_mandir}/man1/pitrery.1.gz
-%doc %{_mandir}/man1/archive_xlog.1.gz
-%doc %{_mandir}/man1/restore_xlog.1.gz
+%doc %{_mandir}/man1/archive_wal.1.gz
+%doc %{_mandir}/man1/restore_wal.1.gz
 
 %changelog
 * Tue Sep  3 2019 Étienne BERSAC <etienne.bersac@dalibo.com> - 2.4-1

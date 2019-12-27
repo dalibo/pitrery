@@ -1,3 +1,17 @@
+Upgrade to 3.0
+==============
+
+* Rename *xlog to *wal in helper scripts and configuration keys:
+  - move file archive_xlog to archive_wal
+  - move file restore_xlog to restore_wal
+  - rename configuration key PGXLOG to PGWAL
+  - Note that ARCHIVE_DIR default configuration changed:
+      "$BACKUP_DIR/archived_xlog" -> "$BACKUP_DIR/archived_wal"
+
+* New configuration key for PostgreSQL 12: `RESTORE_MODE`, set by default to
+  "recovery". Can be set to "recovery" or "standby".
+
+
 Upgrade to 2.2
 ==============
 
@@ -212,9 +226,7 @@ backup_label files using this shell script:
 
     BACKUP_DIR=/path/to/backup/dir
     LABEL=pitr
-    
+
     for x in ${BACKUP_DIR}/${LABEL}/[0-9]*/backup_label; do
         psql -At -c "select extract(epoch from timestamp with time zone '`awk '/^STOP TIME:/ { print $3" "$4" "$5 }' $x`');" > `dirname $x`/backup_timestamp
     done
-
-

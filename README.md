@@ -29,7 +29,7 @@ QUICK SETUP
 
 4. Run `pitrery configure -o pitrery -f [[user@]host:]/path/to/backups` (user@host being optional)
 
-5. Configure WAL archiving (`archive_command = 'archive_xlog %p'`) in PostgreSQL
+5. Configure WAL archiving (`archive_command = 'archive_wal %p'`) in PostgreSQL
 
 6. Run `pitrery` to perform your backups and restores
 

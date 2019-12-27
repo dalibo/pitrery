@@ -74,7 +74,7 @@ warn() {
 usage() {
 	echo "`basename $0` Archive a WAL segment"
 	echo
-	echo "usage: `basename $0` [options] xlogfile"
+	echo "usage: `basename $0` [options] walfile"
 	echo
 	echo "options:"
 	echo "    -C conf        configuration file"
@@ -107,7 +107,7 @@ check_md5() {
 
 	local ARCHIVE_MD5=$1
 
-	LOCAL_MD5=$(md5sum "$xlog")
+	LOCAL_MD5=$(md5sum "$wal")
 
 	if [ "${LOCAL_MD5%% *}" != "${ARCHIVE_MD5%% *}" ]; then
 		error "md5 mismatch between local and remote file" 4
@@ -171,7 +171,7 @@ parse_target_uri() {
 			archive_user="$backup_user"
 			archive_host="$backup_host"
 			# avoid trying to create directory in /
-			[ -n "$backup_dir" ] && archive_dir="$backup_dir/archived_xlog"
+			[ -n "$backup_dir" ] && archive_dir="$backup_dir/archived_wal"
 		fi
 	fi
 
@@ -216,7 +216,7 @@ while getopts "C:a:XOHFc:s:Er:Sf:t:m:TV?"  opt; do
 		t) CLI_SYSLOG_IDENT=$OPTARG;;
 		m) CLI_ARCHIVE_FILE_CHMOD=$OPTARG;;
 		T) CLI_LOG_TIMESTAMP="yes";;
-		V) echo "archive_xlog (pitrery) $version"; exit 0;;
+		V) echo "archive_wal (pitrery) $version"; exit 0;;
 		"?") usage 1;;
 		*) error "Unknown error while processing options";;
 	esac
@@ -261,14 +261,14 @@ fi
 parse_target_uri "" "$archive_path"
 
 # The first argument must be a WAL file
-xlog=${@:$OPTIND:1}
-if [ -z "$xlog" ]; then
-	error "missing xlog filename to archive. Please consider modifying archive_command, eg add %p"
+wal=${@:$OPTIND:1}
+if [ -z "$wal" ]; then
+	error "missing wal filename to archive. Please consider modifying archive_command, eg add %p"
 fi
 
 # Check if the source file exists
-if [ ! -r "$xlog" ]; then
-	error "Input file '$xlog' does not exist or is not readable"
+if [ ! -r "$wal" ]; then
+	error "Input file '$wal' does not exist or is not readable"
 fi
 
 # Set dd flush mode if needed
@@ -305,40 +305,40 @@ if [ "$archive_local" = "yes" ]; then
 		error "Unable to create target directory '$archive_dir'" $?
 
 	if [ "$ARCHIVE_ENCRYPT" = "yes" ]; then
-		dest_path="$archive_dir/$(basename -- "$xlog").gpg"
+		dest_path="$archive_dir/$(basename -- "$wal").gpg"
 		check_local_dest_exists "$dest_path"
 
-		"${gpg_command[@]}" -o - "$xlog" | dd $ARCHIVE_FLUSH of="$dest_path" 2>/dev/null
+		"${gpg_command[@]}" -o - "$wal" | dd $ARCHIVE_FLUSH of="$dest_path" 2>/dev/null
 		rc=( ${PIPESTATUS[@]} )
 		gpg_rc=${rc[0]}
 		dd_rc=${rc[1]}
 		if [ $gpg_rc != 0 ]; then
 			rm -f -- "$dest_path"
-			error "Encryption of $xlog failed"
+			error "Encryption of $wal failed"
 		fi
 	elif [ "$ARCHIVE_COMPRESS" = "yes" ]; then
-		dest_path="$archive_dir/$(basename -- "$xlog").$ARCHIVE_COMPRESS_SUFFIX"
+		dest_path="$archive_dir/$(basename -- "$wal").$ARCHIVE_COMPRESS_SUFFIX"
 		check_local_dest_exists "$dest_path"
 
-		$ARCHIVE_COMPRESS_BIN -c < "$xlog" | dd $ARCHIVE_FLUSH of="$dest_path" 2>/dev/null
+		$ARCHIVE_COMPRESS_BIN -c < "$wal" | dd $ARCHIVE_FLUSH of="$dest_path" 2>/dev/null
 		rc=( ${PIPESTATUS[@]} )
 		x_rc=${rc[0]}
 		dd_rc=${rc[1]}
 		if [ $x_rc != 0 ]; then
 			rm -f -- "$dest_path"
-			error "Compressing $xlog to $dest_path failed"
+			error "Compressing $wal to $dest_path failed"
 		fi
 	else
-		dest_path="$archive_dir/$(basename -- "$xlog")"
+		dest_path="$archive_dir/$(basename -- "$wal")"
 		check_local_dest_exists "$dest_path"
 
-		dd $ARCHIVE_FLUSH if="$xlog" of="$dest_path" 2>/dev/null
+		dd $ARCHIVE_FLUSH if="$wal" of="$dest_path" 2>/dev/null
 		dd_rc=$?
 	fi
 
 	if [ $dd_rc != 0 ] ; then
 		rm -f -- "$dest_path"
-		error "Copying $xlog to $dest_path failed"
+		error "Copying $wal to $dest_path failed"
 	fi
 
 	# Chmod if required
@@ -356,9 +356,9 @@ if [ "$archive_local" = "yes" ]; then
 else
 	# Compress and copy with rsync
 
-	dest_file="$archive_dir/$(basename -- "$xlog")"
+	dest_file="$archive_dir/$(basename -- "$wal")"
 	tmp_file=""
-	src_file="$xlog"
+	src_file="$wal"
 
 	# Depending on the options, we may check different things on the
 	# remote host. To avoid many connections, we build a command to be
@@ -372,7 +372,7 @@ else
 		tmp_file=$(mktemp -t pitr_wal.XXXXXXXXXX) ||
 			error "Failed to create temporary file for encrypted WAL" $?
 
-		"${gpg_command[@]}" -o "$tmp_file" "$xlog" || error "Failed to encrypt $xlog" $?
+		"${gpg_command[@]}" -o "$tmp_file" "$wal" || error "Failed to encrypt $wal" $?
 		src_file="$tmp_file"
 
 	elif [ "$ARCHIVE_COMPRESS" = "yes" ]; then
@@ -385,7 +385,7 @@ else
 		# and save output elsewhere: the compression program never
 		# touches the input file
 		$ARCHIVE_COMPRESS_BIN -c < "$src_file" > "$tmp_file" ||
-			error "Compressing $xlog to $tmp_file failed" $?
+			error "Compressing $wal to $tmp_file failed" $?
 
 		src_file="$tmp_file"
 	fi
@@ -423,7 +423,7 @@ else
 
 	case $rc in
 		0) ;;
-		1) error "Unable to copy $xlog to ${archive_ssh_target}:$archive_dir" $rc;;
+		1) error "Unable to copy $wal to ${archive_ssh_target}:$archive_dir" $rc;;
 		2) error "Unable to create target directory" $rc;;
 		3) error "'$dest_file' already exists on $dest_host, refusing to overwrite it" $rc;;
 		4) warn "Could not change mode of $dest_path to $ARCHIVE_FILE_CHMOD";;

@@ -14,7 +14,7 @@ setup your editor to follow it.
 - [Draft new GitHub Release](https://github.com/dalibo/pitrery/releases/new). A
   version is composed of only two number like `2.3`. There is no patch-release.
 - Checkout latest master.
-- Update CHANGELOG, config.mk, pitrery, archive\_xlog and restore\_xlog. `make
+- Update CHANGELOG, config.mk, pitrery, archive\_wal and restore\_wal. `make
   checkversion VERSION=X.Y` should help.
 - Commit, tag and push with `make disttag`.
 - Build source tarball and sign it with `make distsign`.
