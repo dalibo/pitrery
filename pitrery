@@ -259,29 +259,29 @@ cleanup() {
 
     # Cleanup depends on the action and the location of the backups
     case $action in
-        "backup")
-            info "cleaning..."
-            if [ "$backup_local" = "yes" ]; then
-	        if [ -d "$backup_dir" ]; then
-	            rm -rf -- "$backup_dir"
+      "backup")
+        info "cleaning..."
+        if [ "$backup_local" = "yes" ]; then
+          if [ -d "$backup_dir" ]; then
+	          rm -rf -- "$backup_dir"
 	        fi
-            elif [ -n "$backup_ssh_target" ] && [ -n "$backup_dir" ]; then
+        elif [ -n "$backup_ssh_target" ] && [ -n "$backup_dir" ]; then
 	        bd=$(qw "$backup_dir")
 	        if ! ssh -n -- "$backup_ssh_target" "test -d $bd && rm -rf -- $bd" 2>/dev/null; then
-		    error "cleanup of $backup_dir failed on $backup_ssh_target"
-		    exit 1
-		fi
-            fi
+		        error "cleanup of $backup_dir failed on $backup_ssh_target"
+		        exit 1
+					fi
+				fi
 
-            [ -n "$tblspc_list" ] && rm -f -- "$tblspc_list"
-            [ -n "$replslot_list" ] && rm -f -- "$replslot_list"
-            [ -n "$psql_stderr" ] && rm -f -- "$psql_stderr"
-            [ -n "$backup_label_file" ] && rm -f -- "$backup_label_file"
-            [ -n "$tablespace_map_file"  ] && rm -f -- "$tablespace_map_file"
-            [ -n "$pg_control_file"   ] && rm -f -- "$pg_control_file"
-            [ -n "$tmpwal" ] && rm -f -- "$tmpwal"
-            ;;
-        "check")
+        [ -n "$tblspc_list" ] && rm -f -- "$tblspc_list"
+        [ -n "$replslot_list" ] && rm -f -- "$replslot_list"
+        [ -n "$psql_stderr" ] && rm -f -- "$psql_stderr"
+        [ -n "$backup_label_file" ] && rm -f -- "$backup_label_file"
+        [ -n "$tablespace_map_file"  ] && rm -f -- "$tablespace_map_file"
+        [ -n "$pg_control_file"   ] && rm -f -- "$pg_control_file"
+        [ -n "$tmpwal" ] && rm -f -- "$tmpwal"
+        ;;
+      "check")
             if [ "$output" = "nagios" ]; then
                 # Fail with return code 3 (unknown) in die() when
                 # behaving like a nagios plugin

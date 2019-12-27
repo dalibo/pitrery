@@ -3,6 +3,8 @@ pitrery 2.5
 
   * Bugfix in purge command for bash < 4.2
 
+  * Improve check for uncompress WAL
+
 pitrery 2.4
 ===========
 

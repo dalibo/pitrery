@@ -1,6 +1,6 @@
 %global pkgname pitrery
 %global confdir %{_sysconfdir}/%{pkgname}
-%{!?pkgversion: %global pkgversion 2.3}
+%{!?pkgversion: %global pkgversion 2.5}
 %{!?pkgrevision: %global pkgrevision 1}
 
 Name:           %{pkgname}
@@ -10,7 +10,7 @@ Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
 Group:          Applications/Databases
 URL:            https://github.com/dalibo/pitrery
-Source0:        https://dl.dalibo.com/public/pitrery/%{pkgname}-%{version}.tar.gz
+Source0:        https://github.com/dalibo/pitrery/releases/download/v%{version}/%{pkgname}-%{version}.tar.gz
 BuildArch:      noarch
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires:       bash, rsync
@@ -116,4 +116,3 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
 * Mon Aug  8 2011 Nicolas Thauvin <nicolas.thauvin@dalibo.com> - 1.0rc2-1
 - New package
-
