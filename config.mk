@@ -1,5 +1,6 @@
 NAME = pitrery
 VERSION = 3.0dev
+BRANCH = master
 
 # Customize below to fit your system
 

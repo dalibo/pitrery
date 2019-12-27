@@ -28,6 +28,7 @@ checkversion:
 	grep -q 'VERSION = $(VERSION)$$' config.mk
 	! grep ^version= $(SRCS) | grep -v '"$(VERSION)"'
 	grep -q 'pitrery $(VERSION)$$' CHANGELOG
+	grep -q -E 'BRANCH = (master|pitrery_$(shell echo $(VERSION)|cut -d'.' -f1))$$' config.mk
 
 dist: $(DIST)
 $(DIST):
