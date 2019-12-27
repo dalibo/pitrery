@@ -20,7 +20,7 @@ RPM
 ---
 
 Latest RPM packages of pitrery for RHEL and CentOS 7 are available at
-[yum.dalibo.org/labs](https://yum.dalibo.orgs/labs).
+[yum.dalibo.org/labs](https://yum.dalibo.org/labs).
 
 These packages should work with other flavours of RHEL and other versions.
 
