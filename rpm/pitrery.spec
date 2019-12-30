@@ -41,7 +41,7 @@ if [ $1 == 2 ] ; then
 	fi
 fi
 
-%post
+%posttrans
 if [ $1 == 2 ] ; then
 	if [ -e /usr/bin/archive_xlog_to_wal ] ; then
 		rm -f /usr/bin/archive_xlog_to_wal
@@ -54,12 +54,12 @@ if [ $1 == 2 ] ; then
 fi
 
 %preun
-if [ $1 == 1 ] ; then
-	if [ -e /usr/bin/archive_xlog ] && [ -h /usr/bin/archive_xlog ] ; then
-		rm -f /usr/bin/archive_xlog_to_wal
+if [ $1 == 0 ] ; then
+	if [ -h /usr/bin/archive_xlog ] ; then
+		rm -f /usr/bin/archive_xlog
 	fi
-	if [ -e /usr/bin/restore_xlog ] && [ -h /usr/bin/restore_xlog ] ; then
-		rm -f /usr/bin/restore_xlog_to_wal
+	if [ -h /usr/bin/restore_xlog ] ; then
+		rm -f /usr/bin/restore_xlog
 	fi
 fi
 
