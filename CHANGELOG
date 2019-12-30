@@ -1,14 +1,28 @@
-pitrery 3.0dev
+pitrery 3.0
 ===========
 
-  * Add support for recovery modes in PostgreSQL 12
+  * Pitrery version 3.0 is compatible with PostgreSQL version 12.
+    PostgreSQL in this version has changed how recovery configuration is managed.
 
-  * Rename *xlog to *wal in helper scripts and configuration keys:
-      - archive_xlog -> archive_wal
-      - restore_xlog -> restore_wal
-      - PGXLOG -> PGWAL
-      - ARCHIVE_DIR default configuration changed:
-        "$BACKUP_DIR/archived_xlog" -> "$BACKUP_DIR/archived_wal"
+    There is be no more "recovery.conf" file:
+      - The recovery configuration keys are read from the postgresql.conf file.
+        Upon restoration, recovery.conf settings are written by pitrery at the
+        end of the postgresql.conf file.
+      - A "recovery.signal" or "standby.signal" will be used by the restored
+        cluster to know what action to take
+        A new option is declared: RESTORE_MODE (or the "-m" switch). For
+        restoration, it must be set either to "recovery" or "standby".
+    - Multiple conflicting recovery_target* specifications are not allowed.
+      PostgreSQL will make the check on startup.
+    - We now advance to the latest timeline by default.
+
+  * Since PostgreSQL version 10, "xlog" has been renamed to "wal". Make
+    this change in pitrery:
+    - "archive_xlog" script is renamed to "archive_wal"
+    - "restore_xlog" script is renamed to "restore_wal"
+    - configuration key PGXLOG is renamed to PGWAL
+    - the WAL archive directory ARCHIVE_DIR is set by default to:
+      "$BACKUP_DIR/archived_wal"
 
 pitrery 2.4
 ===========
