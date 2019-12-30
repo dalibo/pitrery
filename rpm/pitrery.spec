@@ -31,26 +31,34 @@ make DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 %install
 make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
-%preun
-if [ $1 -eq 1 ] ; then
+%pre
+if [ $1 == 2 ] ; then
 	if [ -e /usr/bin/archive_xlog ] && [ ! -h /usr/bin/archive_xlog ] ; then
-		touch %{_localstatedir}/lib/rpm-state/pitrery/archive_xlog_to_wal
+		touch /usr/bin/archive_xlog_to_wal
 	fi
 	if [ -e /usr/bin/restore_xlog ] && [ ! -h /usr/bin/restore_xlog ] ; then
-		touch %{_localstatedir}/lib/rpm-state/pitrery/restore_xlog_to_wal
+		touch /usr/bin/restore_xlog_to_wal
 	fi
 fi
 
-%postun
-if [ $1 -eq 1 ] ; then
-	if [ -e %{_localstatedir}/lib/rpm-state/pitrery/archive_xlog_to_wal ] ; then
-		rm -f %{_localstatedir}/lib/rpm-state/pitrery/archive_xlog_to_wal
-		ln -s /usr/bin/archive_wal /usr/bin/archive_xlog
+%preun
+if [ $1 == 0 ] ; then
+	if [ -h /usr/bin/archive_xlog ] ; then
+		rm -f /usr/bin/archive_xlog
 	fi
-	if [ -e /usr/bin/restore_xlog ] ; then
-		rm -f %{_localstatedir}/lib/rpm-state/pitrery/restore_xlog_to_wal
-		ln -s /usr/bin/restore_wal /usr/bin/restore_xlog
+	if [ -h /usr/bin/restore_xlog ] ; then
+		rm -f /usr/bin/restore_xlog
 	fi
+fi
+
+%posttrans
+if [ -e /usr/bin/archive_xlog_to_wal ] ; then
+	rm -f /usr/bin/archive_xlog_to_wal
+	ln -s /usr/bin/archive_wal /usr/bin/archive_xlog
+fi
+if [ -e /usr/bin/restore_xlog_to_wal ] ; then
+	rm -f /usr/bin/restore_xlog_to_wal
+	ln -s /usr/bin/restore_wal /usr/bin/restore_xlog
 fi
 
 %files
