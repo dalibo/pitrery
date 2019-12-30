@@ -7,7 +7,7 @@ Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
 Group:          Applications/Databases
 URL:            https://dalibo.github.io/pitrery
-Source0:        https://github.com/dalibo/pitrery/releases/download/v%{version}/pitrery-%{version}.tar.gz
+Source0:        file://srv/v%{version}/pitrery-%{version}.tar.gz
 BuildArch:      noarch
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires:       bash, rsync
@@ -32,6 +32,7 @@ make DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
 %pre
+echo "#### pre $1 ###"
 if [ $1 == 2 ] ; then
 	if [ -e /usr/bin/archive_xlog ] && [ ! -h /usr/bin/archive_xlog ] ; then
 		touch /usr/bin/archive_xlog_to_wal
@@ -42,6 +43,7 @@ if [ $1 == 2 ] ; then
 fi
 
 %posttrans
+echo "#### posttrans $1 ###"
 if [ $1 == 2 ] ; then
 	if [ -e /usr/bin/archive_xlog_to_wal ] ; then
 		rm -f /usr/bin/archive_xlog_to_wal
@@ -54,6 +56,7 @@ if [ $1 == 2 ] ; then
 fi
 
 %preun
+echo "#### preun $1 ###"
 if [ $1 == 0 ] ; then
 	if [ -h /usr/bin/archive_xlog ] ; then
 		rm -f /usr/bin/archive_xlog
