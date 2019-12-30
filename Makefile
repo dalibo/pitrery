@@ -38,7 +38,7 @@ distsign: $(DIST)
 	gpg --detach-sign --armor $^
 
 disttag: checkversion
-	git fetch $(DISTREMOTE)
+	git fetch $(DISTREMOTE) $(BRANCH)
 	git diff --quiet FETCH_HEAD..HEAD
 	git commit -m "Version $(VERSION)" config.mk $(SRCS) CHANGELOG
 	git diff --quiet  # Require clean worktree.
