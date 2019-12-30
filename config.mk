@@ -1,6 +1,6 @@
 NAME = pitrery
-VERSION = 3.0dev
-BRANCH = xlog_to_wal
+VERSION = 3.0
+BRANCH = master
 
 # Customize below to fit your system
 
