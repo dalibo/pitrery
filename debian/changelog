@@ -4,7 +4,7 @@ pitrery (3.0-1) buster; urgency=medium
   * Compatible with PostgreSQL 12
   * Rename 'xlog' to 'wal' in scripts and parameters
 
- -- Thibaut MADELAINE <thibaut.madelaine@dalibo.com> Fri, 27 Dec 2019 11:32:00 +000
+ -- Thibaut MADELAINE <thibaut.madelaine@dalibo.com>  Mon, 30 Dec 2019 16:44:00 +0200
 
 pitrery (2.4-1) buster; urgency=medium
 
