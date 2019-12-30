@@ -7,7 +7,7 @@ Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
 Group:          Applications/Databases
 URL:            https://dalibo.github.io/pitrery
-Source0:        file:///srv/pitrery-%{version}.tar.gz
+Source0:        https://github.com/dalibo/pitrery/releases/download/v%{version}/pitrery-%{version}.tar.gz
 BuildArch:      noarch
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires:       bash, rsync
