@@ -32,7 +32,6 @@ make DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
 %pre
-echo "#### pre $1 ###"
 if [ $1 == 2 ] ; then
 	if [ -e /usr/bin/archive_xlog ] && [ ! -h /usr/bin/archive_xlog ] ; then
 		touch /usr/bin/archive_xlog_to_wal
@@ -42,21 +41,7 @@ if [ $1 == 2 ] ; then
 	fi
 fi
 
-%posttrans
-echo "#### posttrans $1 ###"
-if [ $1 == 2 ] ; then
-	if [ -e /usr/bin/archive_xlog_to_wal ] ; then
-		rm -f /usr/bin/archive_xlog_to_wal
-		ln -s /usr/bin/archive_wal /usr/bin/archive_xlog
-	fi
-	if [ -e /usr/bin/restore_xlog ] ; then
-		rm -f /usr/bin/restore_xlog_to_wal
-		ln -s /usr/bin/restore_wal /usr/bin/restore_xlog
-	fi
-fi
-
 %preun
-echo "#### preun $1 ###"
 if [ $1 == 0 ] ; then
 	if [ -h /usr/bin/archive_xlog ] ; then
 		rm -f /usr/bin/archive_xlog
@@ -64,6 +49,16 @@ if [ $1 == 0 ] ; then
 	if [ -h /usr/bin/restore_xlog ] ; then
 		rm -f /usr/bin/restore_xlog
 	fi
+fi
+
+%posttrans
+if [ -e /usr/bin/archive_xlog_to_wal ] ; then
+	rm -f /usr/bin/archive_xlog_to_wal
+	ln -s /usr/bin/archive_wal /usr/bin/archive_xlog
+fi
+if [ -e /usr/bin/restore_xlog_to_wal ] ; then
+	rm -f /usr/bin/restore_xlog_to_wal
+	ln -s /usr/bin/restore_wal /usr/bin/restore_xlog
 fi
 
 %files
