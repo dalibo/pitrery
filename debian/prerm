@@ -3,12 +3,12 @@
 set -e
 
 case "$1" in
-	upgrade)
-		if [ -e /usr/bin/archive_xlog ] && [ ! -h /usr/bin/archive_xlog ] ; then
-			touch /usr/bin/archive_xlog_to_wal
-		fi
-		if [ -e /usr/bin/restore_xlog ] && [ ! -h /usr/bin/restore_xlog ] ; then
-			touch /usr/bin/restore_xlog_to_wal
-		fi
-	;;
+    remove)
+        if [ -h /usr/bin/archive_xlog ] ; then
+            rm -f /usr/bin/archive_xlog
+        fi
+        if [ -h /usr/bin/restore_xlog ] ; then
+           rm -f /usr/bin/restore_xlog
+        fi
+    ;;
 esac
