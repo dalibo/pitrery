@@ -46,6 +46,11 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 %doc %{_mandir}/man1/restore_xlog.1.gz
 
 %changelog
+* Tue Dec  7 2020 Thibaut MADELAINE <thibaut.madelaine@dalibo.com> - 2.5-1
+- Release 2.5
+- Bugfix in purge command for bash < 4.2
+- Improve check for uncompress WAL
+
 * Tue Sep  3 2019 Étienne BERSAC <etienne.bersac@dalibo.com> - 2.4-1
 - Release 2.4
 - Simplified spec
