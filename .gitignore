@@ -2,6 +2,7 @@
 _build
 .s[a-w][a-z]
 .*.s[a-w][a-z]
+dist/
 pitrery-*.tar.gz*
 Session*.vim
 rpm/noarch

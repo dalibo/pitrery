@@ -1,0 +1,5 @@
+version=4
+https://github.com/dalibo/pitrery/releases \
+    /dalibo/pitrery/releases/download/v.+/pitrery-(\d+\.\d+).tar.gz \
+	debian \
+	uupdate
