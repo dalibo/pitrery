@@ -13,8 +13,8 @@ The source code of releases is available at
 [github.com/dalibo/pitrery](https://github.com/dalibo/pitrery/releases):
 
 * tarball:
-[pitrery-2.4.tar.gz](https://github.com/dalibo/pitrery/releases/download/v2.4/pitrery-2.4.tar.gz)
-* PGP signature: [pitrery-2.4.tar.gz.asc](https://github.com/dalibo/pitrery/releases/download/v2.4/pitrery-2.4.tar.gz.asc)
+[pitrery-3.0.tar.gz](https://github.com/dalibo/pitrery/releases/download/v3.0/pitrery-3.0.tar.gz)
+* PGP signature: [pitrery-3.0.tar.gz.asc](https://github.com/dalibo/pitrery/releases/download/v3.0/pitrery-3.0.tar.gz.asc)
 
 RPM
 ---
