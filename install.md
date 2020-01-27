@@ -138,7 +138,7 @@ Installation from a package
 
 Distribution packages are now available on Dalibo Labs for
 [YUM](https://yum.dalibo.org/labs) and [APT](https://apt.dalibo.org/labs)
-repositories. Details are available in the [downloads] page.
+repositories. Details are available in the (downloads)[downloads.md] page.
 
 
 Installation from the sources
