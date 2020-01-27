@@ -9,10 +9,15 @@ Documentation
 English
 -------
 
-Version 2.3:
+Version 3.0:
 
 * [Installation and usage]({{ site.baseurl }}/install.html)
 * [Upgrade]({{ site.baseurl }}/upgrade.html)
+
+Version 2.5:
+
+* [Installation and usage]({{ site.baseurl }}/install_2.5.html)
+* [Upgrade]({{ site.baseurl }}/upgrade_2.5.html)
 
 
 Version 1.13:
