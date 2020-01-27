@@ -27,7 +27,7 @@ It is free software licensed under the PostgreSQL License.
 Quick start
 -----------
 
-1. (Get pitrery) either by debian / RPM package or by getting the
+1. [Get pitrery] either by debian / RPM package or by getting the
    source / compiling and installing it
 
 2. Run `pitrery configure -o pitrery -f [[user@]host:]/path/to/backups`
