@@ -2,7 +2,7 @@
 
 Name:           pitrery
 Version:        3.0
-Release:        1
+Release:        2
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
 Group:          Applications/Databases
@@ -31,41 +31,21 @@ make DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 %install
 make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
-%pre
-if [ $1 == 2 ] ; then
-	if [ -e /usr/bin/archive_xlog ] && [ ! -h /usr/bin/archive_xlog ] ; then
-		touch /usr/bin/archive_xlog_to_wal
-	fi
-	if [ -e /usr/bin/restore_xlog ] && [ ! -h /usr/bin/restore_xlog ] ; then
-		touch /usr/bin/restore_xlog_to_wal
-	fi
-fi
-
 %preun
 if [ $1 == 0 ] ; then
-	if [ -h /usr/bin/archive_xlog ] ; then
-		rm -f /usr/bin/archive_xlog
-	fi
-	if [ -h /usr/bin/restore_xlog ] ; then
-		rm -f /usr/bin/restore_xlog
-	fi
+	rm -f /usr/bin/archive_xlog
+	rm -f /usr/bin/restore_xlog
 fi
 
 %posttrans
-if [ -e /usr/bin/archive_xlog_to_wal ] ; then
-	rm -f /usr/bin/archive_xlog_to_wal
-	ln -s /usr/bin/archive_wal /usr/bin/archive_xlog
-fi
-if [ -e /usr/bin/restore_xlog_to_wal ] ; then
-	rm -f /usr/bin/restore_xlog_to_wal
-	ln -s /usr/bin/restore_wal /usr/bin/restore_xlog
-fi
+ln -s -f /usr/bin/archive_wal /usr/bin/archive_xlog
+ln -s -f /usr/bin/restore_wal /usr/bin/restore_xlog
 
 %files
 %config(noreplace) /etc/pitrery/pitrery.conf
 /usr/bin/archive_wal
-/usr/bin/pitrery
 /usr/bin/restore_wal
+/usr/bin/pitrery
 %doc /usr/share/doc/pitrery/COPYRIGHT
 %doc /usr/share/doc/pitrery/INSTALL.md
 %doc /usr/share/doc/pitrery/UPGRADE.md
@@ -76,6 +56,9 @@ fi
 %doc %{_mandir}/man1/restore_wal.1.gz
 
 %changelog
+* Mon Feb 18 2020 Thibaud Walkowiak <thibaud.walkowiak@dalibo.com> - 3.0-2
+- Preserve 'xlog' scripts as symlinks
+
 * Fri Dec 30 2019 Thibaut MADELAINE <thibaut.madelaine@dalibo.com> - 3.0-1
 - Release 3.0
 - Compatible with PostgreSQL 12
