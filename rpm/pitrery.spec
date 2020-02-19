@@ -31,21 +31,13 @@ make DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 %install
 make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 
-%preun
-if [ $1 == 0 ] ; then
-	rm -f /usr/bin/archive_xlog
-	rm -f /usr/bin/restore_xlog
-fi
-
-%posttrans
-ln -s -f /usr/bin/archive_wal /usr/bin/archive_xlog
-ln -s -f /usr/bin/restore_wal /usr/bin/restore_xlog
-
 %files
 %config(noreplace) /etc/pitrery/pitrery.conf
 /usr/bin/archive_wal
-/usr/bin/restore_wal
+/usr/bin/archive_xlog
 /usr/bin/pitrery
+/usr/bin/restore_wal
+/usr/bin/restore_xlog
 %doc /usr/share/doc/pitrery/COPYRIGHT
 %doc /usr/share/doc/pitrery/INSTALL.md
 %doc /usr/share/doc/pitrery/UPGRADE.md
@@ -56,7 +48,7 @@ ln -s -f /usr/bin/restore_wal /usr/bin/restore_xlog
 %doc %{_mandir}/man1/restore_wal.1.gz
 
 %changelog
-* Mon Feb 18 2020 Thibaud Walkowiak <thibaud.walkowiak@dalibo.com> - 3.0-2
+* Thu Feb 19 2020 Thibaud Walkowiak <thibaud.walkowiak@dalibo.com> - 3.0-2
 - Preserve 'xlog' scripts as symlinks
 
 * Fri Dec 30 2019 Thibaut MADELAINE <thibaut.madelaine@dalibo.com> - 3.0-1

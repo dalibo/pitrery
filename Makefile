@@ -75,7 +75,9 @@ install: all
 	@mkdir -p ${DESTDIR}${BINDIR}
 	@cp -f $(BINS) ${DESTDIR}${BINDIR}
 	@chmod 755 $(addprefix ${DESTDIR}${BINDIR}/, $(BINS:${BUILDDIR}/%=%))
-	@echo installing configuration to ${DESTDIR}${SYSCONFDIR}
+	@echo create symlinks to ${DESTDIR}${BINDIR}
+	@ln -s -f archive_wal ${DESTDIR}${BINDIR}/archive_xlog
+	@ln -s -f restore_wal ${DESTDIR}${BINDIR}/restore_xlog
 	@mkdir -p ${DESTDIR}${SYSCONFDIR}
 	@-cp -i $(CONFS) ${DESTDIR}${SYSCONFDIR} < /dev/null >/dev/null 2>&1
 	@echo installing docs to ${DESTDIR}${DOCDIR}
