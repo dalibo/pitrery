@@ -184,8 +184,8 @@ Since pitrery is action based, the execution uses the following syntax:
 
 Each action that can be performed by `pitrery` reads its parameters
 from the configuration file. It's possible to override the default
-configuration file with the -f flag, this flag should defined before*
-the action.
+configuration file with the -f flag, this flag should be defined
+before* the action.
 
 It's always possible to get some information about the available
 actions and paramaters by using -? flag:
