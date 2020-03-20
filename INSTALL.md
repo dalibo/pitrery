@@ -91,11 +91,11 @@ the administration : `check` can be used to ensure the configuration
 file is correct and PostgreSQL properly configured. `configure` can be
 used to easily create a configuration file from the command line.
 
-The storage place can be a remote server or the local machine. If is a
-remote server, it must be accessible using SSH in batch mode (One
-needs to setup passphraseless SSH keys to do so).  Using the local
-machine as storage space can be useful to backup on a filer, whose
-filesystems are mounted locally.
+The storage place can be a remote server or the local machine. If it
+is a remote server, it must be accessible by SSH in batch mode (Eg:
+by using a passphraseless SSH keys). Using the local machine as
+storage space can be useful to backup on a filer, whose filesystems
+are mounted locally.
 
 On the backup host, pitrery organises backed up files the following
 way:
@@ -133,7 +133,7 @@ Installation from the sources
 
 The latest version of can be downloaded from:
 
-https://dl.dalibo.com/public/pitrery/
+https://github.com/dalibo/pitrery/releases
 
 First unpack the tarball:
 
@@ -169,7 +169,7 @@ Installation from a package
 
 A Debian package and a RPM package are available from:
 
-https://dl.dalibo.com/public/pitrery/
+https://apt.dalibo.org/labs/
 
 Use the suitable tool to install it.
 
@@ -182,9 +182,13 @@ Since pitrery is action based, the execution uses the following syntax:
     pitrery [options] action [action-specific options]
 
 
-Each action that can be performed by `pitrery` uses the parameters
-from the configuration file. A non default configuration can be
-specified *before* the action. The help message is:
+Each action that can be performed by `pitrery` reads its parameters
+from the configuration file. It's possible to override the default
+configuration file with the -f flag, this flag should be defined
+before* the action.
+
+It's always possible to get some information about the available
+actions and paramaters by using -? flag:
 
     $ pitrery -?
     pitrery 3.0 - PostgreSQL Point In Time Recovery made easy
@@ -270,11 +274,10 @@ and `restore_wal`:
 Configuration
 =============
 
-It is not mandatory to use a configuration file, as parameters used
-the most can be given on the commandline. However, using a
-configuration file is recommended to reduce the size of the
-commanline.  Values from the commandline take precedence over the
-configuration file at execution time.
+It is not mandatory to use a configuration file, most parameters
+can be read from commandline. However, using a configuration file is
+recommended to reduce the size of the commanline.  Values from the
+commandline take precedence over the configuration file at execution time.
 
 The default configuration file is `/usr/local/etc/pitrery/pitrery.conf`,
 (`/etc/pitrery/pitrery.conf` when installed from packages) containing all
@@ -321,12 +324,12 @@ local.  Some options are available to create a configuration :
 
 
 Not all possible configuration options are provided, the purpose is to
-quickly set pitrery up, then edit the configuration file created for
-further tuning.  It is worth noting that `-C` avoids making pitrery
-connect to PostgreSQL, otherwise it tries to guess the correct
-parameters for WAL archiving. `-o` writes the configuration files if
-it does not exists, if only a keyword is given, the file is created in
-the default configuration directory, with the .conf suffix.
+quickly generate a basic configuration file for further tuning.
+It is worth noting that `-C` avoids making pitrery connect to PostgreSQL,
+otherwise it tries to guess the correct parameters for WAL archiving.
+`-o` writes the configuration files if it does not exists, if only a
+keyword is given, the file is created in the default configuration
+directory, with the .conf suffix.
 
 When the `-a` is not provided, the place where WAL files would be
 stored is deduced from the location of backups: WAL are archived in
@@ -335,8 +338,8 @@ the `archived_wal` subdirectory in the backup directory.
 All parameters to access PostgreSQL are inherited from the environment
 if not given on the commandline.
 
-For example, output the configuration needed to backup the cluster on
-port 5433:
+For example, create the configuration needed to backup the cluster on
+port 5962:
 
     $ sudo mkdir /var/backups/postgresql
     $ sudo chown postgres:postgres /var/backups/postgresql
@@ -384,8 +387,8 @@ reachable using an SSH connection. It is not mandatory to use it, any
 script can be used: the only requirement is to provide a mean for the
 restore action to get archived segments.
 
-The `archive_wal` script uses the configuration file named `pitrery.conf`,
-which sets up defaults. By default, its location is
+The `archive_wal` script uses the configuration file named `pitrery.conf`.
+By default the location of the configuration file is :
 `/usr/local/etc/pitrery/pitrery.conf`, which can be overridden on
 the command line with `-C` option. The following parameters can be
 configured:
@@ -417,9 +420,9 @@ configured:
   reduces performance when archiving over SSH, it is set to "yes" by
   default.
 
-* `ARCHIVE_CHECK` can be set to "yes" to check the md5 of the archived
+* `ARCHIVE_CHECK` can be set to "yes" to compare the md5 of the archived
   file to the md5 of the original WAL file. It is useful when the
-  storage and the network is not reliable. If overwriting is
+  storage or the network is not reliable. If overwriting is
   disabled, the md5 check enabled and the archive already exists, the
   archiving returns success if the md5 check is successful. This
   option does not apply on local archiving.
@@ -1159,9 +1162,9 @@ parameters of PostgreSQL or change how the recovery is configured in
 `postgresql.conf`.
 
 In version 11 and less, there is no signal file created and the configuration
-keys are stored in the file `recovery.conf` t the root of `$PGDATA`.
+keys are stored in the file `recovery.conf` into the root of `$PGDATA`.
 
-When everything is fine, the PostgreSQL can be started, it will apply
+When everything is fine, the PostgreSQL can be started, and it will apply
 the archived WAL files until the target date is reached or until all
 archived WAL files are consumed if no target date was specified.
 
@@ -1214,8 +1217,8 @@ In the above example, the PGDATA has been changed along with the path
 of the ts1 tablespace.
 
 
-When the version of PostgreSQL is 9.1 or older, pitrery creates a SQL
-file with the `UPDATE` statements needed to change the `spclocation`
+With version of PostgreSQL 9.1 or older, pitrery creates a SQL file
+with the `UPDATE` statements needed to change the `spclocation`
 column of `pg_tablespace` (this columns has been removed as of
 9.2). This script must be run as a superuser role on the restored
 cluster after the recovery.
