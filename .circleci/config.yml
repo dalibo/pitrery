@@ -1,4 +1,33 @@
 version: 2.1
+.tests-job: &tests-job
+  - run:
+      name: Execute tests
+      command: tests/pitrery.bats
+
+.tests-centos-job: &tests-centos-job
+  parameters:
+    pg_version:
+      type: string
+      default: '12'
+  docker:
+    - image: centos:centos7
+  steps:
+  - run:
+      name: Install git
+      command: yum -y install git bats sudo
+  - run:
+      name: Install PDGD repo
+      command: yum -y install https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+  - run: yum -y install postgresql<< parameters.pg_version >>-server postgresql<< parameters.pg_version >>-contrib
+  - run:
+      name: initdb and start postgresql
+      command: sudo -su postgres /usr/pgsql-*/bin/initdb -D /tmp/pgsql
+  - run:
+      name: start postgresql
+      command: sudo -su postgres /usr/pgsql-*/bin/pg_ctl -D /tmp/pgsql -l logfile start
+  - checkout
+<<: *tests-job
+
 jobs:
   shellcheck:
     docker: [{image: "koalaman/shellcheck-alpine:stable"}]
@@ -8,8 +37,30 @@ jobs:
     - run:
         name: Shellcheck code analysis
         command: shellcheck -f gcc pitrery archive_wal restore_wal
+
+  centos7-pg12:
+    <<: *tests-centos-job
+
+  centos7-pg11:
+    <<: *tests-centos-job
+
+  centos7-pg10:
+    <<: *tests-centos-job
+
+  centos7-pg96:
+    <<: *tests-centos-job
+
 workflows:
   version: 2
   shellcheck:
     jobs:
       - shellcheck
+  func:
+    jobs:
+      - centos7-pg96:
+          pg_version: '96'
+      - centos7-pg10:
+          pg_version: '10'
+      - centos7-pg11:
+          pg_version: '11'
+      - centos7-pg12
