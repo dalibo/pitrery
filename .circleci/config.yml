@@ -1,6 +1,6 @@
 version: 2.1
 jobs:
-  shellcheck-pitrery:
+  shellcheck:
     docker: [{image: "koalaman/shellcheck-alpine:stable"}]
     steps:
     - run: apk add git
@@ -12,4 +12,4 @@ workflows:
   version: 2
   shellcheck:
     jobs:
-      - shellcheck-pitrery
+      - shellcheck
