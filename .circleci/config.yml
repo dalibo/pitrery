@@ -29,18 +29,9 @@ jobs:
     - run:
         name: Shellcheck code analysis
         command: shellcheck -f gcc pitrery archive_wal restore_wal
-
-  centos7-pg12:
+  centos7:
     <<: *tests-centos-job
 
-  centos7-pg11:
-    <<: *tests-centos-job
-
-  centos7-pg10:
-    <<: *tests-centos-job
-
-  centos7-pg96:
-    <<: *tests-centos-job
 
 workflows:
   version: 2
@@ -49,10 +40,10 @@ workflows:
       - shellcheck
   func:
     jobs:
-      - centos7-pg96:
+      - centos7:
           pg_version: '9.6'
-      - centos7-pg10:
+      - centos7:
           pg_version: '10'
-      - centos7-pg11:
+      - centos7:
           pg_version: '11'
-      - centos7-pg12
+      - centos7
