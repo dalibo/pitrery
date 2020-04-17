@@ -1,0 +1,15 @@
+version: 2.1
+jobs:
+  shellcheck:
+    docker: [{image: "koalaman/shellcheck-alpine:stable"}]
+    steps:
+    - run: apk add git
+    - checkout
+    - run:
+        name: Shellcheck code analysis
+        command: shellcheck -f gcc pitrery archive_wal restore_wal
+workflows:
+  version: 2
+  shellcheck:
+    jobs:
+      - shellcheck
