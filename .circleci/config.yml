@@ -5,26 +5,18 @@ version: 2.1
       command: tests/pitrery.bats
 
 .tests-centos-job: &tests-centos-job
+  docker: [{image: "dalibo/temboard-agent-sdk:centos7" }]
   parameters:
     pg_version:
       type: string
       default: '12'
-  docker:
-    - image: centos:centos7
   steps:
   - run:
-      name: Install git
-      command: yum -y install git bats sudo
-  - run:
-      name: Install PDGD repo
-      command: yum -y install https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
-  - run: yum -y install postgresql<< parameters.pg_version >>-server postgresql<< parameters.pg_version >>-contrib
-  - run:
       name: initdb and start postgresql
-      command: sudo -su postgres /usr/pgsql-*/bin/initdb -D /tmp/pgsql
+      command: sudo -su postgres /usr/pgsql-<< parameters.pg_version >>/bin/initdb -D /tmp/pgsql
   - run:
       name: start postgresql
-      command: sudo -su postgres /usr/pgsql-*/bin/pg_ctl -D /tmp/pgsql -l logfile start
+      command: sudo -su postgres /usr/pgsql-<< parameters.pg_version >>/bin/pg_ctl -D /tmp/pgsql -l logfile start
   - checkout
 <<: *tests-job
 
@@ -58,7 +50,7 @@ workflows:
   func:
     jobs:
       - centos7-pg96:
-          pg_version: '96'
+          pg_version: '9.6'
       - centos7-pg10:
           pg_version: '10'
       - centos7-pg11:
