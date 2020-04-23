@@ -713,7 +713,7 @@ check_postgresql_config() {
 		# functions won't work. It is only necessary as of 9.0, before it
 		# was not possible to a warm standby anyway.
 		if (( 10#$pg_version >= 90000 )); then
-			if ! hot_standy=$("${psql_command[@]}" -Atc "SELECT pg_is_in_recovery();" -- "$psql_condb"); then
+			if ! hot_standby=$("${psql_command[@]}" -Atc "SELECT pg_is_in_recovery();" -- "$psql_condb"); then
 				error "could not check if the server is in hot standby"
 			else
 				if [[ $hot_standby == "t" ]]; then
