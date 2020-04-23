@@ -251,7 +251,7 @@ usage() {
 # which should not be interpreted or cause word-splitting on the remote side.
 qw() {
 	printf -v out "%q " "$@"
-	echo ${out%?}  # Skip the final space.
+	echo "${out%?}"  # Skip the final space.
 }
 
 can_cleanup="no"
