@@ -65,9 +65,9 @@ warn() {
 
 # Script help
 usage() {
-	echo "$(basename $0) - Restore a WAL segment"
+	echo "$(basename "$0") - Restore a WAL segment"
 	echo
-	echo "usage: $(basename $0) [options] walfile destination"
+	echo "usage: $(basename "$0") [options] walfile destination"
 	echo "options:"
 	echo "    -C conf                Configuration file"
 	echo "    -a [[user@]host:]/dir  Place to get the archive"
@@ -82,7 +82,7 @@ usage() {
 	echo "    -V                     Display the version and exit"
 	echo "    -?                     Print help"
 	echo
-	exit $1
+	exit "$1"
 }
 
 parse_target_uri() {
@@ -91,9 +91,9 @@ parse_target_uri() {
 
 	if [ -n "$backup_target" ]; then
 		# Parse the backuptarget into user, host and path
-		backup_user="$(echo $backup_target | grep '@' | cut -d'@' -f1 )"
-		backup_host="$(echo $backup_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
-		backup_dir="$(echo $backup_target | sed -re 's/(.*):(.*)/\2/')"
+		backup_user="$(echo "$backup_target" | grep '@' | cut -d'@' -f1 )"
+		backup_host="$(echo "$backup_target" | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
+		backup_dir="$(echo "$backup_target" | sed -re 's/(.*):(.*)/\2/')"
 
 	else
 		# Fallback to the values from the configuration file
@@ -109,7 +109,7 @@ parse_target_uri() {
 		backup_local="no"
 
 		# Wrap IPv6 addresses with brackets
-		echo $backup_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && backup_host="[${backup_host}]"
+		echo "$backup_host" | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && backup_host="[${backup_host}]"
 
 		# Add a shortcut for ssh/rsync commands
 		backup_ssh_target=${backup_user:+$backup_user@}$backup_host
@@ -126,9 +126,9 @@ parse_target_uri() {
 
 	# Parse archive target the same way
 	if [ -n "$archive_target" ]; then
-		archive_user="$(echo $archive_target | grep '@' | cut -d'@' -f1 )"
-		archive_host="$(echo $archive_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
-		archive_dir="$(echo $archive_target | sed -re 's/(.*):(.*)/\2/')"
+		archive_user="$(echo "$archive_target" | grep '@' | cut -d'@' -f1 )"
+		archive_host="$(echo "$archive_target" | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
+		archive_dir="$(echo "$archive_target" | sed -re 's/(.*):(.*)/\2/')"
 	else
 		# Fallback to the values of the configuration file. When the
 		# path is not provided in the config file, fallback to backup values
@@ -151,7 +151,7 @@ parse_target_uri() {
 		archive_local="no"
 
 		# Wrap IPv6 addresses with brackets
-		echo $archive_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
+		echo "$archive_host" | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
 
 		# Add a shortcut for ssh/rsync commands
 		archive_ssh_target=${archive_user:+$archive_user@}$archive_host

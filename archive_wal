@@ -63,7 +63,7 @@ now() {
 error() {
 	echo "$(now)ERROR: $1" 1>&2
 	[ -n "$tmp_file" ] && rm -f -- "$tmp_file"
-	exit ${2:-1}
+	exit "${2:-1}"
 }
 
 warn() {
@@ -72,9 +72,9 @@ warn() {
 
 # Script help
 usage() {
-	echo "$(basename $0) Archive a WAL segment"
+	echo "$(basename "$0") Archive a WAL segment"
 	echo
-	echo "usage: $(basename $0) [options] walfile"
+	echo "usage: $(basename "$0") [options] walfile"
 	echo
 	echo "options:"
 	echo "    -C conf        configuration file"
@@ -98,7 +98,7 @@ usage() {
 	echo "    -V             Display the version and exit"
 	echo "    -?             print help"
 	echo
-	exit $1
+	exit "$1"
 
 }
 
@@ -122,9 +122,9 @@ parse_target_uri() {
 
 	if [ -n "$backup_target" ]; then
 		# Parse the backuptarget into user, host and path
-		backup_user="$(echo $backup_target | grep '@' | cut -d'@' -f1 )"
-		backup_host="$(echo $backup_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
-		backup_dir="$(echo $backup_target | sed -re 's/(.*):(.*)/\2/')"
+		backup_user="$(echo "$backup_target" | grep '@' | cut -d'@' -f1 )"
+		backup_host="$(echo "$backup_target" | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
+		backup_dir="$(echo "$backup_target" | sed -re 's/(.*):(.*)/\2/')"
 
 	else
 		# Fallback to the values from the configuration file
@@ -140,7 +140,7 @@ parse_target_uri() {
 		backup_local="no"
 
 		# Wrap IPv6 addresses with brackets
-		echo $backup_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && backup_host="[${backup_host}]"
+		echo "$backup_host" | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && backup_host="[${backup_host}]"
 
 		# Add a shortcut for ssh/rsync commands
 		backup_ssh_target="${backup_user:+$backup_user@}$backup_host"
@@ -157,9 +157,9 @@ parse_target_uri() {
 
 	# Parse archive target the same way
 	if [ -n "$archive_target" ]; then
-		archive_user="$(echo $archive_target | grep '@' | cut -d'@' -f1 )"
-		archive_host="$(echo $archive_target | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
-		archive_dir="$(echo $archive_target | sed -re 's/(.*):(.*)/\2/')"
+		archive_user="$(echo "$archive_target" | grep '@' | cut -d'@' -f1 )"
+		archive_host="$(echo "$archive_target" | grep ':' | sed -re 's/(.*):(.*)/\1/' | cut -d'@' -f2 )"
+		archive_dir="$(echo "$archive_target" | sed -re 's/(.*):(.*)/\2/')"
 	else
 		# Fallback to the values of the configuration file. When the
 		# path is not provided in the config file, fallback to backup values
@@ -182,7 +182,7 @@ parse_target_uri() {
 		archive_local="no"
 
 		# Wrap IPv6 addresses with brackets
-		echo $archive_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
+		echo "$archive_host" | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
 
 		# Add a shortcut for ssh/rsync commands
 		archive_ssh_target=${archive_user:+$archive_user@}$archive_host
@@ -319,7 +319,7 @@ if [ "$archive_local" = "yes" ]; then
 		rc=( ${PIPESTATUS[@]} )
 		gpg_rc=${rc[0]}
 		dd_rc=${rc[1]}
-		if [ $gpg_rc != 0 ]; then
+		if [ "$gpg_rc" != 0 ]; then
 			rm -f -- "$dest_path"
 			error "Encryption of $wal failed"
 		fi
@@ -331,7 +331,7 @@ if [ "$archive_local" = "yes" ]; then
 		rc=( ${PIPESTATUS[@]} )
 		x_rc=${rc[0]}
 		dd_rc=${rc[1]}
-		if [ $x_rc != 0 ]; then
+		if [ "$x_rc" != 0 ]; then
 			rm -f -- "$dest_path"
 			error "Compressing $wal to $dest_path failed"
 		fi
@@ -352,7 +352,7 @@ if [ "$archive_local" = "yes" ]; then
 	if [ -n "$ARCHIVE_FILE_CHMOD" ]; then
 		echo "$ARCHIVE_FILE_CHMOD" | grep -qE '^[0-7]{3,4}$'
 		if [ $? = 0 ]; then
-			if ! chmod $ARCHIVE_FILE_CHMOD "$dest_path"; then
+			if ! chmod "$ARCHIVE_FILE_CHMOD" "$dest_path"; then
 				warn "Could not change mode of $dest_path to $ARCHIVE_FILE_CHMOD"
 			fi
 		else
