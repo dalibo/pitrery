@@ -67,7 +67,7 @@ warn() {
 usage() {
 	echo "$(basename $0) - Restore a WAL segment"
 	echo
-	echo "usage: `basename $0` [options] walfile destination"
+	echo "usage: $(basename $0) [options] walfile destination"
 	echo "options:"
 	echo "    -C conf                Configuration file"
 	echo "    -a [[user@]host:]/dir  Place to get the archive"

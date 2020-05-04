@@ -72,9 +72,9 @@ warn() {
 
 # Script help
 usage() {
-	echo "`basename $0` Archive a WAL segment"
+	echo "$(basename $0) Archive a WAL segment"
 	echo
-	echo "usage: `basename $0` [options] walfile"
+	echo "usage: $(basename $0) [options] walfile"
 	echo
 	echo "options:"
 	echo "    -C conf        configuration file"
