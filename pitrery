@@ -988,7 +988,7 @@ while getopts "c:f:lV?" opt; do
 		l) # List the configuration files and exit
 			info "listing configuration files in $config_dir"
 			if [ -d "$config_dir" ]; then
-				find "$config_dir" -mindepth 1 -maxdepth 1 -name '*.conf' | xargs -i basename '{}' .conf
+				find "$config_dir" -mindepth 1 -maxdepth 1 -name '*.conf' -print0| xargs -i basename '{}' .conf
 			fi
 			exit 0
 			;;
@@ -1104,9 +1104,9 @@ case $action in
 			# Compute the size of full backup
 			backup_size=
 			if [ "$backup_local" = "yes" ]; then
-				backup_size=( $(du -sh -- "$dir" 2>/dev/null) )
+				backup_size=$(du -sh -- "$dir" 2>/dev/null | cut -d' ' -f1)
 			else
-				backup_size=( $(ssh -n -- "$backup_ssh_target" "du -sh -- $(qw "$dir") 2>/dev/null" 2>/dev/null) )
+				backup_size=$(ssh -n -- "$backup_ssh_target" "du -sh -- $(qw "$dir") 2>/dev/null | cut -d' ' -f1" 2>/dev/null)
 			fi
 
 			if [ -n "$backup_size" ]; then
@@ -1510,7 +1510,7 @@ case $action in
 			get_psql_output() {
 				# First wait for output to be ready on the fd. When there is
 				# an error, no output go to the fd
-				while ! read -t 0 -u ${COPROC[0]}; do
+				while ! read -r -t 0 -u ${COPROC[0]}; do
 					if ! grep -E "^(ERROR|FATAL)" $psql_stderr >/dev/null 2>&1; then
 						sleep 1
 					else
@@ -1522,7 +1522,7 @@ case $action in
 				# newlines to pipe characters, to pass through expansion of
 				# newline to space, when stored as a string.
 				ret_str=''
-				while read -t 1 -u ${COPROC[0]} line; do
+				while read -r -t 1 -u ${COPROC[0]} line; do
 					[ -n "$line" ] && ret_str="$ret_str$line|"
 				done
 				echo -n $ret_str | sed 's/|$//'
@@ -1618,7 +1618,7 @@ case $action in
 
 				# prepare the list of files and directories to exclude
 				excluded=("pg_${xlog_or_wal}" 'pg_replslot/*' 'postmaster.*' 'pgsql_tmp' 'restored_config_files' 'backup_label.old' '*.sql')
-				excluded_opts=()
+				exclude_opts=()
 				for i in "${excluded[@]}"; do
 					exclude_opts+=("--exclude=$i")
 				done
@@ -1666,7 +1666,7 @@ case $action in
 				cd -- "$was"
 
 				# Tar the tablespaces
-				while read line ; do
+				while read -r line ; do
 					name=$(cut -d '|' -f 1 <<< "$line")
 					_name=${name//+([[:space:]])/_}	# No space version, we want paths without spaces
 					location=$(cut -d '|' -f 2 <<< "$line")
@@ -1766,7 +1766,7 @@ case $action in
 
 				# Tablespaces. We do the same as pgdata: hardlink the previous
 				# backup directory if possible, then rsync.
-				while read line; do
+				while read -r line; do
 					name=$(cut -d '|' -f 1 <<< "$line")
 					_name=${name//+([[:space:]])/_}	# No space version, we want paths without spaces
 					location=$(cut -d '|' -f 2 <<< "$line")
@@ -1935,7 +1935,7 @@ case $action in
 		# we do not have to uncompress a WAL file to find out its
 		# size.
 		if (( $pg_version >= 110000 )); then
-			wal_segsize=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'" $psql_conndb) ||
+			wal_segsize=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'" $psql_condb) ||
 				warn "could not get the size of a WAL segment from PostgreSQL"
 		fi
 

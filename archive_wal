@@ -62,7 +62,7 @@ now() {
 
 error() {
 	echo "$(now)ERROR: $1" 1>&2
-	[ -n "$tmpfile" ] && rm -f -- "$tmpfile"
+	[ -n "$tmp_file" ] && rm -f -- "$tmp_file"
 	exit ${2:-1}
 }
 
@@ -432,7 +432,7 @@ else
 		0) ;;
 		1) error "Unable to copy $wal to ${archive_ssh_target}:$archive_dir" $rc;;
 		2) error "Unable to create target directory" $rc;;
-		3) error "'$dest_file' already exists on $dest_host, refusing to overwrite it" $rc;;
+		3) error "'$dest_file' already exists on $archive_host, refusing to overwrite it" $rc;;
 		4) warn "Could not change mode of $dest_path to $ARCHIVE_FILE_CHMOD";;
 		5) error "SSH error on ${archive_host}" $rc;;
 		*) error "Unexpected return code while copying the file" 100
