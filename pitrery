@@ -1016,7 +1016,7 @@ if [ "$action" = "help" ]; then
 		esac
 	done
 
-	usage ${@:$OPTIND:1}
+	usage "${@:$OPTIND:1}"
 fi
 
 # Check if the config option is a path or just a name in the
@@ -1500,7 +1500,7 @@ case $action in
 				die_and_hook "could not create temporary file"
 			fi
 
-			coproc ${psql_command[@]} -At $psql_condb 2>$psql_stderr
+			coproc "${psql_command[@]}" -At $psql_condb 2>$psql_stderr
 
 			get_psql_output() {
 				# First wait for output to be ready on the fd. When there is
@@ -1560,10 +1560,10 @@ case $action in
 			# backup_label that will be archived after pg_stop_backup
 			# completes
 			if (( $pg_version >= 80400 )); then
-				start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}', true)) as i;" $psql_condb`
+				start_backup_label_file=`"${psql_command[@]}" -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}', true)) as i;" $psql_condb`
 				rc=$?
 			else
-				start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}')) as i;" $psql_condb`
+				start_backup_label_file=`"${psql_command[@]}" -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}')) as i;" $psql_condb`
 				rc=$?
 			fi
 
@@ -1573,7 +1573,7 @@ case $action in
 		fi
 
 		# Add a signal handler to avoid leaving the cluster in backup mode when exiting on error
-		trap stop_backup INT TERM KILL EXIT
+		trap stop_backup INT TERM EXIT
 
 		# When using rsync storage, search for the previous backup to prepare
 		# the target directories. We try to optimize the space usage by
@@ -1917,7 +1917,7 @@ case $action in
 		# Convert the stop time to UTC, this make it easier when searching for
 		# a proper backup when restoring
 		if [ -n "$stop_time" ]; then
-			timestamp=$(${psql_command[@]} -Atc "SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '${stop_time}');" $psql_condb) ||
+			timestamp=$("${psql_command[@]}" -Atc "SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '${stop_time}');" $psql_condb) ||
 				warn "could not get the stop time timestamp from PostgreSQL"
 		else
 			die_and_hook "Failed to get STOP TIME from '$backup_file'"
@@ -1930,7 +1930,7 @@ case $action in
 		# we do not have to uncompress a WAL file to find out its
 		# size.
 		if (( $pg_version >= 110000 )); then
-			wal_segsize=$(${psql_command[@]} -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'" $psql_conndb) ||
+			wal_segsize=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'" $psql_conndb) ||
 				warn "could not get the size of a WAL segment from PostgreSQL"
 		fi
 
@@ -3040,7 +3040,7 @@ case $action in
 		fi
 
 		if [ -f "$replslots_sql" ]; then
-			if [[ $(cat "$replslots_sql" | wc -l) > 0 ]]; then
+			if [[ $(cat "$replslots_sql"|wc -l) -gt 0 ]]; then
 				info "replication slots defined at the time of the backup can be restored"
 				info "with the SQL commands from:"
 				info "  $replslots_sql"
@@ -3477,7 +3477,7 @@ case $action in
 				# needed by the rsync storage method
 				if [[ $STORAGE == "rsync" ]]; then
 					info "checking rsync on the remote host: $backup_ssh_target"
-					if ! ssh -n -- "$backup_ssh_target" "which rsync" >/dev/null 2>&1; then
+					if ! ssh -n -- "$backup_ssh_target" "command -v rsync" >/dev/null 2>&1; then
 						error "could not find rsync in the PATH on $backup_ssh_target"
 					else
 						info "rsync found on the remote host"
@@ -3488,7 +3488,7 @@ case $action in
 			# Check the local rsync
 			if [[ $STORAGE == "rsync" ]]; then
 				info "checking rsync on the local host"
-				if ! which rsync >/dev/null 2>&1; then
+				if ! command -v rsync >/dev/null 2>&1; then
 					error "could not find rsync in the PATH of the local host"
 				else
 					info "rsync found on the local host"
@@ -3511,7 +3511,7 @@ case $action in
 
 				# Check if rsync is installed on the remote host
 				info "checking rsync on the remote host: $archive_ssh_target"
-				if ! ssh -n -- "$archive_ssh_target" "which rsync" >/dev/null 2>&1; then
+				if ! ssh -n -- "$archive_ssh_target" "command -v rsync" >/dev/null 2>&1; then
 					error "could not find rsync in the PATH on $archive_ssh_target"
 					arch_ok="no"
 				else
@@ -3522,7 +3522,7 @@ case $action in
 			# Check the local rsync for WAL archiving
 			if [[ $STORAGE == "rsync" ]] || [[ $archive_local == "no" ]]; then
 				info "checking rsync on the local host"
-				if ! which rsync >/dev/null 2>&1; then
+				if ! command -v rsync >/dev/null 2>&1; then
 					error "could not find rsync in the PATH of the local host"
 					arch_ok="no"
 				else
@@ -3553,7 +3553,7 @@ case $action in
 
 			# Show the command line of psql and the contents of the environnement
 			# variables starting with PG, they may affect the behaviour of psql.
-			info "psql command and connection options are: ${psql_command[@]}"
+			info "psql command and connection options are:" "${psql_command[@]}"
 			info "connection database is: $psql_condb"
 			info "environment variables (maybe overwritten by the configuration file):"
 			while read -r -d '' v; do
