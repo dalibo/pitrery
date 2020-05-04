@@ -2002,7 +2002,7 @@ case $action in
 		else
 			backup_name=$(echo $stop_time | awk '{ gsub(/[:-]/, "."); print $1"_"$2 }')
 		fi
-		new_backup_dir=$backup_root/$label_prefix/$backup_name
+		new_backup_dir=$backup_root/$backup_name
 
 		# Finish the backup by copying needed files and rename the backup
 		# directory to a useful name
