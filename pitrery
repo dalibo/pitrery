@@ -295,7 +295,7 @@ cleanup() {
 
 # Messaging functions
 now() {
-	[ "$LOG_TIMESTAMP" = "yes" ] && echo "$(date "+%F %T %Z ")"
+	[ "$LOG_TIMESTAMP" = "yes" ] && date "+%F %T %Z "
 }
 
 die() {
@@ -321,6 +321,7 @@ info() {
 load_config() {
 	# Load the configuration file
 	if [ -f "$config" ]; then
+		# shellcheck source=pitrery.conf
 		. "$config"
 
 		# Export libpq variables sourced from the configuration file
@@ -549,7 +550,10 @@ check_and_fix_directory() {
 			info "creating $dir with permission 0700"
 			# Note that if this creates any parent directories, their mode will be set
 			# according to the current umask, only the final leaf dir will be set 0700.
-			mkdir -p -m 700 -- "$dir" || die "could not create $dir"
+			local base_path
+			base_path=$(basename ${dir:?})
+			mkdir -p -- "$base_path" || die "could not create $base_path"
+			mkdir -m 700 -- "$dir" || die "could not create $dir"
 		fi
 	else
 		# Check if directory is empty
@@ -570,7 +574,7 @@ check_and_fix_directory() {
 				# diffs.
 				if [ "$STORAGE" = "tar" ]; then
 					info "Removing contents of $dir"
-					rm -rf -- "$dir/"*
+					rm -rf -- "${dir:?}/"*
 				fi
 			else
 				if [ "$OVERWRITE" = "yes" ]; then
@@ -826,7 +830,8 @@ output_param() {
 	echo "${param}=\"${value}\""
 
 	if [ -n "$file" ]; then
-		local tmpfile=$(mktemp -t pitr_config_sed.XXXXXXXXXX) ||
+		local tmpfile
+		tmpfile=$(mktemp -t pitr_config_sed.XXXXXXXXXX) ||
 			error "Failed to create temporary file"
 
 		# Replace the parameter with sed, the value is quoted so that

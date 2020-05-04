@@ -51,7 +51,7 @@ qw() {
 
 # Message functions
 now() {
-	[ "$LOG_TIMESTAMP" = "yes" ] && echo "$(date "+%F %T %Z ")"
+	[ "$LOG_TIMESTAMP" = "yes" ] && date "+%F %T %Z "
 }
 
 error() {
@@ -195,6 +195,7 @@ fi
 
 # Load configuration file
 if [ -f "$CONFIG" ]; then
+	# shellcheck source=pitrery.conf
 	. "$CONFIG"
 fi
 
