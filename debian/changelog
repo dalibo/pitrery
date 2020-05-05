@@ -1,9 +1,3 @@
-pitrery (3.0-2) buster; urgency=medium
-
-  * Preserve 'xlog' scripts as symlinks
-
- -- Thibaud Walkowiak <thibaud.walkowiak@dalibo.com>  Thu, 19 Feb 2020 16:00:00 +0200
-
 pitrery (3.0-1) buster; urgency=medium
 
   * New upstream release

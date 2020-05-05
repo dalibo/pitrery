@@ -1,8 +1,8 @@
 %global confdir %{_sysconfdir}/pitrery
 
 Name:           pitrery
-Version:        3.0
-Release:        2
+Version:        3.1
+Release:        1
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
 Group:          Applications/Databases
