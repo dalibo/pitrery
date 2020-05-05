@@ -5,7 +5,7 @@ pitrery 3.1
     Please update your "archive_command" and "restore_command" parameters to use
     the new scripts "archive_wal" and "restore_wal".
 
-  * Report qw update to archive_wal and restore_wal #94 and #110 (thanks pgstef)
+  * Report "qw" update to archive_wal and restore_wal #94, #110 (thanks pgstef)
     Please update if you are using bash version < 4.2.
 
 pitrery 3.0
