@@ -1,7 +1,7 @@
 pitrery 3.1
 ===========
 
-  * Preserve "xlog" scripts as symlinks #97
+  * Preserve "xlog" scripts as symlinks in package #97
     Please update your "archive_command" and "restore_command" parameters to use
     the new scripts "archive_wal" and "restore_wal".
 
