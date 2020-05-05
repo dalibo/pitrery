@@ -1,3 +1,13 @@
+pitrery 3.1
+===========
+
+  * Preserve "xlog" scripts as symlinks #97
+    Please update your "archive_command" and "restore_command" parameters to use
+    the new scripts "archive_wal" and "restore_wal".
+
+  * Report qw update to archive_wal and restore_wal #94 and #110 (thanks pgstef)
+    Please update if you are using bash version < 4.2
+
 pitrery 3.0
 ===========
 

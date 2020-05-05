@@ -25,7 +25,7 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-version="3.0"
+version="3.1"
 
 # Default configuration
 SYSLOG="no"
