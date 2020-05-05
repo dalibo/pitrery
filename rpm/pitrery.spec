@@ -48,8 +48,9 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 %doc %{_mandir}/man1/restore_wal.1.gz
 
 %changelog
-* Thu Feb 19 2020 Thibaud Walkowiak <thibaud.walkowiak@dalibo.com> - 3.0-2
+* Thu Feb 19 2020 Thibaud Walkowiak <thibaud.walkowiak@dalibo.com> - 3.1-1
 - Preserve 'xlog' scripts as symlinks
+- Report qw update to archive_wal and restore_wal
 
 * Fri Dec 30 2019 Thibaut MADELAINE <thibaut.madelaine@dalibo.com> - 3.0-1
 - Release 3.0
