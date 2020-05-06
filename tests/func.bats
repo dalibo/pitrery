@@ -33,6 +33,11 @@ setup()
   [ "$status" -eq 0 ]
 }
 
+@test "Testing list action with local config and no backups" {
+  run pitrery -f $PITRERY_LOCAL_CONF list
+  [ "$status" -eq 1 ]
+}
+
 @test "Testing backup action with local config" {
   run pitrery -f $PITRERY_LOCAL_CONF backup
   [ "$status" -eq 0 ]
@@ -40,9 +45,15 @@ setup()
   [[ "$output" == *"INFO: preparing directories"* ]]
   [[ "$output" == *"INFO: backing up PGDATA"* ]]
   [[ "$output" == *"INFO: done"* ]]
+  # TODO get backup path name to verify next list test
 }
 
 @test "Testing list action with local config" {
   run pitrery -f $PITRERY_LOCAL_CONF list
+  [ "$status" -eq 0 ]
+  IFS=$'\n'
+  output=(${output})
+  unset IFS
   [ "${#output[@]}" -eq 2 ]
+  [[ "$output[1]" == "$PITRERY_BACKUP_DIR"* ]]
 }
