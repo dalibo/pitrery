@@ -12,7 +12,7 @@ setup()
 
 @test "First dummy check - trying to run help action" {
     run pitrery help
-	[ "${lines[0]}" == 'pitrery 3.0 - PostgreSQL Point In Time Recovery made easy' ]
+	[ "${lines[0]}" == 'pitrery 3.1 - PostgreSQL Point In Time Recovery made easy' ]
     echo "output = ${output}"
 }
 
