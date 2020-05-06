@@ -8,6 +8,8 @@ pitrery 3.1
   * Report "qw" update to archive_wal and restore_wal #94, #110 (thanks pgstef)
     Please update if you are using bash version < 4.2.
 
+  * Release process review
+
 pitrery 3.0
 ===========
 
