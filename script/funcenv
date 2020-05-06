@@ -1,0 +1,55 @@
+#!/bin/bash -eux
+
+#
+# Script to run tests
+#
+
+top_srcdir=$(readlink -m $0/../..)
+cd ${top_srcdir}
+
+export PITRERY_BACKUP_DIR=/tmp/backup
+
+teardown() {
+	exit_code=$?
+
+	# If not on CI and we are docker entrypoint (PID 1), let's wait forever on
+	# error. This allows user to enter the container and debug after a build
+	# failure.
+	if [ -z "${CI-}" -a $PPID = 1 -a $exit_code -gt 0 ] ; then
+		tail -f /dev/null
+	fi
+
+	# stop and destroy PG cluster
+	sudo -su postgres ${TBD_PGBIN}/pg_ctl stop -w -D /tmp/pgsql
+	rm -rf /tmp/pgsql
+
+	rm -rf $PITRERY_BACKUP_DIR
+
+	exit ${exit_code}
+}
+
+trap teardown EXIT INT TERM
+
+export TBD_PGBIN=$(readlink -e /usr/pgsql-${TBD_PGVERSION}/bin /usr/lib/postgresql/${TBD_PGVERSION}/bin)
+
+# init PG cluster
+sudo -su postgres ${TBD_PGBIN}/initdb -D /tmp/pgsql
+
+# Setup archiving
+echo "archive_mode = on" >> /tmp/pgsql/postgresql.auto.conf
+echo "wal_level = 'replica'" >> /tmp/pgsql/postgresql.auto.conf
+echo "archive_command = '/usr/local/bin/archive_wal -a /tmp/backup/archived_wal %p'" >>/tmp/pgsql/postgresql.auto.conf
+
+# start PG
+sudo -su postgres ${TBD_PGBIN}/pg_ctl start -w -D /tmp/pgsql -l /tmp/logfile
+
+# install pitrery
+make install
+chown -R postgres: ./t/
+
+# create backup directory
+mkdir -p $PITRERY_BACKUP_DIR
+chown -R postgres: $PITRERY_BACKUP_DIR
+
+# run bats tests
+sudo -su postgres bats -t t/func.bats
