@@ -30,6 +30,7 @@ trap 'teardown' INT EXIT TERM
 
 top_srcdir=${PWD}
 distdir=$(readlink -m dist/)
+mkdir -p ${distdir}
 
 # Create worktree to build last debianized release.
 mkdir -p $workdir/pitrery

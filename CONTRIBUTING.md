@@ -11,16 +11,17 @@ setup your editor to follow it.
 
 ## Release process
 
-- [Draft new GitHub Release](https://github.com/dalibo/pitrery/releases/new). A
-  version is composed of only two number like `2.3`. There is no patch-release.
 - Checkout latest master.
 - Update CHANGELOG, config.mk, pitrery, archive\_wal and restore\_wal. `make
   checkversion VERSION=X.Y` should help.
 - Commit, tag and push with `make disttag`.
 - Build source tarball and sign it with `make distsign`.
-- Attach tar.gz and .tar.gz.asc to GitHub release.
-- Update rpm/pitrery.spec, build and push with `make -C rpm/ build push`.
+- GitHub created a release for the new tag. Update it to your need. Find it in
+  the [Releases page](https://github.com/dalibo/pitrery/releases).
+- Attach tar.gz and .tar.gz.asc to the GitHub release.
 - Build and push deb with `make -C debian/ build push`.
+- Update and commit rpm/pitrery.spec. Build and push with `make -C rpm/ build
+  push`.
 - Push these commits.
 - Update website in `gh-pages` branch.
   - Create news entry.
