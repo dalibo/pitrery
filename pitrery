@@ -1532,7 +1532,8 @@ case $action in
 				fi
 			}
 
-			# Check if the connection works by getting the pid of the backend
+			# Check if t
+			he connection works by getting the pid of the backend
 			echo 'select pg_backend_pid();' >&${COPROC[1]} # 2>/dev/null
 			if [ $? != 0 ]; then
 				check_psql_stderr || cat $psql_stderr
@@ -4107,7 +4108,7 @@ case $action in
 		# target directory for backups must be provided
 		if [ -z "${@:$OPTIND:1}" ]; then
 			error "missing target backup directory"
-			usage "configure"
+			usage "configure" 1
 		fi
 
 		# Only tar and rsync are allowed as storage method
@@ -4125,7 +4126,7 @@ case $action in
 			die "list of recipients for GPG encryption missing"
 		fi
 
-		parse_target_uri "${@:$OPTIND:1}" "$archive_path" || usage "configure"
+		parse_target_uri "${@:$OPTIND:1}" "$archive_path" || usage "configure" 1
 
 		# the configuration for archive_wal must be an absolute path or
 		# relative to PGDATA. Just convert it to a absolute path if needed,

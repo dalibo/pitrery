@@ -1,4 +1,40 @@
 version: 2.1
+.tests-centos-job: &tests-centos-job
+  docker: [{image: "dalibo/temboard-agent-sdk:centos7" }]
+  working_directory: /tmp/project/ # tmp bats scripts will be used by postgres user
+  parameters:
+    pg_version:
+      type: string
+      default: '12'
+  steps:
+  - run:
+      name: initdb and start postgresql
+      command: sudo -su postgres /usr/pgsql-<< parameters.pg_version >>/bin/initdb -D /tmp/pgsql
+  - run:
+      name: Set wal_level to replica
+      command:  |
+        echo "archive_mode = on" >> /tmp/pgsql/postgresql.auto.conf
+        echo "wal_level = 'replica'" >> /tmp/pgsql/postgresql.auto.conf
+        echo "archive_command = '/usr/local/bin/archive_wal -a /tmp/backup/archived_wal %p'" >>/tmp/pgsql/postgresql.auto.conf
+  - run:
+      name: start postgresql
+      command: |
+        cd /tmp
+        sudo -su postgres /usr/pgsql-<< parameters.pg_version >>/bin/pg_ctl start -w -D /tmp/pgsql -l /tmp/logfile
+  - checkout
+  - run:
+      name: Install pitrery
+      command: make install
+  - run:
+      name: name install bats and shellcheck
+      command: yum -y install bats shellcheck
+  - run:
+      name: Change ownership
+      command: chown -R postgres:postgres ./tests/
+  - run:
+      name: Execute tests func
+      command: sudo -su postgres bats -t tests/func.bats
+
 jobs:
   shellcheck:
     docker: [{image: "koalaman/shellcheck-alpine:stable"}]
@@ -8,8 +44,17 @@ jobs:
     - run:
         name: Shellcheck code analysis
         command: shellcheck -f gcc pitrery archive_wal restore_wal
+  centos7:
+    <<: *tests-centos-job
+
+
 workflows:
   version: 2
   shellcheck:
     jobs:
       - shellcheck
+  func:
+    jobs:
+      - centos7:
+          pg_version: '10'
+      - centos7
