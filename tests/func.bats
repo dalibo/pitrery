@@ -20,24 +20,29 @@ setup()
 }
 
 @test "Testing configure action without parameter" {
-  run pitrery configure -f -o $PITRERY_LOCAL_CONF $PITRERY_BACKUP_DIR
-  [ "$status" -eq 0 ]
+  run pitrery configure
+  [ "$status" -eq 1 ]
 }
 
 @test "Testing backup action without config" {
   run pitrery backup
+  [ "$status" -eq 1 ]
+}
+@test "Testing configure action with local parameters" {
+  run pitrery configure -f -o $PITRERY_LOCAL_CONF $PITRERY_BACKUP_DIR
   [ "$status" -eq 0 ]
 }
 
-@test "Testing backup action with custom config" {
-  run pitrery -f ./tests/pitrery.conf backup
+@test "Testing backup action with local config" {
+  run pitrery -f $PITRERY_LOCAL_CONF backup
+  [ "$status" -eq 0 ]
   echo "output = ${output}"
   [[ "$output" == *"INFO: preparing directories"* ]]
   [[ "$output" == *"INFO: backing up PGDATA"* ]]
   [[ "$output" == *"INFO: done"* ]]
 }
 
-@test "Testing list action with custom config" {
-  run pitrery -f ./tests/pitrery.conf list
+@test "Testing list action with local config" {
+  run pitrery -f $PITRERY_LOCAL_CONF list
   [ "${#output[@]}" -eq 2 ]
 }
