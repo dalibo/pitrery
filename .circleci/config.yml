@@ -56,9 +56,5 @@ workflows:
   func:
     jobs:
       - centos7:
-          pg_version: '9.6'
-      - centos7:
           pg_version: '10'
-      - centos7:
-          pg_version: '11'
       - centos7
