@@ -2,7 +2,10 @@
 setup()
 {
 	export PATH=/usr/local/bin/:$PATH
-
+	export PITRERY_BACKUP_DIR=/tmp/backup
+	export PITRERY_LOCAL_CONF=/tmp/pitrery_local.conf
+	export PITRERY_REMOTE_CONF=/tmp/pitrery_remote.conf
+	mkdir -p $PITRERY_BACKUP_DIR
 }
 
 #teardown()
@@ -17,13 +20,13 @@ setup()
 }
 
 @test "Testing configure action without parameter" {
-  run pitrery configure
-  [ "$status" -eq 1 ]
+  run pitrery configure -f -o $PITRERY_LOCAL_CONF $PITRERY_BACKUP_DIR
+  [ "$status" -eq 0 ]
 }
 
 @test "Testing backup action without config" {
   run pitrery backup
-  [ "$status" -eq 1 ]
+  [ "$status" -eq 0 ]
 }
 
 @test "Testing backup action with custom config" {
