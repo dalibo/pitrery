@@ -55,5 +55,5 @@ setup()
   output=(${output})
   unset IFS
   [ "${#output[@]}" -eq 2 ]
-  [[ "$output[1]" == "$PITRERY_BACKUP_DIR"* ]]
+  [[ "${output[1]}" == "$PITRERY_BACKUP_DIR"* ]]
 }
