@@ -26,10 +26,10 @@ version: 2.1
       name: Install pitrery
       command: make install
   - run:
-      name: name install bats
+      name: name install bats and shellcheck
       command: yum -y install bats shellcheck
   - run:
-      name: Execute tests
+      name: Change ownership
       command: chown -R postgres:postgres ./tests/
   - run:
       name: Execute tests func
