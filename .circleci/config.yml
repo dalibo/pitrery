@@ -15,7 +15,7 @@ version: 2.1
       command:  |
         echo "archive_mode = on" >> /tmp/pgsql/postgresql.auto.conf
         echo "wal_level = 'replica'" >> /tmp/pgsql/postgresql.auto.conf
-        echo "archive_command = '/usr/local/bin/archive_wal -a '/tmp/backup/archived_wal' %p'" >>/tmp/pgsql/postgresql.auto.conf
+        echo "archive_command = '/usr/local/bin/archive_wal -a /tmp/backup/archived_wal %p'" >>/tmp/pgsql/postgresql.auto.conf
   - run:
       name: start postgresql
       command: |
