@@ -1532,7 +1532,8 @@ case $action in
 				fi
 			}
 
-			# Check if the connection works by getting the pid of the backend
+			# Check if t
+			he connection works by getting the pid of the backend
 			echo 'select pg_backend_pid();' >&${COPROC[1]} # 2>/dev/null
 			if [ $? != 0 ]; then
 				check_psql_stderr || cat $psql_stderr
