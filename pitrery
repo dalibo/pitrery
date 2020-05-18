@@ -3940,8 +3940,8 @@ case $action in
 				tot_c="${#wal_list[@]}"
 				ts_c=$(date +%s)
 				for wal_file in "${wal_list[@]}"; do
-					# Skip archived backup_label files
-					[[ "$wal_file" =~ .*\.backup.* ]] && continue
+					# Skip archived backup_label and partially archived files
+					[[ "$wal_file" =~ .*\.(backup|partial).* ]] && continue
 					wal_file="$(basename -- "$wal_file")"
 					if ! [[ $wal_file =~ ^[0-9A-F]{24}.*$ ]]; then
 						[[ "$output" != "nagios" ]] && warn "'$wal_file' does not appear to be a WAL segment file name"
