@@ -1,28 +1,45 @@
 version: 2.1
 
-executors:
-  centos7:
-    docker:
-      - image: "dalibo/temboard-agent-sdk:centos7"
-    environment:
-      PACKAGE_INSTALL: 'yum -y '
-      PG_BINDIR: '/usr/pgsql-'
-      PG_VERSION: 12
-    shell: /bin/bash
-    working_directory: /tmp/project/
+centos_env: &centos_env
+  environment:
+    PACKAGE_INSTALL: "yum -y "
+    PG_BINDIR: "/usr/pgsql-"
+    PG_VERSION: 12
+  shell: /bin/bash
+  working_directory: /tmp/project/
 
+debian_env: &debian_env
+  environment:
+    PACKAGE_INSTALL: "apt -y "
+    PG_BINDIR: "/usr/lib/postgresql/"
+    PG_VERSION: 12
+  shell: /bin/bash
+  working_directory: /tmp/project/
+
+executors:
+  centos6:
+    docker: [{ image: "dalibo/temboard-agent-sdk:centos6" }]
+    <<: *centos_env
+
+  centos7:
+    docker: [{ image: "dalibo/temboard-agent-sdk:centos7" }]
+    <<: *centos_env
+
+  buster:
+    docker: [{ image: "dalibo/temboard-agent-sdk:buster" }]
+    <<: *debian_env
+
+  stretch:
+    docker: [{ image: "dalibo/temboard-agent-sdk:stretch" }]
+    <<: *debian_env
 
 commands:
-  install-extra-packages:
-    description: install extra packages
-    parameters:
-      packages_names:
-        type: string
+  update-packages:
+    description: update packages
     steps:
       - run:
           command: |
             ${PACKAGE_INSTALL} update
-            ${PACKAGE_INSTALL} install << parameters.packages_names >>
 
   shellcheck-job:
     description: run shellcheck on scripts
@@ -36,13 +53,6 @@ commands:
 
   init-cluster-job:
     description: initialise PostgreSQL cluster
-    parameters:
-      pg_bindir:
-        type: string
-        default: '/usr/lib/postgresql/'
-      pg_version:
-        type: string
-        default: '12'
     steps:
       - run:
           name: initdb and start PostgreSQL
@@ -61,10 +71,6 @@ commands:
 
   tests-func-job:
     description: run functional tests
-    parameters:
-      package_install:
-        type: string
-        default: 'apt -y'
     steps:
       - run:
           name: Install pitrery
@@ -82,34 +88,19 @@ commands:
 
 jobs:
   buster_12:
-    docker:
-      - image: "postgres:12"
-    environment:
-      PACKAGE_INSTALL: "apt -y "
-      PG_BINDIR: "/usr/lib/postgresql/"
-      PG_VERSION: "12"
-    shell: /bin/bash
-    working_directory: /tmp/project/
+    executor: buster
     steps:
-      - install-extra-packages:
-          packages_names: "sudo build-essential"
+      - update-packages
       - init-cluster-job
       - checkout
       - tests-func-job
       - shellcheck-job
 
   stretch_96:
-    docker:
-      - image: "postgres:9.6"
+    executor: stretch
     environment:
-      PACKAGE_INSTALL: "apt -y "
-      PG_BINDIR: "/usr/lib/postgresql/"
       PG_VERSION: "9.6"
-    shell: /bin/bash
-    working_directory: /tmp/project/
     steps:
-      - install-extra-packages:
-          packages_names: "sudo build-essential"
       - init-cluster-job
       - checkout
       - tests-func-job
@@ -130,6 +121,15 @@ jobs:
       - checkout
       - tests-func-job
 
+  centos6_96:
+    executor: centos6
+    environment:
+      PG_VERSION: "9.6"
+    steps:
+      - init-cluster-job
+      - checkout
+      - tests-func-job
+
 workflows:
   version: 2
   spellcheck-and-functional:
@@ -138,3 +138,4 @@ workflows:
       - stretch_96
       - centos7_10
       - centos7_12
+      - centos6_96
