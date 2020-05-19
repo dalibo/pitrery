@@ -101,6 +101,7 @@ jobs:
     environment:
       PG_VERSION: "9.6"
     steps:
+      - update-packages
       - init-cluster-job
       - checkout
       - tests-func-job
