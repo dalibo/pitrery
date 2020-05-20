@@ -2,7 +2,6 @@ version: 2.1
 
 centos_env: &centos_env
   environment:
-    PACKAGE_INSTALL: "yum -y "
     PG_BINDIR: "/usr/pgsql-"
     PG_VERSION: 12
   shell: /bin/bash
@@ -10,7 +9,6 @@ centos_env: &centos_env
 
 debian_env: &debian_env
   environment:
-    PACKAGE_INSTALL: "apt -y "
     PG_BINDIR: "/usr/lib/postgresql/"
     PG_VERSION: 12
   shell: /bin/bash
@@ -34,19 +32,9 @@ executors:
     <<: *debian_env
 
 commands:
-  update-packages:
-    description: update packages
-    steps:
-      - run:
-          command: |
-            ${PACKAGE_INSTALL} update
-
   shellcheck-job:
     description: run shellcheck on scripts
     steps:
-      - run:
-          name: name install shellcheck
-          command: ${PACKAGE_INSTALL} install shellcheck
       - run:
           name: Shellcheck code analysis
           command: shellcheck -f gcc pitrery archive_wal restore_wal
@@ -76,9 +64,6 @@ commands:
           name: Install pitrery
           command: make install
       - run:
-          name: name install bats
-          command: ${PACKAGE_INSTALL} install bats
-      - run:
           name: Change ownership
           command: chown -R postgres:postgres ./tests/
       - run:
@@ -90,7 +75,6 @@ jobs:
   buster_12:
     executor: buster
     steps:
-      - update-packages
       - init-cluster-job
       - checkout
       - tests-func-job
@@ -101,7 +85,6 @@ jobs:
     environment:
       PG_VERSION: "9.6"
     steps:
-      - update-packages
       - init-cluster-job
       - checkout
       - tests-func-job
