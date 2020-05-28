@@ -4107,7 +4107,7 @@ case $action in
 		# target directory for backups must be provided
 		if [ -z "${@:$OPTIND:1}" ]; then
 			error "missing target backup directory"
-			usage "configure" 1
+			usage "configure"
 		fi
 
 		# Only tar and rsync are allowed as storage method
@@ -4125,7 +4125,7 @@ case $action in
 			die "list of recipients for GPG encryption missing"
 		fi
 
-		parse_target_uri "${@:$OPTIND:1}" "$archive_path" || usage "configure" 1
+		parse_target_uri "${@:$OPTIND:1}" "$archive_path" || usage "configure"
 
 		# the configuration for archive_wal must be an absolute path or
 		# relative to PGDATA. Just convert it to a absolute path if needed,
