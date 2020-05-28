@@ -20,7 +20,7 @@ teardown() {
 	fi
 
 	# stop and destroy PG cluster
-	sudo -su postgres ${TBD_PGBIN}/pg_ctl stop -w -D /tmp/pgsql
+	sudo -su postgres ${PGBIN}/pg_ctl stop -w -D /tmp/pgsql
 	rm -rf /tmp/pgsql
 
 	rm -rf $PITRERY_BACKUP_DIR
@@ -30,10 +30,10 @@ teardown() {
 
 trap teardown EXIT INT TERM
 
-export TBD_PGBIN=$(readlink -e /usr/pgsql-${TBD_PGVERSION}/bin /usr/lib/postgresql/${TBD_PGVERSION}/bin)
+export PGBIN=$(readlink -e /usr/pgsql-${PGVERSION}/bin /usr/lib/postgresql/${PGVERSION}/bin)
 
 # init PG cluster
-sudo -su postgres ${TBD_PGBIN}/initdb -D /tmp/pgsql
+sudo -su postgres ${PGBIN}/initdb -D /tmp/pgsql
 
 # Setup archiving
 echo "archive_mode = on" >> /tmp/pgsql/postgresql.auto.conf
@@ -41,7 +41,7 @@ echo "wal_level = 'replica'" >> /tmp/pgsql/postgresql.auto.conf
 echo "archive_command = '/usr/local/bin/archive_wal -a /tmp/backup/archived_wal %p'" >>/tmp/pgsql/postgresql.auto.conf
 
 # start PG
-sudo -su postgres ${TBD_PGBIN}/pg_ctl start -w -D /tmp/pgsql -l /tmp/logfile
+sudo -su postgres ${PGBIN}/pg_ctl start -w -D /tmp/pgsql -l /tmp/logfile
 
 # install pitrery
 make install
