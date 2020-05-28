@@ -1,11 +1,5 @@
 #!/usr/bin/env bats
 
-setup() {
-	export PATH=/usr/local/bin/:$PATH
-	export PITRERY_BACKUP_DIR=/tmp/backup
-	export PITRERY_LOCAL_CONF=/tmp/pitrery_local.conf
-}
-
 @test "First dummy check - trying to run help action" {
 	run pitrery help
 	[ "${lines[0]}" == 'pitrery 3.1 - PostgreSQL Point In Time Recovery made easy' ]

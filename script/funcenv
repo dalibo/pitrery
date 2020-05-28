@@ -7,7 +7,10 @@
 top_srcdir=$(readlink -m $0/../..)
 cd ${top_srcdir}
 
+export PITRERYBIN=${BINDIR:-/usr/local/bin}
+export PATH=$PITRERYBIN:$PATH
 export PITRERY_BACKUP_DIR=/tmp/backup
+export PITRERY_LOCAL_CONF=/tmp/pitrery_local.conf
 
 teardown() {
 	exit_code=$?
@@ -20,7 +23,7 @@ teardown() {
 	fi
 
 	# stop and destroy PG cluster
-	sudo -su postgres ${PGBIN}/pg_ctl stop -w -D /tmp/pgsql
+	${PGBIN}/pg_ctl stop -w -D /tmp/pgsql
 	rm -rf /tmp/pgsql
 
 	rm -rf $PITRERY_BACKUP_DIR
@@ -33,23 +36,18 @@ trap teardown EXIT INT TERM
 export PGBIN=$(readlink -e /usr/pgsql-${PGVERSION}/bin /usr/lib/postgresql/${PGVERSION}/bin)
 
 # init PG cluster
-sudo -su postgres ${PGBIN}/initdb -D /tmp/pgsql
+${PGBIN}/initdb -D /tmp/pgsql
 
 # Setup archiving
 echo "archive_mode = on" >> /tmp/pgsql/postgresql.auto.conf
 echo "wal_level = 'replica'" >> /tmp/pgsql/postgresql.auto.conf
-echo "archive_command = '/usr/local/bin/archive_wal -a /tmp/backup/archived_wal %p'" >>/tmp/pgsql/postgresql.auto.conf
+echo "archive_command = '${PITRERYBINDIR}/archive_wal -a /tmp/backup/archived_wal %p'" >>/tmp/pgsql/postgresql.auto.conf
 
 # start PG
-sudo -su postgres ${PGBIN}/pg_ctl start -w -D /tmp/pgsql -l /tmp/logfile
-
-# install pitrery
-make install
-chown -R postgres: ./t/
+${PGBIN}/pg_ctl start -w -D /tmp/pgsql -l /tmp/logfile
 
 # create backup directory
 mkdir -p $PITRERY_BACKUP_DIR
-chown -R postgres: $PITRERY_BACKUP_DIR
 
 # run bats tests
-sudo -su postgres bats -t t/func.bats
+bats -t t/func.bats

@@ -14,10 +14,12 @@ setup your editor to follow it.
 You can run [bats tests](https://github.com/sstephenson/bats) locally by
 running the following command:
 
-`PGVERSION=12 ./script/funcenv`
+`PGVERSION=12 sudo -su postgres ./script/funcenv`
 
 A dedicated cluster will be created, make sure that port 5432 is available
 (i.e. make sure to stop any running cluster using the default PostgreSQL port).
+
+pitrery scripts must be available in `$BINDIR` (default: `/usr/local/bin`).
 
 ## Release process
 
