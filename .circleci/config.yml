@@ -19,4 +19,4 @@ workflows:
   pipeline:
     jobs:
     - shellcheck:
-        dist: centos7
+        dist: buster
