@@ -31,7 +31,7 @@ teardown() {
 
 trap teardown EXIT INT TERM
 
-PGBIN=$(readlink -e /usr/pgsql-${PGVERSION}/bin /usr/lib/postgresql/${PGVERSION}/bin)
+export PGBIN=$(readlink -e /usr/pgsql-${PGVERSION}/bin /usr/lib/postgresql/${PGVERSION}/bin)
 
 # init PG cluster
 ${PGBIN}/initdb -D /tmp/pgsql
