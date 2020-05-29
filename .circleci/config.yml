@@ -1,15 +1,28 @@
 version: 2.1
+
 jobs:
-  shellcheck:
-    docker: [{image: "koalaman/shellcheck-alpine:stable"}]
+  tests:
+    parameters:
+      pgversion:
+        description: "PostgreSQL dotted major version"
+        type: string
+    docker: [image: "dalibo/temboard-agent-sdk:buster"]
+    working_directory: /tmp/project/
     steps:
-    - run: apk add git
-    - checkout
-    - run:
-        name: Shellcheck code analysis
-        command: shellcheck -f gcc pitrery archive_wal restore_wal
+      - checkout
+      - run:
+          name: Install pitrery
+          command: make install
+      - run:
+          name: functional tests
+          command: "sudo -su postgres PGVERSION=<< parameters.pgversion >> ./script/funcenv"
+      - run:
+          name: Shellcheck code analysis
+          command: shellcheck -f gcc pitrery archive_wal restore_wal
+
 workflows:
   version: 2
-  shellcheck:
+  pipeline:
     jobs:
-      - shellcheck
+    - tests:
+        pgversion: "12"
