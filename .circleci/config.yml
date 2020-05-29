@@ -1,22 +1,15 @@
 version: 2.1
-
 jobs:
   shellcheck:
-    parameters:
-      dist:
-        description: "Execution Linux distribution"
-        type: enum
-        enum: [centos7, buster]
-    docker: [image: "dalibo/temboard-agent-sdk:<< parameters.dist >>"]
+    docker: [{image: "koalaman/shellcheck-alpine:stable"}]
     steps:
-      - checkout
-      - run:
-          name: Shellcheck code analysis
-          command: shellcheck -f gcc pitrery archive_wal restore_wal
-
+    - run: apk add git
+    - checkout
+    - run:
+        name: Shellcheck code analysis
+        command: shellcheck -f gcc pitrery archive_wal restore_wal
 workflows:
   version: 2
-  pipeline:
+  shellcheck:
     jobs:
-    - shellcheck:
-        dist: buster
+      - shellcheck
