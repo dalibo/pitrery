@@ -16,9 +16,6 @@ jobs:
       - run:
           name: functional tests
           command: "sudo -su postgres PGVERSION=<< parameters.pgversion >> ./script/funcenv"
-      - run:
-          name: Shellcheck code analysis
-          command: shellcheck -f gcc pitrery archive_wal restore_wal
 
   shellcheck:
     docker: [image: "dalibo/temboard-agent-sdk:buster"]
