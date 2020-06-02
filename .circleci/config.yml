@@ -35,4 +35,4 @@ workflows:
     jobs:
     - tests:
         pgversion: "12"
-    - shellcheck:
+    - shellcheck
