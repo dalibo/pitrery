@@ -3,10 +3,14 @@ version: 2.1
 jobs:
   tests:
     parameters:
+      dist:
+        description: "Execution Linux distribution"
+        type: enum
+        enum: [centos6, centos7, stretch, buster]
       pgversion:
         description: "PostgreSQL dotted major version"
         type: string
-    docker: [image: "dalibo/temboard-agent-sdk:buster"]
+    docker: [image: "dalibo/temboard-agent-sdk:<< parameters.dist >>"]
     working_directory: /tmp/project/
     steps:
       - checkout
@@ -31,5 +35,6 @@ workflows:
   pipeline:
     jobs:
     - tests:
+        dist: buster
         pgversion: "12"
     - shellcheck
