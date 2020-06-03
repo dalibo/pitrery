@@ -9,11 +9,11 @@ pitrery is a set of Bash scripts to manage PITR backups for PostgreSQL.
 
 ### Bugfixes
 
-* Preserve `xlog` scripts as symlinks in debian and rpm packages #97 Please
-  update your `archive_command` and `restore_command` parameters to use the new
-  scripts `archive_wal` and `restore_wal`.
+* Preserve `xlog` scripts as symlinks in debian and rpm packages #97  
+  Please update your `archive_command` and `restore_command` parameters to use
+  the new scripts `archive_wal` and `restore_wal`.
 
-* Report `qw` update to `archive_wal` and `restore_wal` #94, #110 (thanks pgstef)
+* Report `qw` update to `archive_wal` and `restore_wal` #94, #110 (thanks pgstef)  
   Please update if you are using bash version < 4.2.
 
 * Release process review
