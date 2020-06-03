@@ -149,7 +149,7 @@ releases](https://github.com/dalibo/pitrery/releases)
 
 Download the package:
 
-    wget https://github.com/dalibo/pitrery/releases/download/v3.0/pitrery-3.0.tar.gz
+    wget https://github.com/dalibo/pitrery/releases/download/v3.1/pitrery-3.1.tar.gz
 
 Then, unpack the tarball:
 
@@ -192,7 +192,7 @@ from the configuration file. A non default configuration can be
 specified *before* the action. The help message is:
 
     $ ./pitrery -?
-    pitrery 3.0 - PostgreSQL Point In Time Recovery made easy
+    pitrery 3.1 - PostgreSQL Point In Time Recovery made easy
     
     usage: pitrery [options] action [args]
     
