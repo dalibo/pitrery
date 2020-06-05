@@ -37,4 +37,16 @@ workflows:
     - tests:
         dist: buster
         pgversion: "12"
+    - tests:
+        dist: stretch
+        pgversion: "9.6"
+    - tests:
+        dist: centos7
+        pgversion: "12"
+    - tests:
+        dist: centos7
+        pgversion: "10"
+    - tests:
+        dist: centos6
+        pgversion: "9.6"
     - shellcheck
