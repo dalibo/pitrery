@@ -32,15 +32,12 @@ teardown() {
 
 trap teardown EXIT INT TERM
 
-PGBIN=''
-if [ -d /usr/pgsql-${PGVERSION}/bin ] ; then
-  PGBIN=$(readlink -e /usr/pgsql-${PGVERSION}/bin)
-elif [ -d /usr/lib/postgresql/${PGVERSION}/bin ] ; then
-  PGBIN=$(readlink -e /usr/lib/postgresql/${PGVERSION}/bin)
-else
-	echo "PGBIN not found"
-	teardown
-fi
+for candidate in /usr/pgsql-${PGVERSION}/bin /usr/lib/postgresql/${PGVERSION}/bin ; do
+    if PGBIN=$(readlink -e $candidate) ; then
+        break
+    fi
+done
+test -n "$PGBIN"
 export PGBIN
 
 # init PG cluster
