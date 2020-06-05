@@ -32,9 +32,14 @@ teardown() {
 
 trap teardown EXIT INT TERM
 
-PGBIN=$(readlink -e /usr/pgsql-${PGVERSION}/bin)
-if [ -z "${PGBIN}" ] ; then
-	export PGBIN=$(readlink -e /usr/lib/postgresql/${PGVERSION}/bin)
+PGBIN=''
+if [ -d /usr/pgsql-${PGVERSION}/bin ] ; then
+  PGBIN=$(readlink -e /usr/pgsql-${PGVERSION}/bin)
+elif [ -d /usr/lib/postgresql/${PGVERSION}/bin ] ; then
+  PGBIN=$(readlink -e /usr/lib/postgresql/${PGVERSION}/bin)
+else
+	echo "PGBIN not found"
+	teardown
 fi
 export PGBIN
 
