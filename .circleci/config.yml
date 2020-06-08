@@ -35,6 +35,23 @@ workflows:
   pipeline:
     jobs:
     - tests:
+        name: buster-12
         dist: buster
         pgversion: "12"
+    - tests:
+        name: stretch-96
+        dist: stretch
+        pgversion: "9.6"
+    - tests:
+        name: centos7-12
+        dist: centos7
+        pgversion: "12"
+    - tests:
+        name: centos7-10
+        dist: centos7
+        pgversion: "10"
+    - tests:
+        name: centos6-95
+        dist: centos6
+        pgversion: "9.5"
     - shellcheck

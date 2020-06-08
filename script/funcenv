@@ -9,6 +9,7 @@ cd ${top_srcdir}
 
 export PITRERY_BACKUP_DIR=/tmp/backup
 export PITRERY_LOCAL_CONF=/tmp/pitrery_local.conf
+export PATH=/usr/local/bin:$PATH:.
 
 teardown() {
 	exit_code=$?
@@ -31,14 +32,22 @@ teardown() {
 
 trap teardown EXIT INT TERM
 
-export PGBIN=$(readlink -e /usr/pgsql-${PGVERSION}/bin /usr/lib/postgresql/${PGVERSION}/bin)
+for candidate in /usr/pgsql-${PGVERSION}/bin /usr/lib/postgresql/${PGVERSION}/bin ; do
+    if PGBIN=$(readlink -e $candidate) ; then
+        break
+    fi
+done
+test -n "$PGBIN"
+export PGBIN
 
 # init PG cluster
 ${PGBIN}/initdb -D /tmp/pgsql
 
 # Setup archiving
 echo "archive_mode = on" >> /tmp/pgsql/postgresql.auto.conf
-echo "wal_level = 'replica'" >> /tmp/pgsql/postgresql.auto.conf
+WAL_LEVEL='replica'
+[[ ${PGVERSION} == '9.5' ]] && WAL_LEVEL='hot_standby'
+echo "wal_level = '${WAL_LEVEL}'" >> /tmp/pgsql/postgresql.auto.conf
 echo "archive_command = '$(type -p archive_wal) -a /tmp/backup/archived_wal %p'" >>/tmp/pgsql/postgresql.auto.conf
 
 # start PG
@@ -48,4 +57,4 @@ ${PGBIN}/pg_ctl start -w -D /tmp/pgsql -l /tmp/logfile
 mkdir -p $PITRERY_BACKUP_DIR
 
 # run bats tests
-PATH=$PATH:. bats -t t/func.bats
+bats -t t/func.bats
