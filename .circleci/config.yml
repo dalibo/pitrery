@@ -53,5 +53,5 @@ workflows:
     - tests:
         name: centos6-96
         dist: centos6
-        pgversion: "9.6"
+        pgversion: "9.5"
     - shellcheck
