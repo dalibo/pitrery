@@ -45,7 +45,9 @@ ${PGBIN}/initdb -D /tmp/pgsql
 
 # Setup archiving
 echo "archive_mode = on" >> /tmp/pgsql/postgresql.auto.conf
-echo "wal_level = 'replica'" >> /tmp/pgsql/postgresql.auto.conf
+WAL_LEVEL='replica'
+[[ ${PGVERSION} == '9.5' ]] && WAL_LEVEL='hot_standby'
+echo "wal_level = '${WAL_LEVEL}'" >> /tmp/pgsql/postgresql.auto.conf
 echo "archive_command = '$(type -p archive_wal) -a /tmp/backup/archived_wal %p'" >>/tmp/pgsql/postgresql.auto.conf
 
 # start PG
