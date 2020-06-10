@@ -16,7 +16,7 @@
 	[ "$status" -eq 1 ]
 }
 @test "Testing configure action with local parameters" {
-	run pitrery configure -f -o $PITRERY_LOCAL_CONF $PITRERY_BACKUP_DIR
+	run pitrery configure -f -o $PITRERY_LOCAL_CONF -m 2 $PITRERY_BACKUP_DIR
 	[ "$status" -eq 0 ]
 }
 
@@ -43,4 +43,9 @@
 	unset IFS
 	[ "${#output[@]}" -eq 2 ]
 	[[ "${output[1]}" == "$PITRERY_BACKUP_DIR"* ]]
+}
+
+@test "Testing purge action with local config" {
+	run pitrery -f $PITRERY_LOCAL_CONF purge
+	[ "$status" -eq 0 ]
 }
