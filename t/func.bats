@@ -1,5 +1,11 @@
 #!/usr/bin/env bats
 
+load test_helper
+
+setup () {
+	MAJOR_VERSION=${PGVERSION/\.[0-9]*/}
+}
+
 @test "First dummy check - trying to run help action" {
 	run pitrery help
 	[ "${lines[0]}" == 'pitrery 3.1 - PostgreSQL Point In Time Recovery made easy' ]
@@ -32,7 +38,15 @@
 	[[ "$output" == *"INFO: preparing directories"* ]]
 	[[ "$output" == *"INFO: backing up PGDATA"* ]]
 	[[ "$output" == *"INFO: done"* ]]
-	# TODO get backup path name to verify next list test
+
+	BKPDIR=""
+	for line in "${lines[@]}"; do
+		if [[ $line =~ .*"INFO: backup directory is ".* ]] ; then
+			BKPDIR=$(readlink -e ${line/*"INFO: backup directory is "/})
+			break
+		fi
+	done
+	check_backup_content ${BKPDIR}
 }
 
 @test "Testing list action with local config" {
@@ -43,4 +57,9 @@
 	unset IFS
 	[ "${#output[@]}" -eq 2 ]
 	[[ "${output[1]}" == "$PITRERY_BACKUP_DIR"* ]]
+
+	for line in "${lines[@]:1}"; do
+		BKPDIR=$(echo ${line}|cut -d" " -f1)
+		check_backup_content ${BKPDIR}
+	done
 }
