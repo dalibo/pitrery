@@ -42,7 +42,7 @@ PRE_BACKUP_COMMAND=
 POST_BACKUP_COMMAND=
 LOG_TIMESTAMP="yes"
 USE_ISO8601_TIMESTAMPS="no"
-PGOWNER=`id -un`
+PGOWNER=$(id -un)
 OVERWRITE="no"
 RESTORE_COMMAND=
 RESTORE_MODE="recovery"
@@ -79,21 +79,21 @@ rsync_opts=""
 usage() {
 	case $1 in
 		list)
-			echo "`basename $0` list - Display information about backups"
+			echo "$(basename "$0") list - Display information about backups"
 			echo
-			echo "usage: `basename $0` list [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: $(basename "$0") list [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -v              Display details of the backup"
 			echo
 			echo "    -?              Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 		backup)
-			echo "`basename $0` backup - Perform a base backup"
+			echo "$(basename "$0") backup - Perform a base backup"
 			echo
-			echo "usage: `basename $0` backup [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: $(basename "$0") backup [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -D dir               Path to \$PGDATA"
@@ -113,12 +113,12 @@ usage() {
 			echo
 			echo "    -?                   Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 		restore)
-			echo "`basename $0` restore - Restore a base backup and prepare PITR"
+			echo "$(basename "$0") restore - Restore a base backup and prepare PITR"
 			echo
-			echo "usage: `basename $0` restore [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: $(basename "$0") restore [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo " options:"
 			echo "    -D dir               Path to target \$PGDATA"
@@ -138,12 +138,12 @@ usage() {
 			echo
 			echo "    -?                   Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 		purge)
-			echo "`basename $0` purge - Clean old base backups and archived WAL files"
+			echo "$(basename "$0") purge - Clean old base backups and archived WAL files"
 			echo
-			echo "usage: `basename $0` purge [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: $(basename "$0") purge [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -m count               Keep this number of backups"
@@ -156,12 +156,12 @@ usage() {
 			echo "    -T                     Timestamp log messages"
 			echo "    -?                     Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 		check)
-			echo "`basename $0` check - Verify configuration and backups integrity"
+			echo "$(basename "$0") check - Verify configuration and backups integrity"
 			echo
-			echo "usage: `basename $0` check [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: $(basename "$0") check [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -C conf                Configuration file"
@@ -178,12 +178,12 @@ usage() {
 			echo
 			echo "    -?                     Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 		configure)
-			echo "`basename $0` configure - Create a configuration file from the command line"
+			echo "$(basename "$0") configure - Create a configuration file from the command line"
 			echo
-			echo "usage: `basename $0` configure [options] [[user@]host:]/path/to/backups"
+			echo "usage: $(basename "$0") configure [options] [[user@]host:]/path/to/backups"
 			echo
 			echo "options:"
 			echo "    -o config_file         Output configuration file"
@@ -206,24 +206,24 @@ usage() {
 			echo
 			echo "    -?                     Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 		help)
-			echo "`basename $0` help - Print help, optionnally for an action"
+			echo "$(basename "$0") help - Print help, optionnally for an action"
 			echo
-			echo "usage: `basename $0` help [options] [action]"
+			echo "usage: $(basename "$0") help [options] [action]"
 			echo
 			echo "options:"
 			echo "    -?                     Print help"
 			echo
-			exit ${2:-0}
+			exit "${2:-0}"
 			;;
 	esac
 
 	# Fallback to the main command usage
-	echo "`basename $0` $version - PostgreSQL Point In Time Recovery made easy"
+	echo "$(basename "$0") $version - PostgreSQL Point In Time Recovery made easy"
 	echo
-	echo "usage: `basename $0` [options] action [args]"
+	echo "usage: $(basename "$0") [options] action [args]"
 	echo
 	echo "options:"
 	echo "    -f file      Path to the configuration file"
@@ -240,7 +240,7 @@ usage() {
 	echo "    configure - Create a configuration file from the command line"
 	echo "    help - Print help, optionnally for an action"
 	echo
-	exit ${2:-0}
+	exit "${2:-0}"
 }
 
 # Apply an extra level of shell quoting to each of the arguments passed.
@@ -295,7 +295,7 @@ cleanup() {
 
 # Messaging functions
 now() {
-	[ "$LOG_TIMESTAMP" = "yes" ] && echo "$(date "+%F %T %Z ")"
+	[ "$LOG_TIMESTAMP" = "yes" ] && date "+%F %T %Z "
 }
 
 die() {
@@ -321,6 +321,7 @@ info() {
 load_config() {
 	# Load the configuration file
 	if [ -f "$config" ]; then
+		# shellcheck source=pitrery.conf
 		. "$config"
 
 		# Export libpq variables sourced from the configuration file
@@ -402,7 +403,7 @@ parse_target_uri() {
 		archive_local="no"
 
 		# Wrap IPv6 addresses with brackets
-		echo $archive_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
+		echo "$archive_host" | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
 
 		# Add a shortcut for ssh/rsync commands
 		archive_ssh_target="${archive_user:+$archive_user@}$archive_host"
@@ -481,36 +482,36 @@ stop_backup() {
 		# the pipe does not conflict with the output from
 		# get_psql_output, which uses pipes for newline (newlines get
 		# lost when storing the output as a string)
-		echo '\pset fieldsep ,' >&${COPROC[1]}
+		echo '\pset fieldsep ,' >&"${COPROC[1]}"
 		get_psql_output > /dev/null
 
-		echo "select labelfile, spcmapfile from pg_stop_backup(false);" >&${COPROC[1]}
+		echo "select labelfile, spcmapfile from pg_stop_backup(false);" >&"${COPROC[1]}"
 		if [ $? != 0 ]; then
-			check_psql_stderr || cat $psql_stderr
+			check_psql_stderr || cat "$psql_stderr"
 			die_and_hook "could not stop backup process"
 		fi
 
 		result=$(get_psql_output)
 		if [ -z "$result" ]; then
-			check_psql_stderr || cat $psql_stderr
+			check_psql_stderr || cat "$psql_stderr"
 			die_and_hook "error while stopping the backup process"
 		fi
 
-		echo '\pset fieldsep |' >&${COPROC[1]}
+		echo '\pset fieldsep |' >&"${COPROC[1]}"
 		get_psql_output > /dev/null
 
 		# We need a stop time for the backup to make the automatic
 		# time-based selection of the backup. The stop time is not
 		# part of the output of pg_stop_backup().
-		echo "select to_char(now(), 'YYYY-MM-DD HH24:MI:SS TZ');" >&${COPROC[1]}
+		echo "select to_char(now(), 'YYYY-MM-DD HH24:MI:SS TZ');" >&"${COPROC[1]}"
 		if [ $? != 0 ]; then
-			check_psql_stderr || cat $psql_stderr
+			check_psql_stderr || cat "$psql_stderr"
 			die_and_hook "could not get the stop time of the backup"
 		fi
 
 		stop_time=$(get_psql_output)
 		if [ -z "$stop_time" ]; then
-			check_psql_stderr || cat $psql_stderr
+			check_psql_stderr || cat "$psql_stderr"
 			die_and_hook "could not get the stop time of the backup"
 		fi
 
@@ -549,7 +550,10 @@ check_and_fix_directory() {
 			info "creating $dir with permission 0700"
 			# Note that if this creates any parent directories, their mode will be set
 			# according to the current umask, only the final leaf dir will be set 0700.
-			mkdir -p -m 700 -- "$dir" || die "could not create $dir"
+			local base_path
+			base_path=$(basename "${dir:?}")
+			mkdir -p -- "$base_path" || die "could not create $base_path"
+			mkdir -m 700 -- "$dir" || die "could not create $dir"
 		fi
 	else
 		# Check if directory is empty
@@ -570,7 +574,7 @@ check_and_fix_directory() {
 				# diffs.
 				if [ "$STORAGE" = "tar" ]; then
 					info "Removing contents of $dir"
-					rm -rf -- "$dir/"*
+					rm -rf -- "${dir:?}/"*
 				fi
 			else
 				if [ "$OVERWRITE" = "yes" ]; then
@@ -586,7 +590,7 @@ check_and_fix_directory() {
 		fi
 
 		# Check permissions
-		dperms=`stat -c %a -- "$dir" 2>/dev/null` || die "Unable to get permissions of $dir"
+		dperms=$(stat -c %a -- "$dir" 2>/dev/null) || die "Unable to get permissions of $dir"
 
 		if [ "$dperms" != "700" ]; then
 			if [ "$dry_run" != "yes" ]; then
@@ -598,10 +602,10 @@ check_and_fix_directory() {
 
 	if [ "$dry_run" != "yes" ]; then
 		# Check owner
-		downer=`stat -c %U -- "$dir" 2>/dev/null` || die "Unable to get owner of $dir"
+		downer=$(stat -c %U -- "$dir" 2>/dev/null) || die "Unable to get owner of $dir"
 
 		if [ "$downer" != "$PGOWNER" ]; then
-			if [ "`id -u`" = 0 ]; then
+			if [ "$(id -u)" = 0 ]; then
 				info "setting owner of $dir"
 				chown -- "$PGOWNER:" "$dir" || die "could not change owner of $dir to $PGOWNER"
 			else
@@ -782,7 +786,7 @@ check_postgresql_config() {
 		fi
 
 		# wal_level must be different than minimal
-		if [ -n "$wal_level" ] && [ $wal_level = "minimal" ]; then
+		if [ -n "$wal_level" ] && [ "$wal_level" = "minimal" ]; then
 			if (( $pg_version >= 90000 )); then
 				if (( $pg_version < 90600 )); then
 					error "wal_level must be set at least to archive"
@@ -794,7 +798,7 @@ check_postgresql_config() {
 			fi
 		fi
 
-		if [ -n "$archive_mode" ] && [ $archive_mode = "off" ]; then
+		if [ -n "$archive_mode" ] && [ "$archive_mode" = "off" ]; then
 			error "archive_mode must be set to on"
 		fi
 
@@ -826,7 +830,8 @@ output_param() {
 	echo "${param}=\"${value}\""
 
 	if [ -n "$file" ]; then
-		local tmpfile=$(mktemp -t pitr_config_sed.XXXXXXXXXX) ||
+		local tmpfile
+		tmpfile=$(mktemp -t pitr_config_sed.XXXXXXXXXX) ||
 			error "Failed to create temporary file"
 
 		# Replace the parameter with sed, the value is quoted so that
@@ -841,10 +846,10 @@ output_param() {
 		# interpreting $ starting strings correctly.
 		echo "$v" | grep '^\$' >/dev/null 2>&1
 		if [ $? = 0 ]; then
-			cat "$file" | sed -re "s/^#${param}=.*/${param}=${v//\//\\/}/" > "$tmpfile" ||
+			sed -re "s/^#${param}=.*/${param}=${v//\//\\/}/" "$file" > "$tmpfile" ||
 				error "Cannot change parameter in configuration file"
 		else
-			cat "$file" | sed -re "s/^#${param}=.*/${param}=\"${v//\//\\/}\"/" > "$tmpfile" ||
+			sed -re "s/^#${param}=.*/${param}=\"${v//\//\\/}\"/" "$file" > "$tmpfile" ||
 				error "Cannot change parameter in configuration file"
 		fi
 
@@ -983,7 +988,7 @@ while getopts "c:f:lV?" opt; do
 		l) # List the configuration files and exit
 			info "listing configuration files in $config_dir"
 			if [ -d "$config_dir" ]; then
-				find "$config_dir" -mindepth 1 -maxdepth 1 -name '*.conf' | xargs -i basename '{}' .conf
+				find "$config_dir" -mindepth 1 -maxdepth 1 -name '*.conf' -print0| xargs -i basename '{}' .conf
 			fi
 			exit 0
 			;;
@@ -1016,7 +1021,7 @@ if [ "$action" = "help" ]; then
 		esac
 	done
 
-	usage ${@:$OPTIND:1}
+	usage "${@:$OPTIND:1}"
 fi
 
 # Check if the config option is a path or just a name in the
@@ -1093,15 +1098,15 @@ case $action in
 
 				list_output_json "directory" "$dir"
 			else
-				echo -ne "$dir\t"
+				echo -ne "$dir\\t"
 			fi
 
 			# Compute the size of full backup
 			backup_size=
 			if [ "$backup_local" = "yes" ]; then
-				backup_size=( $(du -sh -- "$dir" 2>/dev/null) )
+				backup_size=$(du -sh -- "$dir" 2>/dev/null | cut -d' ' -f1)
 			else
-				backup_size=( $(ssh -n -- "$backup_ssh_target" "du -sh -- $(qw "$dir") 2>/dev/null" 2>/dev/null) )
+				backup_size=$(ssh -n -- "$backup_ssh_target" "du -sh -- $(qw "$dir") 2>/dev/null | cut -d' ' -f1" 2>/dev/null)
 			fi
 
 			if [ -n "$backup_size" ]; then
@@ -1109,7 +1114,7 @@ case $action in
 					list_output_text "  space used" "$backup_size"
 					list_output_json "space_used" "$backup_size"
 				else
-					echo -ne "$backup_size\t"
+					echo -ne "$backup_size\\t"
 				fi
 			else
 				error "could not find size of $dir"
@@ -1354,7 +1359,7 @@ case $action in
 		fi
 
 		# Prepare the text will put in the backup_label
-		label_text="pitrery_${version}_`date +%s`"
+		label_text="pitrery_${version}_$(date +%s)"
 
 		# Prepare psql command line. Starting from 9.6 .psqlrc is sourced with
 		# psql -c or -f, so we force -X
@@ -1500,13 +1505,13 @@ case $action in
 				die_and_hook "could not create temporary file"
 			fi
 
-			coproc ${psql_command[@]} -At $psql_condb 2>$psql_stderr
+			coproc "${psql_command[@]}" -At "$psql_condb" 2>"$psql_stderr"
 
 			get_psql_output() {
 				# First wait for output to be ready on the fd. When there is
 				# an error, no output go to the fd
-				while ! read -t 0 -u ${COPROC[0]}; do
-					if ! grep -E "^(ERROR|FATAL)" $psql_stderr >/dev/null 2>&1; then
+				while ! read -r -t 0 -u "${COPROC[0]}"; do
+					if ! grep -E "^(ERROR|FATAL)" "$psql_stderr" >/dev/null 2>&1; then
 						sleep 1
 					else
 						return 1
@@ -1517,15 +1522,15 @@ case $action in
 				# newlines to pipe characters, to pass through expansion of
 				# newline to space, when stored as a string.
 				ret_str=''
-				while read -t 1 -u ${COPROC[0]} line; do
+				while read -r -t 1 -u "${COPROC[0]}" line; do
 					[ -n "$line" ] && ret_str="$ret_str$line|"
 				done
-				echo -n $ret_str | sed 's/|$//'
+				echo -n "$ret_str" | sed 's/|$//'
 				return 0
 			}
 
 			check_psql_stderr() {
-				if grep -E "^(ERROR|FATAL)" $psql_stderr >/dev/null 2>&1; then
+				if grep -E "^(ERROR|FATAL)" "$psql_stderr" >/dev/null 2>&1; then
 					return 1
 				else
 					return 0
@@ -1533,23 +1538,23 @@ case $action in
 			}
 
 			# Check if the connection works by getting the pid of the backend
-			echo 'select pg_backend_pid();' >&${COPROC[1]} # 2>/dev/null
+			echo 'select pg_backend_pid();' >&"${COPROC[1]}" # 2>/dev/null
 			if [ $? != 0 ]; then
-				check_psql_stderr || cat $psql_stderr
+				check_psql_stderr || cat "$psql_stderr"
 				die_and_hook "could not check connection to PostgreSQL"
 			fi
 			psql_pid=$(get_psql_output)
 
 			# Start the base backup
-			echo "select pg_start_backup('${label_text}', true, false);"  >&${COPROC[1]}
+			echo "select pg_start_backup('${label_text}', true, false);"  >&"${COPROC[1]}"
 			if [ $? != 0 ]; then
-				check_psql_stderr || cat $psql_stderr
+				check_psql_stderr || cat "$psql_stderr"
 				die_and_hook "could not start backup process (command sending)"
 			fi
 
 			start_backup_lsn=$(get_psql_output)
 			if [ -z "$start_backup_lsn" ]; then
-				check_psql_stderr || cat $psql_stderr
+				check_psql_stderr || cat "$psql_stderr"
 				die_and_hook "could not start backup process (empty output)"
 			fi
 		else
@@ -1560,10 +1565,10 @@ case $action in
 			# backup_label that will be archived after pg_stop_backup
 			# completes
 			if (( $pg_version >= 80400 )); then
-				start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}', true)) as i;" $psql_condb`
+				start_backup_label_file=$("${psql_command[@]}" -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}', true)) as i;" "$psql_condb")
 				rc=$?
 			else
-				start_backup_label_file=`${psql_command[@]} -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}')) as i;" $psql_condb`
+				start_backup_label_file=$("${psql_command[@]}" -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}')) as i;" "$psql_condb")
 				rc=$?
 			fi
 
@@ -1573,7 +1578,7 @@ case $action in
 		fi
 
 		# Add a signal handler to avoid leaving the cluster in backup mode when exiting on error
-		trap stop_backup INT TERM KILL EXIT
+		trap stop_backup INT TERM EXIT
 
 		# When using rsync storage, search for the previous backup to prepare
 		# the target directories. We try to optimize the space usage by
@@ -1606,14 +1611,14 @@ case $action in
 			"tar")
 				# Tar $PGDATA
 				info "backing up PGDATA with tar"
-				was=`pwd`
+				was=$(pwd)
 				if ! cd -- "$PGDATA"; then
 					die_and_hook "could not change current directory to $PGDATA"
 				fi
 
 				# prepare the list of files and directories to exclude
 				excluded=("pg_${xlog_or_wal}" 'pg_replslot/*' 'postmaster.*' 'pgsql_tmp' 'restored_config_files' 'backup_label.old' '*.sql')
-				excluded_opts=()
+				exclude_opts=()
 				for i in "${excluded[@]}"; do
 					exclude_opts+=("--exclude=$i")
 				done
@@ -1658,10 +1663,10 @@ case $action in
 						fi
 					fi
 				fi
-				cd -- "$was"
+				cd -- "$was" || die_and_hook "$was directory not reachable"
 
 				# Tar the tablespaces
-				while read line ; do
+				while read -r line ; do
 					name=$(cut -d '|' -f 1 <<< "$line")
 					_name=${name//+([[:space:]])/_}	# No space version, we want paths without spaces
 					location=$(cut -d '|' -f 2 <<< "$line")
@@ -1673,7 +1678,7 @@ case $action in
 
 					# Change directory to the parent directory or the tablespace to be
 					# able to tar only the base directory
-					was=`pwd`
+					was=$(pwd)
 					if ! cd -- "$location"; then
 						die_and_hook "could not change current directory to $location"
 					fi
@@ -1722,7 +1727,7 @@ case $action in
 						fi
 					fi
 
-					cd -- "$was"
+					cd -- "$was" || die_and_hook "$was directory not reachable"
 
 				done < "$tblspc_list"
 				;;
@@ -1745,13 +1750,13 @@ case $action in
 
 				info "transferring data from $PGDATA"
 				if [ "$backup_local" = "yes" ]; then
-					rsync $rsync_opts -aq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_dir/pgdata/"
+					rsync "$rsync_opts" -aq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_dir/pgdata/"
 					rc=$?
 					if [ $rc != 0 ] && [ $rc != 24 ]; then
 						die_and_hook "rsync of PGDATA failed with exit code $rc"
 					fi
 				else
-					rsync $rsync_opts -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_ssh_target:$(qw "$backup_dir/pgdata/")"
+					rsync "$rsync_opts" -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_ssh_target:$(qw "$backup_dir/pgdata/")"
 					rc=$?
 					if [ $rc != 0 ] && [ $rc != 24 ]; then
 						die_and_hook "rsync of PGDATA failed with exit code $rc"
@@ -1761,7 +1766,7 @@ case $action in
 
 				# Tablespaces. We do the same as pgdata: hardlink the previous
 				# backup directory if possible, then rsync.
-				while read line; do
+				while read -r line; do
 					name=$(cut -d '|' -f 1 <<< "$line")
 					_name=${name//+([[:space:]])/_}	# No space version, we want paths without spaces
 					location=$(cut -d '|' -f 2 <<< "$line")
@@ -1786,13 +1791,13 @@ case $action in
 					# rsync
 					info "transferring data from $location"
 					if [ "$backup_local" = "yes" ]; then
-						rsync $rsync_opts -aq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_dir/tblspc/$_name/"
+						rsync "$rsync_opts" -aq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_dir/tblspc/$_name/"
 						rc=$?
 						if [ $rc != 0 ] && [ $rc != 24 ]; then
 								die_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 							fi
 					else
-						rsync $rsync_opts -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
+						rsync "$rsync_opts" -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
 						rc=$?
 						if [ $rc != 0 ] && [ $rc != 24 ]; then
 								die_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
@@ -1887,7 +1892,7 @@ case $action in
 			# to remove this temp file
 			backup_file=$backup_label_file
 
-			echo $label_contents | tr '|' '\n' > $backup_file
+			echo "$label_contents" | tr '|' '\n' > "$backup_file"
 			if [ $? != 0 ]; then
 				die_and_hook "could not write temporary backup_label file"
 			fi
@@ -1898,7 +1903,7 @@ case $action in
 					die_and_hook "could not create temporary file"
 				fi
 
-				echo $spcmap_contents | tr '|' '\n' > $tablespace_map_file
+				echo "$spcmap_contents" | tr '|' '\n' > "$tablespace_map_file"
 				if [ $? != 0 ]; then
 					die_and_hook "could not write temporary tablespace_map file"
 				fi
@@ -1917,7 +1922,7 @@ case $action in
 		# Convert the stop time to UTC, this make it easier when searching for
 		# a proper backup when restoring
 		if [ -n "$stop_time" ]; then
-			timestamp=$(${psql_command[@]} -Atc "SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '${stop_time}');" $psql_condb) ||
+			timestamp=$("${psql_command[@]}" -Atc "SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '${stop_time}');" "$psql_condb") ||
 				warn "could not get the stop time timestamp from PostgreSQL"
 		else
 			die_and_hook "Failed to get STOP TIME from '$backup_file'"
@@ -1930,16 +1935,16 @@ case $action in
 		# we do not have to uncompress a WAL file to find out its
 		# size.
 		if (( $pg_version >= 110000 )); then
-			wal_segsize=$(${psql_command[@]} -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'" $psql_conndb) ||
+			wal_segsize=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'" "$psql_condb") ||
 				warn "could not get the size of a WAL segment from PostgreSQL"
 		fi
 
 		# Ask PostgreSQL where are its configuration file. When they are
 		# outside PGDATA, copy them in the backup
-		_pgdata=`readlink -f -- "$PGDATA"`
+		_pgdata=$(readlink -f -- "$PGDATA")
 
 		while read -r -d '' f; do
-			file=`readlink -f -- "$f"`
+			file=$(readlink -f -- "$f")
 			if [[ ! $file =~ ^"$_pgdata" ]]; then
 				# the file in not inside PGDATA, copy it
 				destdir=$backup_dir/conf
@@ -1985,7 +1990,7 @@ case $action in
 														 "SELECT setting FROM pg_settings WHERE name = '$f';" \
 														 -- "$psql_condb" \
 					|| warn "could not get the list of configuration files from PostgreSQL"
-				printf "\0"
+				printf "\\0"
 			done
 		)
 
@@ -1995,9 +2000,9 @@ case $action in
 			backup_name=$(date -d "$stop_time" +"%FT%T%z") ||
 				error_and_hook "could not format stop time to a directory name"
 		else
-			backup_name=$(echo $stop_time | awk '{ gsub(/[:-]/, "."); print $1"_"$2 }')
+			backup_name=$(echo "$stop_time" | awk '{ gsub(/[:-]/, "."); print $1"_"$2 }')
 		fi
-		new_backup_dir=$backup_root/$label_prefix/$backup_name
+		new_backup_dir=$backup_root/$backup_name
 
 		# Finish the backup by copying needed files and rename the backup
 		# directory to a useful name
@@ -2112,7 +2117,7 @@ case $action in
 			if (( $pg_version >= 90600 )) && (( ${BASH_VERSINFO[0]} >= 4 )); then
 				if [ -n "$tablespace_map_file" ]; then
 					info "copying the tablespace_map file"
-					if ! scp -- $tablespace_map_file "$backup_ssh_target:$(qw "$backup_dir/tablespace_map")" > /dev/null; then
+					if ! scp -- "$tablespace_map_file" "$backup_ssh_target:$(qw "$backup_dir/tablespace_map")" > /dev/null; then
 						die_and_hook "could not copy tablespace_map to $backup_ssh_target:$backup_dir"
 					fi
 				fi
@@ -2428,7 +2433,7 @@ case $action in
 		info
 
 		# Check if tablespace relocation list have duplicates
-		if (( $(for o in "${tspc_dedup[@]}"; do echo $o; done | sort -u | wc -l) < $tspc_count )); then
+		if (( $(for o in "${tspc_dedup[@]}"; do echo "$o"; done | sort -u | wc -l) < $tspc_count )); then
 			die "found duplicates in tablespace relocations. Check options and the list of tablespaces of the backup"
 		fi
 
@@ -2462,8 +2467,8 @@ case $action in
 			"tar")
 				# pgdata
 				info "extracting PGDATA to $PGDATA"
-				was=`pwd`
-				cd -- "$PGDATA"
+				was=$(pwd)
+				cd -- "$PGDATA" || die_and_hook "$PGDATA directory not reachable"
 				if [ "$backup_local" = "yes" ]; then
 					if [ "$BACKUP_ENCRYPT" = "yes" ]; then
 						"${gpg_command[@]}" -o - "$backup_dir/pgdata.tar.gpg" | tar xf -
@@ -2503,7 +2508,7 @@ case $action in
 						fi
 					fi
 				fi
-				cd -- "$was"
+				cd -- "$was" || die_and_hook "$was directory not reachable"
 				info "extraction of PGDATA successful"
 				;;
 
@@ -2515,13 +2520,13 @@ case $action in
 				init_rsync_opts
 
 				if [ "$backup_local" = "yes" ]; then
-					rsync $rsync_opts -aq --delete -- "$backup_dir/pgdata/" "$PGDATA/"
+					rsync "$rsync_opts" -aq --delete -- "$backup_dir/pgdata/" "$PGDATA/"
 					rc=$?
 					if [ $rc != 0 ] && [ $rc != 24 ]; then
 						die "rsync of PGDATA failed with exit code $rc"
 					fi
 				else
-					rsync $rsync_opts -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/pgdata/")" "$PGDATA/"
+					rsync "$rsync_opts" -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/pgdata/")" "$PGDATA/"
 					rc=$?
 					if [ $rc != 0 ] && [ $rc != 24 ]; then
 						die "rsync of PGDATA failed with exit code $rc"
@@ -2587,7 +2592,7 @@ case $action in
 		fi
 
 		# change owner of PGDATA to the target owner
-		if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+		if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ]; then
 			info "setting owner of PGDATA ($PGDATA)"
 			if ! chown -R -- "$PGOWNER:" "$PGDATA"; then
 				die "could not change owner of PGDATA to $PGOWNER"
@@ -2611,7 +2616,7 @@ case $action in
 
 				# Ensure the new link has the correct owner, the chown -R
 				# issued after extraction will not do it
-				if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+				if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ]; then
 					chown -h -- "$PGOWNER:" "$PGDATA/pg_tblspc/$oid"
 				fi
 			fi
@@ -2620,8 +2625,8 @@ case $action in
 			case $storage in
 				"tar")
 					info "extracting tablespace \"${name}\" to $tbldir"
-					was=`pwd`
-					cd -- "$tbldir"
+					was=$(pwd)
+					cd -- "$tbldir" || die_and_hook "$tbldir directory not reachable"
 					if [ "$backup_local" = "yes" ]; then
 						if [ "$BACKUP_ENCRYPT" = "yes" ]; then
 							"${gpg_command[@]}" -o - "$backup_dir/tblspc/${_name}.tar.gpg" | tar xf -
@@ -2661,20 +2666,20 @@ case $action in
 							fi
 						fi
 					fi
-					cd -- "$was"
+					cd -- "$was" || die_and_hook "$was directory not reachable"
 					info "extraction of tablespace \"${name}\" successful"
 					;;
 
 				"rsync")
 					info "transferring tablespace \"${name}\" to $tbldir with rsync"
 					if [ "$backup_local" = "yes" ]; then
-						rsync $rsync_opts -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
+						rsync "$rsync_opts" -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
 						rc=$?
 						if [ $rc != 0 ] && [ $rc != 24 ]; then
 							die "rsync of tablespace \"${name}\" failed with exit code $rc"
 						fi
 					else
-						rsync $rsync_opts -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
+						rsync "$rsync_opts" -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
 						rc=$?
 						if [ $rc != 0 ] && [ $rc != 24 ]; then
 							die "rsync of tablespace \"${name}\" failed with exit code $rc"
@@ -2689,7 +2694,7 @@ case $action in
 			esac
 
 			# change owner of the tablespace files to the target owner
-			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+			if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ]; then
 				info "setting owner of tablespace \"$name\" ($tbldir)"
 				if ! chown -R -- "$PGOWNER:" "$tbldir"; then
 					die "could not change owner of tablespace \"$name\" to $PGOWNER"
@@ -2758,7 +2763,7 @@ case $action in
 			if ! ln -sf -- "$PGWAL" "$PGDATA/pg_${xlog_or_wal}"; then
 				die "could not create $PGDATA/pg_${xlog_or_wal} symbolic link"
 			fi
-			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+			if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ]; then
 				if ! chown -h -- "$PGOWNER:" "$PGDATA/pg_${xlog_or_wal}"; then
 					die "could not change owner of pg_${xlog_or_wal} symbolic link to $PGOWNER"
 				fi
@@ -2775,7 +2780,7 @@ case $action in
 				die "could not set permissions of $PGDATA/pg_${xlog_or_wal} and $PGDATA/pg_${xlog_or_wal}/archive_status"
 			fi
 
-			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+			if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ]; then
 				if ! chown -R -- "$PGOWNER:" "$PGDATA/pg_${xlog_or_wal}"; then
 					die "could not change owner of $dir to $PGOWNER"
 				fi
@@ -2868,7 +2873,7 @@ case $action in
 
 			# Ensure recovery file as the correct owner so that PostgreSQL can
 			# rename it at the end of the recovery
-			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ] && [ -n "$recovery_file" ]; then
+			if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ] && [ -n "$recovery_file" ]; then
 				if ! chown -R -- "$PGOWNER:" "$PGDATA/$recovery_file"; then
 					die "could not change owner of $recovery_file to $PGOWNER"
 				fi
@@ -2894,14 +2899,14 @@ case $action in
 
 			if [ -n "$restore_mode_file" ]; then
 				info "Create the $PGDATA/$restore_mode_file file ($RESTORE_MODE mode)"
-				if ! touch $PGDATA/$restore_mode_file; then
+				if ! touch "$PGDATA/$restore_mode_file"; then
 					die "could not create the $PGDATA/$restore_mode_file file"
 				fi
 			fi
 
 			# Ensure signal file as the correct owner so that PostgreSQL can
 			# delete it at the end of the recovery
-			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ] && [ -n "$restore_mode_file" ]; then
+			if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ] && [ -n "$restore_mode_file" ]; then
 				if ! chown -R -- "$PGOWNER:" "$PGDATA/$restore_mode_file"; then
 					die "could not change owner of $restore_mode_file to $PGOWNER"
 				fi
@@ -2955,11 +2960,11 @@ case $action in
 			for (( i=0; i<$tspc_count; ++i )); do
 				if [ "${tspc_reloc[$i]}" = "yes" ]; then
 					echo "-- update location of ${tspc_name[$i]} to ${tspc_dir[$i]}" >> "$updsql"
-					printf "UPDATE pg_catalog.pg_tablespace SET spclocation = '%s' WHERE oid = %s;\n" "${tspc_dir[$i]}" "${tspc_oid[$i]}" >> "$updsql"
+					printf "UPDATE pg_catalog.pg_tablespace SET spclocation = '%s' WHERE oid = %s;\\n" "${tspc_dir[$i]}" "${tspc_oid[$i]}" >> "$updsql"
 				fi
 			done
 
-			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+			if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ]; then
 				chown -- "$PGOWNER:" "$updsql" 2>/dev/null
 			fi
 		fi
@@ -3040,7 +3045,7 @@ case $action in
 		fi
 
 		if [ -f "$replslots_sql" ]; then
-			if [[ $(cat "$replslots_sql" | wc -l) > 0 ]]; then
+			if [[ $(wc -l "$replslots_sql"|cut -d' ' -f1) -gt 0 ]]; then
 				info "replication slots defined at the time of the backup can be restored"
 				info "with the SQL commands from:"
 				info "  $replslots_sql"
@@ -3477,7 +3482,7 @@ case $action in
 				# needed by the rsync storage method
 				if [[ $STORAGE == "rsync" ]]; then
 					info "checking rsync on the remote host: $backup_ssh_target"
-					if ! ssh -n -- "$backup_ssh_target" "which rsync" >/dev/null 2>&1; then
+					if ! ssh -n -- "$backup_ssh_target" "command -v rsync" >/dev/null 2>&1; then
 						error "could not find rsync in the PATH on $backup_ssh_target"
 					else
 						info "rsync found on the remote host"
@@ -3488,7 +3493,7 @@ case $action in
 			# Check the local rsync
 			if [[ $STORAGE == "rsync" ]]; then
 				info "checking rsync on the local host"
-				if ! which rsync >/dev/null 2>&1; then
+				if ! command -v rsync >/dev/null 2>&1; then
 					error "could not find rsync in the PATH of the local host"
 				else
 					info "rsync found on the local host"
@@ -3511,7 +3516,7 @@ case $action in
 
 				# Check if rsync is installed on the remote host
 				info "checking rsync on the remote host: $archive_ssh_target"
-				if ! ssh -n -- "$archive_ssh_target" "which rsync" >/dev/null 2>&1; then
+				if ! ssh -n -- "$archive_ssh_target" "command -v rsync" >/dev/null 2>&1; then
 					error "could not find rsync in the PATH on $archive_ssh_target"
 					arch_ok="no"
 				else
@@ -3522,7 +3527,7 @@ case $action in
 			# Check the local rsync for WAL archiving
 			if [[ $STORAGE == "rsync" ]] || [[ $archive_local == "no" ]]; then
 				info "checking rsync on the local host"
-				if ! which rsync >/dev/null 2>&1; then
+				if ! command -v rsync >/dev/null 2>&1; then
 					error "could not find rsync in the PATH of the local host"
 					arch_ok="no"
 				else
@@ -3553,11 +3558,11 @@ case $action in
 
 			# Show the command line of psql and the contents of the environnement
 			# variables starting with PG, they may affect the behaviour of psql.
-			info "psql command and connection options are: ${psql_command[@]}"
+			info "psql command and connection options are:" "${psql_command[@]}"
 			info "connection database is: $psql_condb"
 			info "environment variables (maybe overwritten by the configuration file):"
 			while read -r -d '' v; do
-				echo $v | grep -q "^PG" || continue
+				echo "$v" | grep -q "^PG" || continue
 				info "  $v"
 			done < <(env -0 2>/dev/null || warn "could not read the environment: env -0 failed")
 
@@ -3893,11 +3898,11 @@ case $action in
 						tmpwal=$(mktemp -t pitr_wal.XXXXXXXXXX) ||
 							error "Failed to create temporary file"
 						if [ "$archive_local" = "yes" ]; then
-							if ! cp "$first_wal_file" $tmpwal; then
+							if ! cp "$first_wal_file" "$tmpwal"; then
 								die "Could not copy archived wal file"
 							fi
 						else
-							if ! scp -- "${archive_ssh_target}:$(qw "$first_wal_file")" $tmpwal >/dev/null 2>&1; then
+							if ! scp -- "${archive_ssh_target}:$(qw "$first_wal_file")" "$tmpwal" >/dev/null 2>&1; then
 								die "Could not copy archived wal file from ${archive_ssh_target}"
 							fi
 						fi
@@ -3905,7 +3910,7 @@ case $action in
 						if [ "$ARCHIVE_COMPRESS" = "yes" ] && [ -n "$ARCHIVE_UNCOMPRESS_BIN" ]; then
 							[[ "$output" != "nagios" ]] && info "uncompressing $first_wal_file to measure its size"
 
-							wal_segsize=$($ARCHIVE_UNCOMPRESS_BIN -c $tmpwal 2>/dev/null| wc -c)
+							wal_segsize=$($ARCHIVE_UNCOMPRESS_BIN -c "$tmpwal" 2>/dev/null| wc -c)
 							if [[ -z "$wal_segsize" ]] || [[ "$wal_segsize" == 0 ]]; then
 								die "Could not uncompress the WAL to check its size"
 							fi
@@ -3913,13 +3918,13 @@ case $action in
               die "No uncompress command is defined"
 						else
 							[[ "$output" != "nagios" ]] && info "assuming WAL segments are not compressed"
-							wal_segsize=$(cat $tmpwal 2>/dev/null| wc -c)
+							wal_segsize=$(wc -c "$tmpwal" 2>/dev/null |cut -d' ' -f1)
 							if [[ -z "$wal_segsize" ]] || [[ "$wal_segsize" == 0 ]]; then
 								die "Could not get the size of the WAL segment"
 							fi
 						fi
 
-						rm -f -- $tmpwal
+						rm -f -- "$tmpwal"
 					fi
 
 					# wal_segsize is in bytes, compute the number of segments per log
@@ -4105,7 +4110,7 @@ case $action in
 		done
 
 		# target directory for backups must be provided
-		if [ -z "${@:$OPTIND:1}" ]; then
+		if [ -z "${*:$OPTIND:1}" ]; then
 			error "missing target backup directory"
 			usage "configure" 1
 		fi
@@ -4535,13 +4540,13 @@ EOF
 			if [ -w "$(dirname -- "$output")" ]; then
 				if [ -n "$conffile" ]; then
 					cp -- "$conffile" "$output" || die "Could not write $output"
-					rm -- $conffile
+					rm -- "$conffile"
 				fi
 			else
 				die "Could not write $output: directory is not writable"
 			fi
 		else
-			[ -n "$conffile" ] && rm -- $conffile
+			[ -n "$conffile" ] && rm -- "$conffile"
 		fi
 		;;
 
