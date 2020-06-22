@@ -3116,10 +3116,13 @@ case $action in
 				candidates[$ts]=$dir
 			else
 				# We shouldn't normally ever be here, but if we are it's probably one
-				# of two main reasons:
+				# of three main reasons:
 				# - This is a dir that starts with a digit but isn't actually a backup.
-				# - Is is a backup, but either we failed to put a valid backup_timestamp
-				#   into it, or that somehow got removed or corrupted again.
+				# - The backup was generated with an other tool with a compatible
+				#   directory name.
+				# - It is a backup, but either we failed to put a valid backup_timestamp
+				#   into it, or that somehow got removed or corrupted again. The backup
+				#   could also be correct while the privilege are messed up.
 				#
 				# In the latter case we could try to reconstruct a timestamp here, but
 				# it's probably safer to just let the admin figure out what went wrong
@@ -3132,6 +3135,10 @@ case $action in
 				# We could do more trickery based on the dirname to try to guess if the
 				# latter case is true, but again, Something Went Wrong Somewhere, so
 				# just play safe until the admin figures out what that was.
+				#
+				# We don't exit now because we can still purge backups. At worst, we will
+				# purge less than we could. On the other hand, the WAL expiration cannot
+				# be performed safely.
 				have_unknown_timestamp="yes"
 				warn "Could not get backup_timestamp for '$dir', it will not be purged"
 			fi
@@ -3198,95 +3205,23 @@ case $action in
 			info "there are no backups to purge"
 		fi
 
+		if [ "$have_unknown_timestamp" = "yes" ]; then
+			# As explained earlier, expiring WAL files when we have backups without
+			# backup_timestamp is unsafe. The problem must be fixed before WAL expiration
+			# can be performed.
+			die "The backup_timestamp file is missing from all/some directories in the backup directory. Please Fix it."
+		fi
 
-		# To be able to purge the archived wals, the backup_label of the oldest backup
-		# is needed to find the oldest wal file to keep.
+		if [ -n "$oldest_unpurged" ]; then
+			# if we have some backup left after the purge we need to get the content of
+			# the backup_label in order to find the WAL we have to expire.
 
-		# The easy case, where every directory had a valid backup_timestamp when we scanned them.
-		# This is all we should ever need normally.
-		get_oldest_unpurged_label() {
 			if [ "$backup_local" = "yes" ]; then
 				backup_label=$(< "$oldest_unpurged/backup_label") ||
 					die "Unable to read '$oldest_unpurged/backup_label'"
 			else
 				backup_label=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_unpurged/backup_label")") ||
 					die "Unable to read '$backup_ssh_target:$oldest_unpurged/backup_label'"
-			fi
-		}
-
-		# The fallback case, where we have directories which matched the [0-9]* glob,
-		# that _might_ be backups and have a backup_label in them, but didn't have a
-		# valid backup_timestamp for some reason.
-		find_oldest_backup_label() {
-			if [ "$backup_local" = "yes" ]; then
-				blist=( "$backup_dir/"[0-9]*/backup_label )
-				if (( ${#blist[@]} > 0 )); then
-					backup_label=$(< "${blist[0]}") || die "Unable to read ${blist[0]}"
-				fi
-			else
-				# It would probably be better to do something more like the local version above,
-				# but this should be portable regardless of the remote login shell, and gets it
-				# done with a single ssh connection.
-				backup_label=$(ssh -n -- "$backup_ssh_target" "f=\$(find $(qw "$backup_dir") -path $(qw "$backup_dir/[0-9]*/backup_label") -type f -print0 | sort -z | cut -d '' -f1) && [ -n \"\$f\" ] && cat -- \"\$f\"") || die "Unable to read the backup_label file of the oldest backup"
-			fi
-		}
-
-		if [ "$dry_run" = "yes" ]; then
-			# For a dry run we want the backup_label from the oldest one that we wouldn't have removed.
-
-			if [ -n "$oldest_unpurged" ]; then
-				# We have timestamps for at least some directories, if not all of them,
-				# and we aren't purging every directory with a backup_timestamp file.
-				# Scanning for backup_label files would give the wrong answer (since we
-				# didn't actually delete anything this time), so just use the best answer
-				# we have, and warn if we can't be certain that it's 100% correct.
-				[ "$have_unknown_timestamp" != "yes" ] ||
-					warn "Some directories are missing a backup_timestamp.  Dry run report may not be correct."
-
-				get_oldest_unpurged_label
-
-			elif (( ${#candidates[@]} == 0 )); then
-				# We found no directories with a backup_timestamp file (and so there were
-				# no candidates for purging).  If we do have some directories that did not
-				# have a backup_timestamp, we can 'safely' still scan those for backup_label
-				# files which we can use to expire old WAL segment files (and we should have
-				# errored out already before getting here if we don't have some of those).
-				if [ "$have_unknown_timestamp" = "yes" ]; then
-					warn "The backup_timestamp was missing from all directories.  Basing WAL expiry on the oldest backup_label found"
-					find_oldest_backup_label
-				fi
-			else
-				# We would have purged all backups with a backup_timestamp file if this wasn't
-				# a dry run.  If there are directories without one, then we can't simply scan
-				# them here.  We could add even more logic to enumerate them based on whether
-				# they contain a backup_label and the stop time recorded in it, but this really
-				# shouldn't ever happen in normal use, so that seems like overkill if we aren't
-				# going to just do that always and get rid of the backup_timestamp files.
-				# If something is that messed up, best we just leave the admin to sort it out.
-				[ "$have_unknown_timestamp" != "yes" ] ||
-					warn "All directories with a backup_timestamp would be purged, but some directories without one would remain."
-			fi
-
-		else
-			# If every directory had a backup_timestamp file, then we already know the oldest
-			# one that we didn't purge (which we have to track to be able to do dry runs).
-			# If there were some that didn't, then they may be older than it is, so scan the
-			# remaining directories again looking for backup_label files, to ensure we don't
-			# purge any WAL files which they would need.
-			if [ "$have_unknown_timestamp" = "yes" ]; then
-				warn "Some directories are missing a backup_timestamp.  They have not been purged and WAL files they depend on will not be expired."
-				find_oldest_backup_label
-
-			elif [ -n "$oldest_unpurged" ]; then
-				get_oldest_unpurged_label
-
-				#else
-				# We have just purged all of the available backup directories, we have no
-				# remaining backup_label to use for WAL expiry.  We could purge all the WAL
-				# files up to what was needed for the most recent purged backup, or simply
-				# nuke them all - but leave this as an Admin Problem for now, if they really
-				# had intended to delete Everything, there's probably more afoot than simply
-				# pruning old files to make space.
 			fi
 		fi
 
