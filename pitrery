@@ -3623,7 +3623,7 @@ case $action in
 				else
 					ts=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
 				fi
-				if [ "$?" -ne "0" ]; then
+				if [ $? != 0 ]; then
 					die "The backup_timestamp file is missing from all/some directories in the backup directory. Please Fix it."
 				fi
 
@@ -3725,7 +3725,7 @@ case $action in
 				else
 					ts=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
 				fi
-				if [ "$?" -ne "0" ]; then
+				if [ $? != 0 ]; then
 					die "The backup_timestamp file is missing from all/some directories in the backup directory. Please Fix it."
 				fi
 
