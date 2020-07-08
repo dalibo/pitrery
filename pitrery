@@ -63,7 +63,7 @@ SYSLOG="no"
 SYSLOG_FACILITY="local0"
 SYSLOG_IDENT="postgres"
 
-SSH_CMD="ssh"
+SSH_CMD=(ssh)
 RSYNC_WHOLEFILE="no"
 RSYNC_BWLIMIT=
 RSYNC_OPTS=
@@ -274,7 +274,7 @@ cleanup() {
 				fi
 			elif [ -n "$backup_ssh_target" ] && [ -n "$backup_dir" ]; then
 				bd=$(qw "$backup_dir")
-				if ! ${SSH_CMD} -n -- "$backup_ssh_target" "test -d $bd && rm -rf -- $bd" 2>/dev/null; then
+				if ! "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "test -d $bd && rm -rf -- $bd" 2>/dev/null; then
 					error "cleanup of $backup_dir failed on $backup_ssh_target"
 					exit 1
 				fi
@@ -379,7 +379,7 @@ parse_target_uri() {
 	if [ "$backup_local" = "yes" ]; then
 		backup_dir="$(readlink -m -- "$backup_dir")"
 	else
-		backup_dir="$(${SSH_CMD} -n -- "$backup_ssh_target" "readlink -m -- $(qw "$backup_dir")")"
+		backup_dir="$(${SSH_CMD[@]} -n -- "$backup_ssh_target" "readlink -m -- $(qw "$backup_dir")")"
 	fi
 
 	# Parse archive target the same way
@@ -420,7 +420,7 @@ parse_target_uri() {
 	if [ "$archive_local" = "yes" ]; then
 		archive_dir="$(readlink -m -- "$archive_dir")"
 	else
-		archive_dir="$(${SSH_CMD} -n -- "$archive_ssh_target" "readlink -m -- $(qw "$archive_dir")")"
+		archive_dir="$(${SSH_CMD[@]} -n -- "$archive_ssh_target" "readlink -m -- $(qw "$archive_dir")")"
 	fi
 
 	return $out_rc
@@ -438,7 +438,7 @@ list_backups() {
 		while read -r -d '' d; do
 			list+=("$d")
 		done < <(
-			${SSH_CMD} -n -- "$backup_ssh_target" \
+			"${SSH_CMD[@]}" -n -- "$backup_ssh_target" \
 					"find $(qw "$dir") -mindepth 1 -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -z"
 		)
 
@@ -628,7 +628,7 @@ check_psql_command() {
 check_ssh() {
 	local ssh_target=$1
 
-	if ${SSH_CMD} -n -- "$ssh_target" "test -d /" 2>/dev/null; then
+	if "${SSH_CMD[@]}" -n -- "$ssh_target" "test -d /" 2>/dev/null; then
 		info "ssh connection to $ssh_target ok"
 		return 0
 	else
@@ -644,14 +644,14 @@ check_remote_directory() {
 	local dest_isdir
 	local dest_writable
 
-	dest_exists=$(${SSH_CMD} -n -- "$ssh_target" "[ -e $(qw "$dest_dir") ] || echo 'ko'")
+	dest_exists=$("${SSH_CMD[@]}" -n -- "$ssh_target" "[ -e $(qw "$dest_dir") ] || echo 'ko'")
 	if [ $? = 0 ]; then
 		if [ ! -n "$dest_exists" ]; then
-			dest_isdir=$(${SSH_CMD} -n -- "$ssh_target" "[ -d $(qw "$dest_dir") ] || echo 'ko'")
+			dest_isdir=$("${SSH_CMD[@]}" -n -- "$ssh_target" "[ -d $(qw "$dest_dir") ] || echo 'ko'")
 			if [ $? = 0 ]; then
 				if [ ! -n "$dest_isdir" ]; then
 					info "target directory '$dest_dir' exists"
-					dest_writable=$(${SSH_CMD} -n -- "$ssh_target" "[ -w $(qw "$dest_dir") ] || echo 'ko'")
+					dest_writable=$("${SSH_CMD[@]}" -n -- "$ssh_target" "[ -w $(qw "$dest_dir") ] || echo 'ko'")
 					if [ $? = 0 ]; then
 						if [ ! -n "$dest_writable" ]; then
 							info "target directory '$dest_dir' is writable"
@@ -982,9 +982,9 @@ init_rsync_opts() {
 		fi
 	fi
 
-	rsync_opts_local="$rsync_opts -e '${SSH_CMD}'"
+	rsync_opts_local="$rsync_opts -e '${SSH_CMD[@]}'"
 	# for remote copy, use rsync compression and disable it in ssh
-	rsync_opts_remote="$rsync_opts -e '${SSH_CMD} -o Compression=no' -z"
+	rsync_opts_remote="$rsync_opts -e '${SSH_CMD[@]} -o Compression=no' -z"
 }
 
 
@@ -1092,7 +1092,7 @@ case $action in
 					continue
 				fi
 			else
-				if ! ${SSH_CMD} -n -- "$backup_ssh_target" "([ -r $(qw "$dir") ] && [ -x $(qw "$dir") ])"; then
+				if ! "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "([ -r $(qw "$dir") ] && [ -x $(qw "$dir") ])"; then
 					error "acces denied to $dir"
 					continue
 				fi
@@ -1115,7 +1115,7 @@ case $action in
 			if [ "$backup_local" = "yes" ]; then
 				backup_size=( $(du -sh -- "$dir" 2>/dev/null) )
 			else
-				backup_size=( $(${SSH_CMD} -n -- "$backup_ssh_target" "du -sh -- $(qw "$dir") 2>/dev/null" 2>/dev/null) )
+				backup_size=( $("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "du -sh -- $(qw "$dir") 2>/dev/null" 2>/dev/null) )
 			fi
 
 			if [ -n "$backup_size" ]; then
@@ -1141,7 +1141,7 @@ case $action in
 					[[ ${#tarfile[@]} == 1 ]] && storage="tar"
 				fi
 			else
-				if ${SSH_CMD} -n -- "$backup_ssh_target" "test -d $(qw "$dir/pgdata")" 2>/dev/null; then
+				if "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "test -d $(qw "$dir/pgdata")" 2>/dev/null; then
 					storage="rsync"
 				else
 					prefix=$dir/pgdata.tar.
@@ -1149,7 +1149,7 @@ case $action in
 					while read -r -d '' d; do
 						tarfile+=("$d")
 					done < <(
-						${SSH_CMD} -n -- "$backup_ssh_target" "find $(qw "$dir") -maxdepth 1 -name 'pgdata.tar.*' -type f -print0"
+						"${SSH_CMD[@]}" -n -- "$backup_ssh_target" "find $(qw "$dir") -maxdepth 1 -name 'pgdata.tar.*' -type f -print0"
 					)
 					[[ ${#tarfile[@]} == 1 ]] && storage="tar"
 				fi
@@ -1190,8 +1190,8 @@ case $action in
 					error "could not find the backup_label file"
 				fi
 			else
-				if ${SSH_CMD} -n -- "$backup_ssh_target" "test -f $(qw "$dir/backup_label")" 2>/dev/null; then
-					if ! stop_time=$(${SSH_CMD} -n -- "$backup_ssh_target" "sed -n 's/STOP TIME: //p' -- $(qw "$dir/backup_label")") || [ -z "$stop_time" ]; then
+				if "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "test -f $(qw "$dir/backup_label")" 2>/dev/null; then
+					if ! stop_time=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "sed -n 's/STOP TIME: //p' -- $(qw "$dir/backup_label")") || [ -z "$stop_time" ]; then
 						error "could not get \"stop time\" from $backup_host:$dir/backup_label"
 					fi
 				else
@@ -1219,8 +1219,8 @@ case $action in
 					error "could not find the list of tablespaces (tblspc_list)"
 				fi
 			else
-				if ${SSH_CMD} -n -- "$backup_ssh_target" "test -f $(qw "$dir/tblspc_list")" 2>/dev/null; then
-					if ! tblspc_list=$(${SSH_CMD} -n -- "$backup_ssh_target" "cat $(qw "$dir/tblspc_list")" 2>/dev/null); then
+				if "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "test -f $(qw "$dir/tblspc_list")" 2>/dev/null; then
+					if ! tblspc_list=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat $(qw "$dir/tblspc_list")" 2>/dev/null); then
 						error "could not read the list of tablespaces (tblspc_list)"
 					fi
 				else
@@ -1448,17 +1448,17 @@ case $action in
 				die "could not change permissions of $backup_dir"
 			fi
 		else
-			if ${SSH_CMD} -n -- "$backup_ssh_target" "test -e $(qw "$backup_dir")" 2>/dev/null; then
+			if "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "test -e $(qw "$backup_dir")" 2>/dev/null; then
 				die "$backup_dir already exists, another backup may be in progress"
 			fi
 
 			can_cleanup="yes"
-			if ! ${SSH_CMD} -n -- "$backup_ssh_target" "mkdir -p -- $(qw "$backup_dir/tblspc")" 2>/dev/null; then
+			if ! "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "mkdir -p -- $(qw "$backup_dir/tblspc")" 2>/dev/null; then
 				die "could not create $backup_dir/tblspc"
 			fi
 
 			# Make the backup directory private
-			if ! ${SSH_CMD} -n -- "$backup_ssh_target" "chmod 700 -- $(qw "$backup_dir")" 2>/dev/null; then
+			if ! "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "chmod 700 -- $(qw "$backup_dir")" 2>/dev/null; then
 				die "could not change permissions of $backup_dir"
 			fi
 		fi
@@ -1604,8 +1604,8 @@ case $action in
 					[ -d "${_dir%/}/pgdata" ] && prev_backup=${_dir%/}
 				fi
 			else
-				_dir=$(${SSH_CMD} -n -- "$backup_ssh_target" "f=\$(find $(qw "$backup_root") -mindepth 1 -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -rz | cut -d '' -f1) && printf '%s' \"\$f\"")
-				if ${SSH_CMD} -n -- "$backup_ssh_target" "test -d $(qw "$_dir/pgdata")" 2>/dev/null; then
+				_dir=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "f=\$(find $(qw "$backup_root") -mindepth 1 -maxdepth 1 -name '[0-9]*' -type d -print0 | sort -rz | cut -d '' -f1) && printf '%s' \"\$f\"")
+				if "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "test -d $(qw "$_dir/pgdata")" 2>/dev/null; then
 					prev_backup="$_dir"
 				fi
 			fi
@@ -1653,7 +1653,7 @@ case $action in
 					fi
 				else
 					if [ "$BACKUP_ENCRYPT" = "yes" ]; then
-						tar -cpf - --ignore-failed-read "${exclude_opts[@]}" -- * 2>/dev/null | "${gpg_command[@]}" | ${SSH_CMD} -- "$backup_ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.gpg")" 2>/dev/null
+						tar -cpf - --ignore-failed-read "${exclude_opts[@]}" -- * 2>/dev/null | "${gpg_command[@]}" | "${SSH_CMD[@]}" -- "$backup_ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.gpg")" 2>/dev/null
 						rc=(${PIPESTATUS[*]})
 						tar_rc=${rc[0]}
 						gpg_rc=${rc[1]}
@@ -1662,7 +1662,7 @@ case $action in
 							die_and_hook "could not tar PGDATA"
 						fi
 					else
-						tar -cpf - --ignore-failed-read "${exclude_opts[@]}" -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | ${SSH_CMD} -- "$backup_ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
+						tar -cpf - --ignore-failed-read "${exclude_opts[@]}" -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | "${SSH_CMD[@]}" -- "$backup_ssh_target" "cat > $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
 						rc=(${PIPESTATUS[*]})
 						tar_rc=${rc[0]}
 						compress_rc=${rc[1]}
@@ -1716,7 +1716,7 @@ case $action in
 						fi
 					else
 						if [ "$BACKUP_ENCRYPT" = "yes" ]; then
-							tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | "${gpg_command[@]}" | ${SSH_CMD} -- "$backup_ssh_target" "cat > $(qw "$backup_dir/tblspc/${_name}.tar.gpg")" 2>/dev/null
+							tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | "${gpg_command[@]}" | "${SSH_CMD[@]}" -- "$backup_ssh_target" "cat > $(qw "$backup_dir/tblspc/${_name}.tar.gpg")" 2>/dev/null
 							rc=(${PIPESTATUS[*]})
 							tar_rc=${rc[0]}
 							gpg_rc=${rc[1]}
@@ -1725,7 +1725,7 @@ case $action in
 								die_and_hook "could not tar tablespace \"$name\""
 							fi
 						else
-							tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | ${SSH_CMD} -- "$backup_ssh_target" "cat > $(qw "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
+							tar -cpf - --ignore-failed-read --exclude='pgsql_tmp' -- * 2>/dev/null | $BACKUP_COMPRESS_BIN | "${SSH_CMD[@]}" -- "$backup_ssh_target" "cat > $(qw "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null
 							rc=(${PIPESTATUS[*]})
 							tar_rc=${rc[0]}
 							compress_rc=${rc[1]}
@@ -1791,7 +1791,7 @@ case $action in
 						if [ "$backup_local" = "yes" ]; then
 							[ -d "$prev_backup/tblspc/$_name" ] && rsync_link=( '--link-dest' "$prev_backup/tblspc/$_name" )
 						else
-							if ${SSH_CMD} -n -- "$backup_ssh_target" "test -d $(qw "$prev_backup/tblspc/$_name")" 2>/dev/null; then
+							if "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "test -d $(qw "$prev_backup/tblspc/$_name")" 2>/dev/null; then
 								rsync_link=( '--link-dest' "$(qw "$prev_backup/tblspc/$_name")" )
 							fi
 						fi
@@ -1970,7 +1970,7 @@ case $action in
 							die_and_hook "could not copy $f to backup directory"
 					fi
 				else
-					${SSH_CMD} -n -- "$backup_ssh_target" "mkdir -p -- $(qw "$destdir")" 2>/dev/null
+					"${SSH_CMD[@]}" -n -- "$backup_ssh_target" "mkdir -p -- $(qw "$destdir")" 2>/dev/null
 					if [ "$BACKUP_ENCRYPT" = "yes" ]; then
 						# Use a temporary file so that we can encrypt it
 						if ! conf_file=$(mktemp -t backup_pitr.XXXXXXXXXX); then
@@ -2093,25 +2093,25 @@ case $action in
 				fi
 			fi
 		else
-			if ${SSH_CMD} -n -- "$backup_ssh_target" "test -e $(qw "$new_backup_dir")" 2>/dev/null; then
+			if "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "test -e $(qw "$new_backup_dir")" 2>/dev/null; then
 				die_and_hook "backup directory '$backup_ssh_target:$new_backup_dir' already exists"
 			fi
 
 			# Rename the backup directory using the stop time
-			if ! ${SSH_CMD} -n -- "$backup_ssh_target" "mv -- $(qw "$backup_dir" "$new_backup_dir")" 2>/dev/null; then
+			if ! "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "mv -- $(qw "$backup_dir" "$new_backup_dir")" 2>/dev/null; then
 				die_and_hook "could not rename the backup directory"
 			fi
 			backup_dir=$new_backup_dir
 
 			# Save the end of backup timestamp to a file
 			if [ -n "$timestamp" ]; then
-				${SSH_CMD} -n -- "$backup_ssh_target" "echo '$timestamp' > $(qw "$backup_dir/backup_timestamp")" 2>/dev/null ||
+				"${SSH_CMD[@]}" -n -- "$backup_ssh_target" "echo '$timestamp' > $(qw "$backup_dir/backup_timestamp")" 2>/dev/null ||
 					warn "could not save timestamp"
 			fi
 
 			# Save the size of a WAL segment for latter check actions
 			if [ -n "$wal_segsize" ]; then
-				${SSH_CMD} -n -- "$backup_ssh_target" "echo '$wal_segsize' > $(qw "$backup_dir/wal_segsize")" 2>/dev/null ||
+				"${SSH_CMD[@]}" -n -- "$backup_ssh_target" "echo '$wal_segsize' > $(qw "$backup_dir/wal_segsize")" 2>/dev/null ||
 					warn "could not save WAL segment size"
 			fi
 
@@ -2164,10 +2164,10 @@ case $action in
 			(echo "workdir: $(pwd)"
 			 echo "command: $0" "$@"
 			 echo "libpq exported variables:"
-			 env | grep ^PG) 2>/dev/null | ${SSH_CMD} -- "$backup_ssh_target" "cat > $(qw "$backup_dir/backup_command")" 2>/dev/null
+			 env | grep ^PG) 2>/dev/null | "${SSH_CMD[@]}" -- "$backup_ssh_target" "cat > $(qw "$backup_dir/backup_command")" 2>/dev/null
 
 			if [ -f "$config" ]; then
-				echo "config: $config" | ${SSH_CMD} -- "$backup_ssh_target" "cat > $(qw "$backup_dir/backup_command")" 2>/dev/null
+				echo "config: $config" | "${SSH_CMD[@]}" -- "$backup_ssh_target" "cat > $(qw "$backup_dir/backup_command")" 2>/dev/null
 				if ! scp -- "$config" "$backup_ssh_target:$(qw "$backup_dir/pitrery.conf")"; then
 					warn "could not copy $config to $backup_ssh_target:$backup_dir"
 				fi
@@ -2258,7 +2258,7 @@ case $action in
 				# but the amount of extra data transferred here is tiny compared to the rest of
 				# the backup, so it is probably better to just reuse this for both cases than to
 				# duplicate the logic needed just for that.
-				${SSH_CMD} -n -- "$backup_ssh_target" "find $(qw "$backup_root") -path $(qw "$backup_root/[0-9]*/backup_timestamp") -type f -print0 | sort -z"
+				"${SSH_CMD[@]}" -n -- "$backup_ssh_target" "find $(qw "$backup_root") -path $(qw "$backup_root/[0-9]*/backup_timestamp") -type f -print0 | sort -z"
 			)
 
 			(( ${#list[@]} > 0 )) ||
@@ -2282,7 +2282,7 @@ case $action in
 				if [ "$backup_local" = "yes" ]; then
 					backup_timestamp=$(< "$t")
 				else
-					backup_timestamp=$(${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $(qw "$t")")
+					backup_timestamp=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $(qw "$t")")
 				fi
 
 				if [[ $backup_timestamp =~ ^[[:digit:]]+$ ]]; then
@@ -2312,7 +2312,7 @@ case $action in
 			fi
 		else
 			vfile=$(qw "$backup_dir/PG_VERSION")
-			pgversion=$(${SSH_CMD} -n -- "$backup_ssh_target" "[ ! -f $vfile ] || cat -- $vfile") ||
+			pgversion=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "[ ! -f $vfile ] || cat -- $vfile") ||
 				die "Failed to read $backup_ssh_target:$backup_dir/PG_VERSION"
 			info "PostgreSQL version: $pgversion"
 			vdigit=$(sed -nr 's/^([0-9]+).*/\1/p' <<< "$pgversion")
@@ -2337,7 +2337,7 @@ case $action in
 			fi
 		else
 			tfile=$(qw "$backup_dir/tblspc_list")
-			tblspc_list=$(${SSH_CMD} -n -- "$backup_ssh_target" "[ ! -f $tfile ] || cat -- $tfile") ||
+			tblspc_list=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "[ ! -f $tfile ] || cat -- $tfile") ||
 				die "Failed to read $backup_ssh_target:$backup_dir/tblspc_list"
 		fi
 
@@ -2390,7 +2390,7 @@ case $action in
 				storage=$(find "$backup_dir" -mindepth 1 -maxdepth 1 -name 'pgdata.tar.*' -type f -printf '%f' -quit)
 			fi
 		else
-			storage=$(${SSH_CMD} -n -- "$backup_ssh_target" "if [ -f $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX") ]; then echo 'tar'; elif [ -d $(qw "$backup_dir/pgdata") ]; then echo 'rsync'; else find $(qw "$backup_dir") -maxdepth 1 -mindepth 1 -name 'pgdata.tar.*' -type f -printf '%f' -quit; fi")
+			storage=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "if [ -f $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX") ]; then echo 'tar'; elif [ -d $(qw "$backup_dir/pgdata") ]; then echo 'rsync'; else find $(qw "$backup_dir") -maxdepth 1 -mindepth 1 -name 'pgdata.tar.*' -type f -printf '%f' -quit; fi")
 
 			if [ "$storage" = "pgdata.tar.gpg" ]; then
 				storage="tar"
@@ -2498,7 +2498,7 @@ case $action in
 					fi
 				else
 					if [ "$BACKUP_ENCRYPT" = "yes" ]; then
-						${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/pgdata.tar.gpg")" 2>/dev/null | "${gpg_command[@]}" | tar xf - 2>/dev/null
+						"${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/pgdata.tar.gpg")" 2>/dev/null | "${gpg_command[@]}" | tar xf - 2>/dev/null
 						rc=(${PIPESTATUS[*]})
 						ssh_rc=${rc[0]}
 						gpg_rc=${rc[1]}
@@ -2507,7 +2507,7 @@ case $action in
 							die "could not extract $backup_ssh_target:$backup_dir/pgdata.tar.gpg to $PGDATA"
 						fi
 					else
-						${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null | $BACKUP_UNCOMPRESS_BIN | tar xf - 2>/dev/null
+						"${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/pgdata.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null | $BACKUP_UNCOMPRESS_BIN | tar xf - 2>/dev/null
 						rc=(${PIPESTATUS[*]})
 						ssh_rc=${rc[0]}
 						uncompress_rc=${rc[1]}
@@ -2580,7 +2580,7 @@ case $action in
 
 		else
 			confdir=$(qw "$backup_dir/conf")
-			if ${SSH_CMD} -n -- "$backup_ssh_target" "test -d $confdir" 2>/dev/null; then
+			if "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "test -d $confdir" 2>/dev/null; then
 				info "restoring configuration files to $restored_conf"
 				if ! scp -r -- "$backup_ssh_target:$confdir" "$restored_conf" >/dev/null; then
 					die "could not copy $backup_ssh_target:$backup_dir/conf to $restored_conf"
@@ -2656,7 +2656,7 @@ case $action in
 						fi
 					else
 						if [ "$BACKUP_ENCRYPT" = "yes" ]; then
-							${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/tblspc/${_name}.tar.gpg")" 2>/dev/null | "${gpg_command[@]}" | tar xf - 2>/dev/null
+							"${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/tblspc/${_name}.tar.gpg")" 2>/dev/null | "${gpg_command[@]}" | tar xf - 2>/dev/null
 							rc=(${PIPESTATUS[*]})
 							ssh_rc=${rc[0]}
 							gpg_rc=${rc[1]}
@@ -2665,7 +2665,7 @@ case $action in
 								die "Could not extract tablespace $name to $tbldir"
 							fi
 						else
-							${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null | $BACKUP_UNCOMPRESS_BIN | tar xf - 2>/dev/null
+							"${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $(qw "$backup_dir/tblspc/${_name}.tar.$BACKUP_COMPRESS_SUFFIX")" 2>/dev/null | $BACKUP_UNCOMPRESS_BIN | tar xf - 2>/dev/null
 							rc=(${PIPESTATUS[*]})
 							ssh_rc=${rc[0]}
 							uncompress_rc=${rc[1]}
@@ -2733,9 +2733,9 @@ case $action in
 			fi
 		else
 			if [ "$BACKUP_ENCRYPT" = "yes" ]; then
-				if ${SSH_CMD} -n -- "$backup_ssh_target" "test -f $(qw "$backup_dir/pg_control.gpg")"; then
+				if "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "test -f $(qw "$backup_dir/pg_control.gpg")"; then
 					info "pg_control file found in $backup_dir, restoring it"
-					${SSH_CMD} -n --  "$backup_ssh_target" "cat -- $(qw "$backup_dir/pg_control.gpg")" 2>/dev/null | "${gpg_command[@]}" > "$PGDATA/global/pg_control"
+					"${SSH_CMD[@]}" -n --  "$backup_ssh_target" "cat -- $(qw "$backup_dir/pg_control.gpg")" 2>/dev/null | "${gpg_command[@]}" > "$PGDATA/global/pg_control"
 					rc=(${PIPESTATUS[*]})
 					ssh_rc=${rc[0]}
 					gpg_rc=${rc[1]}
@@ -2744,7 +2744,7 @@ case $action in
 					fi
 				fi
 			else
-				if ${SSH_CMD} -n -- "$backup_ssh_target" "test -f $(qw "$backup_dir/pg_control")"; then
+				if "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "test -f $(qw "$backup_dir/pg_control")"; then
 					info "pg_control file found in $backup_dir, restoring it"
 					if ! scp -- "$backup_ssh_target:$(qw "$backup_dir/pg_control")" "$PGDATA/global/pg_control" >/dev/null; then
 						die "could not restore pg_control file to $PGDATA/global/"
@@ -2999,12 +2999,12 @@ case $action in
 			else
 				rfile=$(qw "$replslot_list_file")
 				if [ "$BACKUP_ENCRYPT" = "yes" ]; then
-					if ${SSH_CMD} -n -- "$backup_ssh_target" "[ -f $rfile ]"; then
-						replslot_list=$(${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $rfile" | "${gpg_command[@]}") ||
+					if "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "[ -f $rfile ]"; then
+						replslot_list=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $rfile" | "${gpg_command[@]}") ||
 							die "Failed to read $backup_ssh_target:$replslot_list_file"
 					fi
 				else
-					replslot_list=$(${SSH_CMD} -n -- "$backup_ssh_target" "[ ! -f $rfile ] || cat -- $rfile") ||
+					replslot_list=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "[ ! -f $rfile ] || cat -- $rfile") ||
 						die "Failed to read $backup_ssh_target:$replslot_list_file"
 				fi
 			fi
@@ -3122,7 +3122,7 @@ case $action in
 			if [ "$backup_local" = "yes" ]; then
 				ts=$(< "$dir/backup_timestamp")
 			else
-				ts=$(${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
+				ts=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
 			fi
 
 			# The timestamp must be a string of (only) digits, we do arithmetic with it
@@ -3211,7 +3211,7 @@ case $action in
 				else
 					# We can't preserve the word splitting behaviour of a quoted array across the
 					# call to ssh, so ensure each argument is properly shell quoted instead.
-					${SSH_CMD} -n -- "$backup_ssh_target" "rm -rf -- $(qw "${candidates[@]}")" ||
+					"${SSH_CMD[@]}" -n -- "$backup_ssh_target" "rm -rf -- $(qw "${candidates[@]}")" ||
 						die "Failed to remove all purge candidates"
 				fi
 			fi
@@ -3234,7 +3234,7 @@ case $action in
 				backup_label=$(< "$oldest_unpurged/backup_label") ||
 					die "Unable to read '$oldest_unpurged/backup_label'"
 			else
-				backup_label=$(${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_unpurged/backup_label")") ||
+				backup_label=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_unpurged/backup_label")") ||
 					die "Unable to read '$backup_ssh_target:$oldest_unpurged/backup_label'"
 			fi
 		fi
@@ -3264,7 +3264,7 @@ case $action in
 			while read -r -d '' f; do
 				wal_list+=("$f")
 			done < <(
-				${SSH_CMD} -n -- "$archive_ssh_target" "find $(qw "$archive_dir") -maxdepth 1 -mindepth 1 -name '[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]*' -type f -print0 | sort -z"
+				"${SSH_CMD[@]}" -n -- "$archive_ssh_target" "find $(qw "$archive_dir") -maxdepth 1 -mindepth 1 -name '[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]*' -type f -print0 | sort -z"
 			)
 		fi
 
@@ -3299,7 +3299,7 @@ case $action in
 					else
 						for wal in "${wal_purge_list[@]}"; do
 							echo "rm -- \"${wal}\""
-						done | ${SSH_CMD} -- "$archive_ssh_target" "cat | sh" || die "unable to remove wal files on $archive_host"
+						done | "${SSH_CMD[@]}" -- "$archive_ssh_target" "cat | sh" || die "unable to remove wal files on $archive_host"
 					fi
 				fi
 			fi
@@ -3426,7 +3426,7 @@ case $action in
 				# needed by the rsync storage method
 				if [[ $STORAGE == "rsync" ]]; then
 					info "checking rsync on the remote host: $backup_ssh_target"
-					if ! ${SSH_CMD} -n -- "$backup_ssh_target" "which rsync" >/dev/null 2>&1; then
+					if ! "${SSH_CMD[@]}" -n -- "$backup_ssh_target" "which rsync" >/dev/null 2>&1; then
 						error "could not find rsync in the PATH on $backup_ssh_target"
 					else
 						info "rsync found on the remote host"
@@ -3460,7 +3460,7 @@ case $action in
 
 				# Check if rsync is installed on the remote host
 				info "checking rsync on the remote host: $archive_ssh_target"
-				if ! ${SSH_CMD} -n -- "$archive_ssh_target" "which rsync" >/dev/null 2>&1; then
+				if ! "${SSH_CMD[@]}" -n -- "$archive_ssh_target" "which rsync" >/dev/null 2>&1; then
 					error "could not find rsync in the PATH on $archive_ssh_target"
 					arch_ok="no"
 				else
@@ -3635,7 +3635,7 @@ case $action in
 				if [ "$backup_local" = "yes" ]; then
 					ts=$(< "$dir/backup_timestamp")
 				else
-					ts=$(${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
+					ts=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
 				fi
 
 				# The timestamp must be a string of (only) digits, we do arithmetic with it
@@ -3734,7 +3734,7 @@ case $action in
 				if [ "$backup_local" = "yes" ]; then
 					ts=$(< "$dir/backup_timestamp")
 				else
-					ts=$(${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
+					ts=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
 				fi
 
 				# The timestamp must be a string of (only) digits, we do arithmetic with it
@@ -3759,7 +3759,7 @@ case $action in
 					backup_label=$(< "$oldest_dir/backup_label") ||
 						die "unable to read '$oldest_dir/backup_label'"
 				else
-					backup_label=$(${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_dir/backup_label")") ||
+					backup_label=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_dir/backup_label")") ||
 					die "unable to read '$backup_ssh_target:$oldest_dir/backup_label'"
 				fi
 
@@ -3780,7 +3780,7 @@ case $action in
 					pgvers=$(< "$oldest_dir/PG_VERSION") ||
 						die "unable to read '$oldest_dir/PG_VERSION'"
 				else
-					pgvers=$(${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_dir/PG_VERSION")") ||
+					pgvers=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_dir/PG_VERSION")") ||
 						die "unable to read '$backup_ssh_target:$oldest_dir/PG_VERSION'"
 				fi
 
@@ -3804,7 +3804,7 @@ case $action in
 					while read -r -d '' f; do
 						wal_list+=("$f")
 					done < <(
-						${SSH_CMD} -n -- "$archive_ssh_target" "find $(qw "$archive_dir") -maxdepth 1 -mindepth 1 -name '[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]*' -type f -print0 | sort -z"
+						"${SSH_CMD[@]}" -n -- "$archive_ssh_target" "find $(qw "$archive_dir") -maxdepth 1 -mindepth 1 -name '[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]*' -type f -print0 | sort -z"
 					)
 				fi
 
@@ -3829,7 +3829,7 @@ case $action in
 					if [ "$backup_local" = "yes" ]; then
 						wal_segsize=$(cat "$oldest_dir/wal_segsize" 2>/dev/null)
 					else
-						wal_segsize=$(${SSH_CMD} -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_dir/wal_segsize")" 2>/dev/null)
+						wal_segsize=$("${SSH_CMD[@]}" -n -- "$backup_ssh_target" "cat -- $(qw "$oldest_dir/wal_segsize")" 2>/dev/null)
 					fi
 
 					if [ -z "$wal_segsize" ]; then
@@ -4401,7 +4401,8 @@ case $action in
 
 # ssh command to use for remote ssh/rsync actions.
 # Use this configuration key to add any specific ssh options you need.
-#SSH_CMD="ssh"
+# We use a bash array: you must keep the parenthesis around your ssh command.
+#SSH_CMD=(ssh)
 
 ####################
 # Encryption (gpg)
