@@ -974,6 +974,17 @@ init_rsync_opts() {
 	fi
 }
 
+get_backup_timestamp() {
+	# $1 is a backup directory
+	local dir="$1"
+
+	if [ "$backup_local" = "yes" ]; then
+		ret_backup_timestamp=$(< "$dir/backup_timestamp")
+	else
+		ret_backup_timestamp=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
+	fi
+}
+
 while getopts "c:f:lV?" opt; do
 	case $opt in
 		c|f)
@@ -2265,11 +2276,8 @@ case $action in
 			# find the latest backup
 			for t in "${list[@]}"; do
 				# get the timestamp of the end of the backup
-				if [ "$backup_local" = "yes" ]; then
-					backup_timestamp=$(< "$t")
-				else
-					backup_timestamp=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$t")")
-				fi
+				get_backup_timestamp $t
+				backup_timestamp="$ret_backup_timestamp"
 
 				if [[ $backup_timestamp =~ ^[[:digit:]]+$ ]]; then
 					(( $backup_timestamp < $target_timestamp )) || break;
@@ -3105,11 +3113,8 @@ case $action in
 		# the reverse order.
 		candidates=()
 		for dir in "${list[@]%/}"; do
-			if [ "$backup_local" = "yes" ]; then
-				ts=$(< "$dir/backup_timestamp")
-			else
-				ts=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
-			fi
+			get_backup_timestamp "$dir"
+			ts="$ret_backup_timestamp"
 
 			# The timestamp must be a string of (only) digits, we do arithmetic with it
 			if [[ $ts =~ ^[[:digit:]]+$ ]]; then
@@ -3618,13 +3623,11 @@ case $action in
 			newest_ts=0
 			too_old="yes"
 			for dir in "${list[@]%/}"; do
-				if [ "$backup_local" = "yes" ]; then
-					ts=$(< "$dir/backup_timestamp")
-				else
-					ts=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
-				fi
+				get_backup_timestamp "$dir"
 				if [ $? != 0 ]; then
 					die "The backup_timestamp file is missing from all/some directories in the backup directory. Please Fix it."
+				else
+					ts="$ret_backup_timestamp"
 				fi
 
 				# The timestamp must be a string of (only) digits, we do arithmetic with it
@@ -3720,13 +3723,11 @@ case $action in
 			oldest_ts=
 			oldest_dir=
 			for dir in "${list[@]%/}"; do
-				if [ "$backup_local" = "yes" ]; then
-					ts=$(< "$dir/backup_timestamp")
-				else
-					ts=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
-				fi
+				get_backup_timestamp "$dir"
 				if [ $? != 0 ]; then
 					die "The backup_timestamp file is missing from all/some directories in the backup directory. Please Fix it."
+				else
+					ts="$ret_backup_timestamp"
 				fi
 
 				# The timestamp must be a string of (only) digits, we do arithmetic with it
