@@ -987,7 +987,7 @@ get_backup_timestamp() {
 		RC="$?"
 	fi
 
-	if [ $RC -eq 0 ]; then
+	if [ $RC = 0 ]; then
 		echo "$backup_timestamp"
 	else
 		echo ""
@@ -2288,7 +2288,7 @@ case $action in
 				# get the timestamp of the end of the backup
 				backup_timestamp=$(get_backup_timestamp $t)
 
-				if [[ $backup_timestamp =~ ^[[:digit:]]+$ ]]; then
+				if [[ $backup_timestamp =~ ^[[:digit:]]+$ ]] && [[ $? = 0 ]]; then
 					(( $backup_timestamp < $target_timestamp )) || break;
 					backup_dir=$(dirname -- "$t")
 				else
@@ -3125,7 +3125,7 @@ case $action in
 			ts=$(get_backup_timestamp "$dir")
 
 			# The timestamp must be a string of (only) digits, we do arithmetic with it
-			if [[ $ts =~ ^[[:digit:]]+$ ]]; then
+			if [[ $ts =~ ^[[:digit:]]+$ ]] && [[ $? = 0 ]]; then
 				candidates[$ts]=$dir
 			else
 				# We shouldn't normally ever be here, but if we are it's probably one
