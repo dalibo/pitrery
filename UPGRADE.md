@@ -1,3 +1,13 @@
+Upgrade to 3.2
+==============
+
+Nothing to do
+
+Upgrade to 3.1
+==============
+
+Nothing to do
+
 Upgrade to 3.0
 ==============
 
