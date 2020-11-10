@@ -48,6 +48,11 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 %doc %{_mandir}/man1/restore_wal.1.gz
 
 %changelog
+* Tue Nov 10 2020 Thibaut MADELAINE <thibaut.madelaine@dalibo.com> - 3.2-1
+- Release 3.2
+- Add CI for local tests (see CONTRIBUTING.md).
+- Abort check if backup_timestamp is not available (#130)
+
 * Thu Feb 19 2020 Thibaud Walkowiak <thibaud.walkowiak@dalibo.com> - 3.1-1
 - Preserve 'xlog' scripts as symlinks
 - Report qw update to archive_wal and restore_wal
