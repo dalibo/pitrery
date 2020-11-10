@@ -346,7 +346,7 @@ port 5962:
 
     $ pitrery configure -p 5962 /var/backups/postgresql
     INFO: ==> checking access to PostgreSQL
-    INFO: PostgreSQL version is: 12.1
+    INFO: PostgreSQL version is: 13.1
     INFO: connection role can run backup functions
     INFO: current configuration:
     INFO:   wal_level = minimal
@@ -359,7 +359,7 @@ port 5962:
     INFO: access to the contents of PGDATA ok
     INFO: ==> contents of the configuration file
 
-    PGDATA="/var/lib/postgresql/12/main"
+    PGDATA="/var/lib/postgresql/13/main"
     PGPORT="5433"
     BACKUP_DIR="/var/backups/postgresql"
     PURGE_KEEP_COUNT="2"
@@ -793,7 +793,7 @@ configuration file:
 
     $ pitrery -f prod check
     INFO: the configuration file contains:
-    PGDATA="/var/lib/postgresql/12/main"
+    PGDATA="/var/lib/postgresql/13/main"
     PGPORT=5433
     BACKUP_DIR="/var/backups/postgresql"
     PURGE_KEEP_COUNT=2
@@ -813,7 +813,7 @@ configuration file:
     INFO: psql command and connection options are: psql -X -p 5433
     INFO: connection database is: postgres
     INFO: environment variables (maybe overwritten by the configuration file):
-    INFO: PostgreSQL version is: 12.1
+    INFO: PostgreSQL version is: 13.1
     INFO: connection role can run backup functions
     INFO: current configuration:
     INFO:   wal_level = minimal
@@ -833,7 +833,7 @@ missing. Fixing those error is mandatory to make the backups work:
 
     $ pitrery -f prod check
     INFO: the configuration file contains:
-    PGDATA="/var/lib/postgresql/12/main"
+    PGDATA="/var/lib/postgresql/13/main"
     PGPORT=5433
     BACKUP_DIR="/var/backups/postgresql"
     PURGE_KEEP_COUNT=2
@@ -854,7 +854,7 @@ missing. Fixing those error is mandatory to make the backups work:
     INFO: psql command and connection options are: psql -X -p 5433
     INFO: connection database is: postgres
     INFO: environment variables (maybe overwritten by the configuration file):
-    INFO: PostgreSQL version is: 12.1
+    INFO: PostgreSQL version is: 13.1
     INFO: connection role can run backup functions
     INFO: current configuration:
     INFO:   wal_level = replica
@@ -911,11 +911,11 @@ For example:
     INFO: starting the backup process
     INFO: performing a non-exclusive backup
     INFO: backing up PGDATA with tar
-    INFO: archiving /var/lib/postgresql/12/main
+    INFO: archiving /var/lib/postgresql/13/main
     INFO: stopping the backup process
-    INFO: saving /etc/postgresql/12/main/postgresql.conf
-    INFO: saving /etc/postgresql/12/main/pg_hba.conf
-    INFO: saving /etc/postgresql/12/main/pg_ident.conf
+    INFO: saving /etc/postgresql/13/main/postgresql.conf
+    INFO: saving /etc/postgresql/13/main/pg_hba.conf
+    INFO: saving /etc/postgresql/13/main/pg_ident.conf
     INFO: copying the backup history file
     INFO: copying the tablespace_map file
     INFO: copying the tablespaces list
@@ -1018,7 +1018,7 @@ For example :
       pg_default 47 MB
       pg_global 505 kB
     Tablespaces:
-      "ts1" /var/lib/postgresql/tblspc/12/main/ts1 (18768) 0 bytes
+      "ts1" /var/lib/postgresql/tblspc/13/main/ts1 (18768) 0 bytes
 
 
 Like the other commands, the options of the list action can be display
@@ -1106,8 +1106,8 @@ The command line for the restore action can be tested using the `-n`
     INFO:   /var/backups/postgresql/2019.11.15_10.13.30
     INFO:
     INFO: destinations directories:
-    INFO:   PGDATA -> /var/lib/postgresql/12/main
-    INFO:   tablespace "ts1" (18768) -> /var/lib/postgresql/tblspc/12/main/ts1 (relocated: no)
+    INFO:   PGDATA -> /var/lib/postgresql/13/main
+    INFO:   tablespace "ts1" (18768) -> /var/lib/postgresql/tblspc/13/main/ts1 (relocated: no)
     INFO:
     INFO: recovery configuration:
     INFO:   target owner of the restored files: postgres
@@ -1127,23 +1127,23 @@ are properly quoted:
     INFO:   /var/backups/postgresql/2019.11.15_10.13.30
     INFO:
     INFO: destinations directories:
-    INFO:   PGDATA -> /var/lib/postgresql/12/main
+    INFO:   PGDATA -> /var/lib/postgresql/13/main
     INFO:
     INFO: recovery configuration:
     INFO:   target owner of the restored files: postgres
     INFO:   restore_command = 'restore_wal -C /usr/local/etc/pitrery/prod.conf %f %p'
     INFO:   recovery_target_time = '2019-11-15 11:04:30 +0200'
     INFO:
-    INFO: creating /var/lib/postgresql/12/main with permission 0700
-    INFO: extracting PGDATA to /var/lib/postgresql/12/main
+    INFO: creating /var/lib/postgresql/13/main with permission 0700
+    INFO: extracting PGDATA to /var/lib/postgresql/13/main
     INFO: extraction of PGDATA successful
-    INFO: restoring configuration files to /var/lib/postgresql/12/main/restored_config_files
+    INFO: restoring configuration files to /var/lib/postgresql/13/main/restored_config_files
     INFO: preparing pg_wal directory
     INFO: preparing recovery.conf file
     INFO: done
     INFO:
     INFO: saved configuration files have been restored to:
-    INFO:   /var/lib/postgresql/12/main/restored_config_files
+    INFO:   /var/lib/postgresql/13/main/restored_config_files
     INFO:
     INFO: please check directories and recovery.conf before starting the cluster
     INFO: and do not forget to update the configuration of pitrery if needed
@@ -1178,8 +1178,8 @@ format of the value of a `-t` option is `tablespace_name_or_oid:new_directory`.
 
 One `-t` option apply to one tablespace. For example:
 
-    $ pitrery -f prod restore -D /var/lib/postgresql/12/main2 \
-    > -t ts1:/var/lib/postgresql/tblspc/12/main/ts1_2
+    $ pitrery -f prod restore -D /var/lib/postgresql/13/main2 \
+    > -t ts1:/var/lib/postgresql/tblspc/13/main/ts1_2
     INFO: searching backup directory
     INFO: searching for tablespaces information
     INFO:
@@ -1187,26 +1187,26 @@ One `-t` option apply to one tablespace. For example:
     INFO:   /var/backups/postgresql/2019.11.15_10.13.30
     INFO:
     INFO: destinations directories:
-    INFO:   PGDATA -> /var/lib/postgresql/12/main2
-    INFO:   tablespace "ts1" (18768) -> /var/lib/postgresql/tblspc/12/main/ts1_2 (relocated: yes)
+    INFO:   PGDATA -> /var/lib/postgresql/13/main2
+    INFO:   tablespace "ts1" (18768) -> /var/lib/postgresql/tblspc/13/main/ts1_2 (relocated: yes)
     INFO:
     INFO: recovery configuration:
     INFO:   target owner of the restored files: postgres
     INFO:   restore_command = 'restore_wal -C /usr/local/etc/pitrery/prod.conf %f %p'
     INFO:
-    INFO: creating /var/lib/postgresql/12/main2 with permission 0700
-    INFO: creating /var/lib/postgresql/tblspc/12/main/ts1_2 with permission 0700
-    INFO: extracting PGDATA to /var/lib/postgresql/12/main2
+    INFO: creating /var/lib/postgresql/13/main2 with permission 0700
+    INFO: creating /var/lib/postgresql/tblspc/13/main/ts1_2 with permission 0700
+    INFO: extracting PGDATA to /var/lib/postgresql/13/main2
     INFO: extraction of PGDATA successful
-    INFO: restoring configuration files to /var/lib/postgresql/12/main2/restored_config_files
-    INFO: extracting tablespace "ts1" to /var/lib/postgresql/tblspc/12/main/ts1_2
+    INFO: restoring configuration files to /var/lib/postgresql/13/main2/restored_config_files
+    INFO: extracting tablespace "ts1" to /var/lib/postgresql/tblspc/13/main/ts1_2
     INFO: extraction of tablespace "ts1" successful
     INFO: preparing pg_wal directory
     INFO: preparing recovery.conf file
     INFO: done
     INFO:
     INFO: saved configuration files have been restored to:
-    INFO:   /var/lib/postgresql/12/main2/restored_config_files
+    INFO:   /var/lib/postgresql/13/main2/restored_config_files
     INFO:
     INFO: please check directories and recovery.conf before starting the cluster
     INFO: and do not forget to update the configuration of pitrery if needed
