@@ -10,7 +10,7 @@ jobs:
       pgversion:
         description: "PostgreSQL dotted major version"
         type: string
-    docker: [image: "dalibo/temboard-agent-sdk:<< parameters.dist >>"]
+    docker: [image: "dalibo/labs-sdk:<< parameters.dist >>"]
     working_directory: /tmp/project/
     steps:
       - checkout
@@ -22,7 +22,7 @@ jobs:
           command: "sudo -su postgres PGVERSION=<< parameters.pgversion >> ./script/funcenv"
 
   shellcheck:
-    docker: [image: "dalibo/temboard-agent-sdk:buster"]
+    docker: [image: "dalibo/labs-sdk:buster"]
     working_directory: /tmp/project/
     steps:
       - checkout
@@ -35,9 +35,9 @@ workflows:
   pipeline:
     jobs:
     - tests:
-        name: buster-12
+        name: buster-13
         dist: buster
-        pgversion: "12"
+        pgversion: "13"
     - tests:
         name: stretch-96
         dist: stretch
@@ -46,9 +46,9 @@ workflows:
           branches:
             only: master
     - tests:
-        name: centos7-12
+        name: centos7-13
         dist: centos7
-        pgversion: "12"
+        pgversion: "13"
         filters:
           branches:
             only: master
