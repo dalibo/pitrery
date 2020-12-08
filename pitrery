@@ -3122,7 +3122,7 @@ case $action in
 		# the reverse order.
 		candidates=()
 		for dir in "${list[@]%/}"; do
-			ts=$(get_backup_timestamp "$dir")
+			ts=$(get_backup_timestamp "$dir/backup_timestamp")
 
 			# The timestamp must be a string of (only) digits, we do arithmetic with it
 			if [[ $ts =~ ^[[:digit:]]+$ ]] && [[ $? = 0 ]]; then
@@ -3631,7 +3631,7 @@ case $action in
 			newest_ts=0
 			too_old="yes"
 			for dir in "${list[@]%/}"; do
-				ts=$(get_backup_timestamp "$dir")
+				ts=$(get_backup_timestamp "$dir/backup_timestamp")
 				if [ $? != 0 ]; then
 					die "The backup_timestamp file is missing from all/some directories in the backup directory. Please Fix it."
 				fi
