@@ -171,3 +171,18 @@ setup () {
 	[ "$status" -eq 0 ]
 	echo "output = ${output}"
 }
+
+@test "Testing restore in recovery mode" {
+	run pitrery -f $PITRERY_LOCAL_CONF restore -R -D ${PGDATA}_2 -r "$(type -p restore_wal) -C $PITRERY_LOCAL_CONF %f %p"
+	[ "$status" -eq 0 ]
+	echo "output = ${output}"
+}
+
+@test "Testing restored instance can be started" {
+  mkdir -p ${PITRERY_BACKUP_DIR}_2
+  echo "port = 5433" >> ${PGDATA}_2/postgresql.auto.conf
+	sed -i "s#${PITRERY_BACKUP_DIR}#${PITRERY_BACKUP_DIR}_2#g" ${PGDATA}_2/postgresql.auto.conf
+  run ${PGBIN}/pg_ctl start -w -D ${PGDATA}_2 -l /tmp/logfile_2
+	[ "$status" -eq 0 ]
+	echo "output = ${output}"
+}

@@ -7,6 +7,7 @@
 top_srcdir=$(readlink -m $0/../..)
 cd ${top_srcdir}
 
+export PGDATA=/tmp/pgsql
 export PITRERY_BACKUP_DIR=/tmp/backup
 export PITRERY_LOCAL_CONF=/tmp/pitrery_local.conf
 export PATH=/usr/local/bin:$PATH:.
@@ -22,10 +23,14 @@ teardown() {
 	fi
 
 	# stop and destroy PG cluster
-	${PGBIN}/pg_ctl stop -w -D /tmp/pgsql
-	rm -rf /tmp/pgsql
-
+	${PGBIN}/pg_ctl stop -w -D ${PGDATA}
+	rm -rf ${PGDATA}
 	rm -rf $PITRERY_BACKUP_DIR
+
+	# stop and destroy PG cluster number 2
+	${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2
+	rm -rf ${PGDATA}_2
+	rm -rf ${PITRERY_BACKUP_DIR}_2
 
 	exit ${exit_code}
 }
@@ -41,17 +46,17 @@ test -n "$PGBIN"
 export PGBIN
 
 # init PG cluster
-${PGBIN}/initdb -D /tmp/pgsql
+${PGBIN}/initdb -D ${PGDATA}
 
 # Setup archiving
-echo "archive_mode = on" >> /tmp/pgsql/postgresql.auto.conf
+echo "archive_mode = on" >> ${PGDATA}/postgresql.auto.conf
 WAL_LEVEL='replica'
 [[ ${PGVERSION} == '9.5' ]] && WAL_LEVEL='hot_standby'
-echo "wal_level = '${WAL_LEVEL}'" >> /tmp/pgsql/postgresql.auto.conf
-echo "archive_command = '$(type -p archive_wal) -a /tmp/backup/archived_wal %p'" >>/tmp/pgsql/postgresql.auto.conf
+echo "wal_level = '${WAL_LEVEL}'" >> ${PGDATA}/postgresql.auto.conf
+echo "archive_command = '$(type -p archive_wal) -a /tmp/backup/archived_wal %p'" >>${PGDATA}/postgresql.auto.conf
 
 # start PG
-${PGBIN}/pg_ctl start -w -D /tmp/pgsql -l /tmp/logfile
+${PGBIN}/pg_ctl start -w -D ${PGDATA} -l /tmp/logfile
 
 # create backup directory
 mkdir -p $PITRERY_BACKUP_DIR
