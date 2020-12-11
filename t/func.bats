@@ -23,8 +23,15 @@ setup () {
 	[ "$status" -eq 1 ]
 	echo "output = ${output}"
 }
+
 @test "Testing configure action with local parameters" {
 	run pitrery configure -f -o $PITRERY_LOCAL_CONF -m 2 $PITRERY_BACKUP_DIR
+	[ "$status" -eq 0 ]
+	echo "output = ${output}"
+}
+
+@test "Testing check action" {
+	run pitrery check -C $PITRERY_LOCAL_CONF
 	[ "$status" -eq 0 ]
 	echo "output = ${output}"
 }
@@ -151,4 +158,16 @@ setup () {
 	[ "${#output[@]}" -eq 3 ]
 	[[ "${output[1]}" == "$PITRERY_BACKUP_DIR"* ]]
 	[[ "${output[2]}" == "$PITRERY_BACKUP_DIR"* ]]
+}
+
+@test "Testing backup check with backup count" {
+	run pitrery check -C $PITRERY_LOCAL_CONF -B -m 2
+	[ "$status" -eq 0 ]
+	echo "output = ${output}"
+}
+
+@test "Testing archive check" {
+	run pitrery check -C $PITRERY_LOCAL_CONF -A
+	[ "$status" -eq 0 ]
+	echo "output = ${output}"
 }
