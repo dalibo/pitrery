@@ -20,7 +20,11 @@ setup () {
 
 @test "Testing backup action without config" {
 	run pitrery backup
-	[ "$status" -eq 1 ]
+	if [ -f /etc/debian_version ]; then
+		[ "$status" -eq 1 ]
+	elif
+		[ "$status" -eq 0 ]
+	fi
 	echo "output = ${output}"
 }
 
