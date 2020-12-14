@@ -90,6 +90,9 @@ setup () {
 }
 
 @test "Testing second backup action with local config" {
+  ${PGBIN}/psql -Atc 'CREATE TABLE table_1 (i int)'
+  ${PGBIN}/psql -Atc 'INSERT INTO table_1 (i) SELECT generate_series(1,100)'
+	${PGBIN}/psql -c "SELECT pg_switch_${xlog_or_wal}()"
 	run pitrery -f $PITRERY_LOCAL_CONF backup
 	[ "$status" -eq 0 ]
 	echo "output = ${output}"
@@ -121,6 +124,9 @@ setup () {
 }
 
 @test "Testing third backup action with local config" {
+  ${PGBIN}/psql -Atc 'CREATE TABLE table_2 (i int)'
+  ${PGBIN}/psql -Atc 'INSERT INTO table_2 (i) SELECT generate_series(1,100)'
+	${PGBIN}/psql -c "SELECT pg_switch_${xlog_or_wal}()"
 	run pitrery -f $PITRERY_LOCAL_CONF backup
 	[ "$status" -eq 0 ]
 	echo "output = ${output}"
@@ -186,9 +192,41 @@ setup () {
 	mkdir -p ${PITRERY_BACKUP_DIR}_2
 	echo "port = 5433" >> ${PGDATA}_2/postgresql.auto.conf
 	sed -i "s#${PITRERY_BACKUP_DIR}#${PITRERY_BACKUP_DIR}_2#g" ${PGDATA}_2/postgresql.auto.conf
-	run ${PGBIN}/pg_ctl start -w -D ${PGDATA}_2 -l /tmp/logfile_2	 3>&-
+	run ${PGBIN}/pg_ctl start -w -D ${PGDATA}_2 -l /tmp/logfile_2	3>&-
 	[ "$status" -eq 0 ]
 	sleep 2
-	recovery_status=$(psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
+	recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
 	[[ "$recovery_status" == "f"* ]]
+	${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2 3>&-
+	rm -rf ${PGDATA}_2
+	rm -rf $PITRERY_BACKUP_DIR_2
+}
+
+@test "Testing restore in recovery mode with date" {
+	backup_list=$(pitrery -f $PITRERY_LOCAL_CONF list)
+	IFS=$'\n'
+	backup_list=(${backup_list})
+	unset IFS
+	backup_timestamp=$(echo "${backup_list[2]}"|cut -d ' ' -f 3-)
+	run pitrery -f $PITRERY_LOCAL_CONF restore -R -D ${PGDATA}_2 -r "$(type -p restore_wal) -C $PITRERY_LOCAL_CONF %f %p" -d "${backup_timestamp}"
+	[ "$status" -eq 0 ]
+	echo "output = ${output}"
+}
+
+@test "Testing restored instance with date can be started" {
+	${PGBIN}/psql -c "SELECT pg_switch_${xlog_or_wal}()"
+	mkdir -p ${PITRERY_BACKUP_DIR}_2
+	echo "port = 5433" >> ${PGDATA}_2/postgresql.auto.conf
+	sed -i "s#${PITRERY_BACKUP_DIR}#${PITRERY_BACKUP_DIR}_2#g" ${PGDATA}_2/postgresql.auto.conf
+	run ${PGBIN}/pg_ctl start -w -D ${PGDATA}_2 -l /tmp/logfile_2	3>&-
+	[ "$status" -eq 0 ]
+	recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
+	[[ "$recovery_status" == "t"* ]]
+	sleep 2
+	${PGBIN}/psql -p 5433 -Atc 'SELECT pg_wal_replay_resume()'
+	recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
+	[[ "$recovery_status" == "f"* ]]
+	${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2 3>&-
+	rm -rf ${PGDATA}_2
+	rm -rf $PITRERY_BACKUP_DIR_2
 }
