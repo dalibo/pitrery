@@ -182,7 +182,7 @@ setup () {
 	mkdir -p ${PITRERY_BACKUP_DIR}_2
 	echo "port = 5433" >> ${PGDATA}_2/postgresql.auto.conf
 	sed -i "s#${PITRERY_BACKUP_DIR}#${PITRERY_BACKUP_DIR}_2#g" ${PGDATA}_2/postgresql.auto.conf
-	${PGBIN}/pg_ctl start -w -D ${PGDATA}_2 -l /tmp/logfile_2	 3>&-
+	run ${PGBIN}/pg_ctl start -w -D ${PGDATA}_2 -l /tmp/logfile_2	 3>&-
 	[ "$status" -eq 0 ]
 	sleep 2
 	recovery_status=$(psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
