@@ -67,6 +67,7 @@ first_digit_version=$( echo $PGVERSION | cut -d'.' -f1 )
 if [[ (( $first_digit_version -lt 10 )) ]]; then
 	xlog_or_wal="xlog"
 fi
+export xlog_or_wal
 ${PGBIN}/psql -c "SELECT pg_switch_${xlog_or_wal}()"
 
 # run bats tests
