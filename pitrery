@@ -976,14 +976,14 @@ init_rsync_opts() {
 
 get_backup_timestamp() {
 	# $1 is a backup directory
-	local dir="$1"
+	local bt_file="$1"
 	local backup_timestamp
 
 	if [ "$backup_local" = "yes" ]; then
-		backup_timestamp=$(< "$dir/backup_timestamp")
+		backup_timestamp=$(< "$bt_file")
 		RC="$?"
 	else
-		backup_timestamp=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$dir/backup_timestamp")")
+		backup_timestamp=$(ssh -n -- "$backup_ssh_target" "cat -- $(qw "$bt_file")")
 		RC="$?"
 	fi
 
@@ -2289,7 +2289,7 @@ case $action in
 				backup_timestamp=$(get_backup_timestamp $t)
 
 				if [[ $backup_timestamp =~ ^[[:digit:]]+$ ]] && [[ $? = 0 ]]; then
-					(( $backup_timestamp < $target_timestamp )) || break;
+					(( $backup_timestamp <= $target_timestamp )) || break;
 					backup_dir=$(dirname -- "$t")
 				else
 					warn "could not get the ending timestamp of $t"
@@ -3122,7 +3122,7 @@ case $action in
 		# the reverse order.
 		candidates=()
 		for dir in "${list[@]%/}"; do
-			ts=$(get_backup_timestamp "$dir")
+			ts=$(get_backup_timestamp "$dir/backup_timestamp")
 
 			# The timestamp must be a string of (only) digits, we do arithmetic with it
 			if [[ $ts =~ ^[[:digit:]]+$ ]] && [[ $? = 0 ]]; then
@@ -3631,7 +3631,7 @@ case $action in
 			newest_ts=0
 			too_old="yes"
 			for dir in "${list[@]%/}"; do
-				ts=$(get_backup_timestamp "$dir")
+				ts=$(get_backup_timestamp "$dir/backup_timestamp")
 				if [ $? != 0 ]; then
 					die "The backup_timestamp file is missing from all/some directories in the backup directory. Please Fix it."
 				fi
