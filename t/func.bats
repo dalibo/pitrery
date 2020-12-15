@@ -177,7 +177,6 @@ setup () {
 }
 
 @test "Testing archive check" {
-	pitrery check -C $PITRERY_LOCAL_CONF -A >&3
 	run pitrery check -C $PITRERY_LOCAL_CONF -A
 	[ "$status" -eq 0 ]
 	echo "output = ${output}"
