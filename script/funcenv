@@ -23,13 +23,17 @@ teardown() {
 	fi
 
 	# stop and destroy PG cluster
-	${PGBIN}/pg_ctl stop -w -D ${PGDATA}
-	rm -rf ${PGDATA}
+	if [ -d ${PGDATA} ] ; then
+		${PGBIN}/pg_ctl stop -w -D ${PGDATA}
+		rm -rf ${PGDATA}
+	fi
 	rm -rf $PITRERY_BACKUP_DIR
 
 	# stop and destroy PG cluster number 2
-	${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2
-	rm -rf ${PGDATA}_2
+	if [ -d ${PGDATA}_2 ] ; then
+		${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2
+		rm -rf ${PGDATA}_2
+	fi
 	rm -rf ${PITRERY_BACKUP_DIR}_2
 
 	exit ${exit_code}
@@ -68,6 +72,7 @@ if [[ (( $first_digit_version -lt 10 )) ]]; then
 	xlog_or_wal="xlog"
 fi
 export xlog_or_wal
+export first_digit_version
 ${PGBIN}/psql -c "SELECT pg_switch_${xlog_or_wal}()"
 
 # run bats tests

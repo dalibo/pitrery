@@ -3729,7 +3729,7 @@ case $action in
 			oldest_ts=
 			oldest_dir=
 			for dir in "${list[@]%/}"; do
-				ts=$(get_backup_timestamp "$dir")
+				ts=$(get_backup_timestamp "$dir/backup_timestamp")
 				if [ $? != 0 ]; then
 					die "The backup_timestamp file is missing from all/some directories in the backup directory. Please Fix it."
 				fi

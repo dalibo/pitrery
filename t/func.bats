@@ -214,16 +214,21 @@ setup () {
 }
 
 @test "Testing restored instance with date can be started" {
+  ${PGBIN}/psql -Atc 'CREATE TABLE table_3 (i int)'
+  ${PGBIN}/psql -Atc 'INSERT INTO table_3 (i) SELECT generate_series(1,100)'
 	${PGBIN}/psql -c "SELECT pg_switch_${xlog_or_wal}()"
 	mkdir -p ${PITRERY_BACKUP_DIR}_2
 	echo "port = 5433" >> ${PGDATA}_2/postgresql.auto.conf
 	sed -i "s#${PITRERY_BACKUP_DIR}#${PITRERY_BACKUP_DIR}_2#g" ${PGDATA}_2/postgresql.auto.conf
 	run ${PGBIN}/pg_ctl start -w -D ${PGDATA}_2 -l /tmp/logfile_2	3>&-
 	[ "$status" -eq 0 ]
-	recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
-	[[ "$recovery_status" == "t"* ]]
-	sleep 2
-	${PGBIN}/psql -p 5433 -Atc 'SELECT pg_wal_replay_resume()'
+	sleep 10
+	if [[ (( $first_digit_version -ge 13 )) ]]; then
+		recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
+		[[ "$recovery_status" == "t"* ]]
+		${PGBIN}/psql -p 5433 -Atc "SELECT pg_${xlog_or_wal}_replay_resume()"
+		sleep 5
+	fi
 	recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
 	[[ "$recovery_status" == "f"* ]]
 	${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2 3>&-
