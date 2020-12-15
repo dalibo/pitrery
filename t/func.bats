@@ -223,10 +223,12 @@ setup () {
 	run ${PGBIN}/pg_ctl start -w -D ${PGDATA}_2 -l /tmp/logfile_2	3>&-
 	[ "$status" -eq 0 ]
 	sleep 10
-	recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
-	[[ "$recovery_status" == "t"* ]]
-	${PGBIN}/psql -p 5433 -Atc 'SELECT pg_wal_replay_resume()'
-	sleep 5
+	if [[ ${PGVERSION} != '9.5' ]] ; then
+		recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
+		[[ "$recovery_status" == "t"* ]]
+		${PGBIN}/psql -p 5433 -Atc 'SELECT pg_wal_replay_resume()'
+		sleep 5
+	fi
 	recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
 	[[ "$recovery_status" == "f"* ]]
 	${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2 3>&-
