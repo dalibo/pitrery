@@ -174,12 +174,14 @@ setup () {
 	run pitrery check -C $PITRERY_LOCAL_CONF -B -m 2
 	[ "$status" -eq 0 ]
 	echo "output = ${output}"
+	[[ "$output" == *"INFO: backups policy checks ok"* ]]
 }
 
 @test "Testing archive check" {
 	run pitrery check -C $PITRERY_LOCAL_CONF -A
 	[ "$status" -eq 0 ]
 	echo "output = ${output}"
+	[[ "$output" == *"INFO: all archived WAL files found"* ]]
 }
 
 @test "Testing restore in recovery mode" {
