@@ -174,12 +174,14 @@ setup () {
 	run pitrery check -C $PITRERY_LOCAL_CONF -B -m 2
 	[ "$status" -eq 0 ]
 	echo "output = ${output}"
+	[[ "$output" == *"INFO: backups policy checks ok"* ]]
 }
 
 @test "Testing archive check" {
 	run pitrery check -C $PITRERY_LOCAL_CONF -A
 	[ "$status" -eq 0 ]
 	echo "output = ${output}"
+	[[ "$output" == *"INFO: all archived WAL files found"* ]]
 }
 
 @test "Testing restore in recovery mode" {
@@ -223,7 +225,7 @@ setup () {
 	run ${PGBIN}/pg_ctl start -w -D ${PGDATA}_2 -l /tmp/logfile_2	3>&-
 	[ "$status" -eq 0 ]
 	sleep 10
-	if [[ (( $first_digit_version -ge 13 )) ]]; then
+	if [[ (( $first_digit_version -ge 10 )) ]]; then
 		recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
 		[[ "$recovery_status" == "t"* ]]
 		${PGBIN}/psql -p 5433 -Atc "SELECT pg_${xlog_or_wal}_replay_resume()"
