@@ -223,7 +223,7 @@ setup () {
 	run ${PGBIN}/pg_ctl start -w -D ${PGDATA}_2 -l /tmp/logfile_2	3>&-
 	[ "$status" -eq 0 ]
 	sleep 10
-	if [[ ${PGVERSION} != '9.5' ]] ; then
+	if [[ (( $first_digit_version -ge 13 )) ]]; then
 		recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
 		[[ "$recovery_status" == "t"* ]]
 		${PGBIN}/psql -p 5433 -Atc "SELECT pg_${xlog_or_wal}_replay_resume()"
