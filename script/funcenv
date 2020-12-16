@@ -49,13 +49,24 @@ done
 test -n "$PGBIN"
 export PGBIN
 
+first_digit_version=$( echo $PGVERSION | cut -d'.' -f1 )
+xlog_or_wal="wal"
+if [[ (( $first_digit_version -lt 10 )) ]]; then
+	xlog_or_wal="xlog"
+fi
+export xlog_or_wal
+export first_digit_version
+
 # init PG cluster
 ${PGBIN}/initdb -D ${PGDATA}
 
 # Setup archiving
 echo "archive_mode = on" >> ${PGDATA}/postgresql.auto.conf
 WAL_LEVEL='replica'
-[[ ${PGVERSION} == '9.5' ]] && WAL_LEVEL='hot_standby'
+if [[ (( $first_digit_version -lt 10 )) ]]; then
+	WAL_LEVEL='hot_standby'
+	echo "max_wal_senders = 10" >> ${PGDATA}/postgresql.auto.conf
+fi
 echo "wal_level = '${WAL_LEVEL}'" >> ${PGDATA}/postgresql.auto.conf
 echo "archive_command = '$(type -p archive_wal) -a /tmp/backup/archived_wal %p'" >>${PGDATA}/postgresql.auto.conf
 
@@ -66,13 +77,6 @@ ${PGBIN}/pg_ctl start -w -D ${PGDATA} -l /tmp/logfile
 mkdir -p $PITRERY_BACKUP_DIR
 
 # initiate WAL archiving
-xlog_or_wal="wal"
-first_digit_version=$( echo $PGVERSION | cut -d'.' -f1 )
-if [[ (( $first_digit_version -lt 10 )) ]]; then
-	xlog_or_wal="xlog"
-fi
-export xlog_or_wal
-export first_digit_version
 ${PGBIN}/psql -c "SELECT pg_switch_${xlog_or_wal}()"
 
 # run bats tests

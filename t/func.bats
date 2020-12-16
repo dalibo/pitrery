@@ -202,9 +202,10 @@ setup () {
 	sed -i "s#${PITRERY_BACKUP_DIR}#${PITRERY_BACKUP_DIR}_2#g" ${PGDATA}_2/postgresql.auto.conf
 	run ${PGBIN}/pg_ctl start -w -D ${PGDATA}_2 -l /tmp/logfile_2	3>&-
 	[ "$status" -eq 0 ]
-	sleep 2
+	sleep 3
 	recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
 	[[ "$recovery_status" == "f"* ]]
+	# destroy restored instance
 	${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2 3>&-
 	rm -rf ${PGDATA}_2
 	rm -rf $PITRERY_BACKUP_DIR_2
@@ -239,6 +240,7 @@ setup () {
 	fi
 	recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
 	[[ "$recovery_status" == "f"* ]]
+	# destroy restored instance
 	${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2 3>&-
 	rm -rf ${PGDATA}_2
 	rm -rf $PITRERY_BACKUP_DIR_2
@@ -248,4 +250,32 @@ setup () {
 	run pitrery -f $PITRERY_LOCAL_CONF restore -m standby -R -D ${PGDATA}_2 -r "$(type -p restore_wal) -C $PITRERY_LOCAL_CONF %f %p"
 	[ "$status" -eq 0 ]
 	echo "output = ${output}"
+}
+
+@test "Testing restored standby instance can be started" {
+	mkdir -p ${PITRERY_BACKUP_DIR}_2
+	echo "port = 5433" >> ${PGDATA}_2/postgresql.auto.conf
+	sed -i "s#${PITRERY_BACKUP_DIR}#${PITRERY_BACKUP_DIR}_2#g" ${PGDATA}_2/postgresql.auto.conf
+	if [[ (( $first_digit_version -ge 12 )) ]]; then
+		echo "primary_conninfo = 'port=5432'" >> ${PGDATA}_2/postgresql.auto.conf
+	else
+		echo "primary_conninfo = 'port=5432'" >> ${PGDATA}_2/recovery.conf
+		if [[ (( $first_digit_version -lt 10 )) ]]; then
+			echo "hot_standby = on" >> ${PGDATA}_2/postgresql.auto.conf
+      echo "local   replication     postgres          peer" >> ${PGDATA}/pg_hba.conf
+      ${PGBIN}/psql -p 5432 -Atc "SELECT pg_reload_conf()"
+		fi
+	fi
+	run ${PGBIN}/pg_ctl start -w -D ${PGDATA}_2 -l /tmp/logfile_2	3>&-
+	[ "$status" -eq 0 ]
+	sleep 5
+	recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
+	[[ "$recovery_status" == "t"* ]]
+	repli_state=$(${PGBIN}/psql -p 5432 -Atc "SELECT state from pg_stat_replication")
+	${PGBIN}/psql -p 5432 -Atc "SELECT * from pg_stat_replication" >&3
+	[[ "$repli_state" == "streaming"* ]]
+	# destroy restored instance
+	${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2 3>&-
+	rm -rf ${PGDATA}_2
+	rm -rf $PITRERY_BACKUP_DIR_2
 }
