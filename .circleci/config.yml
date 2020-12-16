@@ -10,7 +10,9 @@ jobs:
       pgversion:
         description: "PostgreSQL dotted major version"
         type: string
-    docker: [image: "dalibo/labs-sdk:<< parameters.dist >>"]
+    docker:
+      - image: "dalibo/labs-sdk:<< parameters.dist >>"
+      - image: "linuxserver/openssh-server"
     working_directory: /tmp/project/
     steps:
       - checkout
