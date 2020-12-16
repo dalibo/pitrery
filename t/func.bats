@@ -184,6 +184,12 @@ setup () {
 	[[ "$output" == *"INFO: all archived WAL files found"* ]]
 }
 
+@test "Testing restore dry mode" {
+	run pitrery -f $PITRERY_LOCAL_CONF restore -R -D ${PGDATA}_2 -r "$(type -p restore_wal) -C $PITRERY_LOCAL_CONF %f %p" -n
+	[ "$status" -eq 0 ]
+	echo "output = ${output}"
+}
+
 @test "Testing restore in recovery mode" {
 	run pitrery -f $PITRERY_LOCAL_CONF restore -R -D ${PGDATA}_2 -r "$(type -p restore_wal) -C $PITRERY_LOCAL_CONF %f %p"
 	[ "$status" -eq 0 ]
