@@ -23,14 +23,14 @@ teardown() {
 	fi
 
 	# stop and destroy PG cluster
-	if [ -d ${PGDATA} ] ; then
+	if [ -f ${PGDATA}/postmaster.pid ] ; then
 		${PGBIN}/pg_ctl stop -w -D ${PGDATA}
 		rm -rf ${PGDATA}
 	fi
 	rm -rf $PITRERY_BACKUP_DIR
 
 	# stop and destroy PG cluster number 2
-	if [ -d ${PGDATA}_2 ] ; then
+	if [ -f ${PGDATA}_2/postmaster.pid ] ; then
 		${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2
 		rm -rf ${PGDATA}_2
 	fi
