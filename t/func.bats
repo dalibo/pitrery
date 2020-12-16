@@ -243,3 +243,9 @@ setup () {
 	rm -rf ${PGDATA}_2
 	rm -rf $PITRERY_BACKUP_DIR_2
 }
+
+@test "Testing restore in standby mode" {
+	run pitrery -f $PITRERY_LOCAL_CONF restore -m standby -R -D ${PGDATA}_2 -r "$(type -p restore_wal) -C $PITRERY_LOCAL_CONF %f %p"
+	[ "$status" -eq 0 ]
+	echo "output = ${output}"
+}
