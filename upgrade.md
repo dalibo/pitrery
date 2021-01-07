@@ -3,6 +3,16 @@ layout: default
 title: pitrery - Upgrade
 ---
 
+Upgrade to 3.3
+==============
+
+Nothing to do.
+
+Upgrade to 3.2
+==============
+
+Nothing to do.
+
 Upgrade to 3.1
 ==============
 

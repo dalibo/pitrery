@@ -9,7 +9,7 @@ Documentation
 English
 -------
 
-Version 3.2:
+Version 3.3:
 
 * [Installation and usage]({{ site.baseurl }}/install.html)
 * [Upgrade]({{ site.baseurl }}/upgrade.html)
