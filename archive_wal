@@ -315,7 +315,7 @@ if [ "$archive_local" = "yes" ]; then
 		check_local_dest_exists "$dest_path"
 
 		"${gpg_command[@]}" -o - "$wal" | dd $ARCHIVE_FLUSH of="$dest_path" 2>/dev/null
-		rc=( ${PIPESTATUS[@]} )
+		rc=( "${PIPESTATUS[@]}" )
 		gpg_rc=${rc[0]}
 		dd_rc=${rc[1]}
 		if [ $gpg_rc != 0 ]; then
@@ -327,7 +327,7 @@ if [ "$archive_local" = "yes" ]; then
 		check_local_dest_exists "$dest_path"
 
 		$ARCHIVE_COMPRESS_BIN -c < "$wal" | dd $ARCHIVE_FLUSH of="$dest_path" 2>/dev/null
-		rc=( ${PIPESTATUS[@]} )
+		rc=( "${PIPESTATUS[@]}" )
 		x_rc=${rc[0]}
 		dd_rc=${rc[1]}
 		if [ $x_rc != 0 ]; then
