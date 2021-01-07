@@ -1,7 +1,7 @@
 pitrery 3.3
 ===========
 
-  * [Bugfix] pitrery restore: could not get the ending timestamp
+  * [Bugfix] pitrery restore: could not get the ending timestamp (#138)
 
 pitrery 3.2
 ===========

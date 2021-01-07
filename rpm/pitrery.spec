@@ -1,7 +1,7 @@
 %global confdir %{_sysconfdir}/pitrery
 
 Name:           pitrery
-Version:        3.2
+Version:        3.3
 Release:        1
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
@@ -48,6 +48,10 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 %doc %{_mandir}/man1/restore_wal.1.gz
 
 %changelog
+* Thu Jan 07 2021 Thibaut MADELAINE <thibaut.madelaine@dalibo.com> - 3.3-1
+- Release 3.3
+- [Bugfix] pitrery restore: could not get the ending timestamp (#138)
+
 * Tue Nov 10 2020 Thibaut MADELAINE <thibaut.madelaine@dalibo.com> - 3.2-1
 - Release 3.2
 - Add CI for local tests (see CONTRIBUTING.md).
