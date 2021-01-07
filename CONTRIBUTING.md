@@ -31,7 +31,8 @@ pitrery scripts must be available in `$BINDIR` (default: `/usr/local/bin`).
 - GitHub created a release for the new tag. Update it to your need. Find it in
   the [Releases page](https://github.com/dalibo/pitrery/releases).
 - Attach tar.gz and .tar.gz.asc to the GitHub release.
-- Build and push deb with `make -C debian/ build push`.
+- Build and push deb with `make -C debian/ build push` (make sure DEBFULLNAME
+  and DEBEMAIL env variable are defined and correspond to your gpg signing key).
 - Update and commit rpm/pitrery.spec. Build and push with `make -C rpm/ build
   push`.
 - Push these commits.
