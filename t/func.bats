@@ -12,6 +12,12 @@ setup () {
 	echo "output = ${output}"
 }
 
+@test "Testing list configuration files" {
+	run pitrery -l
+	[ "$status" -eq 0 ]
+	echo "output = ${output}"
+}
+
 @test "Testing configure action without parameter" {
 	run pitrery configure
 	[ "$status" -eq 1 ]
@@ -272,7 +278,6 @@ setup () {
 	recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
 	[[ "$recovery_status" == "t"* ]]
 	repli_state=$(${PGBIN}/psql -p 5432 -Atc "SELECT state from pg_stat_replication")
-	${PGBIN}/psql -p 5432 -Atc "SELECT * from pg_stat_replication" >&3
 	[[ "$repli_state" == "streaming"* ]]
 	# destroy restored instance
 	${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2 3>&-
