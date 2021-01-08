@@ -1050,7 +1050,6 @@ if [[ $config != */* ]]; then
 fi
 
 
-opts=()
 case $action in
 	list)
 		load_config
@@ -1636,7 +1635,7 @@ case $action in
 
 				# prepare the list of files and directories to exclude
 				excluded=("pg_${xlog_or_wal}" 'pg_replslot/*' 'postmaster.*' 'pgsql_tmp' 'restored_config_files' 'backup_label.old' '*.sql')
-				excluded_opts=()
+				exclude_opts=()
 				for i in "${excluded[@]}"; do
 					exclude_opts+=("--exclude=$i")
 				done
