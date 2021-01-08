@@ -176,6 +176,11 @@ setup () {
 	[[ "${output[2]}" == "$PITRERY_BACKUP_DIR"* ]]
 }
 
+@test "Testing list in JSON format" {
+	json_list=$(pitrery -f $PITRERY_LOCAL_CONF list -j)
+	[ jq -e . >/dev/null 2>&1 <<<"${json_list}" ]
+}
+
 @test "Testing backup check with backup count" {
 	run pitrery check -C $PITRERY_LOCAL_CONF -B -m 2
 	[ "$status" -eq 0 ]
