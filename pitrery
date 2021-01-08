@@ -84,6 +84,7 @@ usage() {
 			echo "usage: `basename $0` list [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
+			echo "    -j              Return the information in JSON format"
 			echo "    -v              Display details of the backup"
 			echo
 			echo "    -?              Print help"
@@ -570,7 +571,7 @@ check_and_fix_directory() {
 				# diffs.
 				if [ "$STORAGE" = "tar" ]; then
 					info "Removing contents of $dir"
-					rm -rf -- "$dir/"*
+					rm -rf -- "${dir:?}/"*
 				fi
 			else
 				if [ "$OVERWRITE" = "yes" ]; then
