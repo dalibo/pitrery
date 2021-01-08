@@ -1956,7 +1956,7 @@ case $action in
 		# we do not have to uncompress a WAL file to find out its
 		# size.
 		if (( $pg_version >= 110000 )); then
-			wal_segsize=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'" $psql_conndb) ||
+			wal_segsize=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'" $psql_condb) ||
 				warn "could not get the size of a WAL segment from PostgreSQL"
 		fi
 
@@ -2023,7 +2023,7 @@ case $action in
 		else
 			backup_name=$(echo $stop_time | awk '{ gsub(/[:-]/, "."); print $1"_"$2 }')
 		fi
-		new_backup_dir=$backup_root/$label_prefix/$backup_name
+		new_backup_dir=$backup_root/$backup_name
 
 		# Finish the backup by copying needed files and rename the backup
 		# directory to a useful name
