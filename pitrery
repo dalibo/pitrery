@@ -3449,7 +3449,7 @@ case $action in
 			# Check the local rsync
 			if [[ $STORAGE == "rsync" ]]; then
 				info "checking rsync on the local host"
-				if ! which rsync >/dev/null 2>&1; then
+				if ! command -v rsync >/dev/null 2>&1; then
 					error "could not find rsync in the PATH of the local host"
 				else
 					info "rsync found on the local host"
@@ -3483,7 +3483,7 @@ case $action in
 			# Check the local rsync for WAL archiving
 			if [[ $STORAGE == "rsync" ]] || [[ $archive_local == "no" ]]; then
 				info "checking rsync on the local host"
-				if ! which rsync >/dev/null 2>&1; then
+				if ! command -v rsync >/dev/null 2>&1; then
 					error "could not find rsync in the PATH of the local host"
 					arch_ok="no"
 				else
