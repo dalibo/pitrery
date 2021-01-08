@@ -1679,7 +1679,9 @@ case $action in
 						fi
 					fi
 				fi
-				cd -- "$was"
+				if ! cd -- "$was"; then
+					die_and_hook "could not change current directory to $was"
+				fi
 
 				# Tar the tablespaces
 				while read line ; do
@@ -1743,7 +1745,9 @@ case $action in
 						fi
 					fi
 
-					cd -- "$was"
+					if ! cd -- "$was"; then
+						die_and_hook "could not change current directory to $was"
+					fi
 
 				done < "$tblspc_list"
 				;;
@@ -2480,7 +2484,9 @@ case $action in
 				# pgdata
 				info "extracting PGDATA to $PGDATA"
 				was=`pwd`
-				cd -- "$PGDATA"
+				if ! cd -- "$PGDATA"; then
+					die_and_hook "could not change current directory to $PGDATA"
+				fi
 				if [ "$backup_local" = "yes" ]; then
 					if [ "$BACKUP_ENCRYPT" = "yes" ]; then
 						"${gpg_command[@]}" -o - "$backup_dir/pgdata.tar.gpg" | tar xf -
@@ -2520,7 +2526,9 @@ case $action in
 						fi
 					fi
 				fi
-				cd -- "$was"
+				if ! cd -- "$was"; then
+					die_and_hook "could not change current directory to $was"
+				fi
 				info "extraction of PGDATA successful"
 				;;
 
@@ -2638,7 +2646,9 @@ case $action in
 				"tar")
 					info "extracting tablespace \"${name}\" to $tbldir"
 					was=`pwd`
-					cd -- "$tbldir"
+					if ! cd -- "$tbldir"; then
+						die_and_hook "could not change current directory to $tbldir"
+					fi
 					if [ "$backup_local" = "yes" ]; then
 						if [ "$BACKUP_ENCRYPT" = "yes" ]; then
 							"${gpg_command[@]}" -o - "$backup_dir/tblspc/${_name}.tar.gpg" | tar xf -
@@ -2678,7 +2688,9 @@ case $action in
 							fi
 						fi
 					fi
-					cd -- "$was"
+					if ! cd -- "$was"; then
+						die_and_hook "could not change current directory to $was"
+					fi
 					info "extraction of tablespace \"${name}\" successful"
 					;;
 
