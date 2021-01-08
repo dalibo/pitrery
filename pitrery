@@ -1115,7 +1115,7 @@ case $action in
 
 				list_output_json "directory" "$dir"
 			else
-				echo -ne "$dir\t"
+				echo -ne "$dir\\t"
 			fi
 
 			# Compute the size of full backup
@@ -1131,7 +1131,7 @@ case $action in
 					list_output_text "  space used" "$backup_size"
 					list_output_json "space_used" "$backup_size"
 				else
-					echo -ne "$backup_size\t"
+					echo -ne "$backup_size\\t"
 				fi
 			else
 				error "could not find size of $dir"
@@ -2011,7 +2011,7 @@ case $action in
 														 "SELECT setting FROM pg_settings WHERE name = '$f';" \
 														 -- "$psql_condb" \
 					|| warn "could not get the list of configuration files from PostgreSQL"
-				printf "\0"
+				printf "\\0"
 			done
 		)
 
@@ -2962,7 +2962,7 @@ case $action in
 			fi
 
 			case $pgvers in
-				1200)
+				1200|1300)
 					echo "#recovery_end_command = ''"
 					echo "#recovery_target_name = ''  # e.g. 'daily backup 2019-11-07'"
 					echo "#recovery_target_xid = ''"
@@ -2985,7 +2985,7 @@ case $action in
 			for (( i=0; i<$tspc_count; ++i )); do
 				if [ "${tspc_reloc[$i]}" = "yes" ]; then
 					echo "-- update location of ${tspc_name[$i]} to ${tspc_dir[$i]}" >> "$updsql"
-					printf "UPDATE pg_catalog.pg_tablespace SET spclocation = '%s' WHERE oid = %s;\n" "${tspc_dir[$i]}" "${tspc_oid[$i]}" >> "$updsql"
+					printf "UPDATE pg_catalog.pg_tablespace SET spclocation = '%s' WHERE oid = %s;\\n" "${tspc_dir[$i]}" "${tspc_oid[$i]}" >> "$updsql"
 				fi
 			done
 
