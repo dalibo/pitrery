@@ -13,7 +13,7 @@
 #     notice, this list of conditions and the following disclaimer in the
 #     documentation and/or other materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR
+# THIS SOFTWARE IS PROVIDED BY THE AUTHORS ''AS IS'' AND ANY EXPRESS OR
 # IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
 # OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
 # IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
@@ -42,7 +42,7 @@ PRE_BACKUP_COMMAND=
 POST_BACKUP_COMMAND=
 LOG_TIMESTAMP="yes"
 USE_ISO8601_TIMESTAMPS="no"
-PGOWNER=`id -un`
+PGOWNER=$(id -un)
 OVERWRITE="no"
 RESTORE_COMMAND=
 RESTORE_MODE="recovery"
@@ -79,9 +79,9 @@ rsync_opts=""
 usage() {
 	case $1 in
 		list)
-			echo "`basename $0` list - Display information about backups"
+			echo "$(basename $0) list - Display information about backups"
 			echo
-			echo "usage: `basename $0` list [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: $(basename $0) list [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -j              Return the information in JSON format"
@@ -92,9 +92,9 @@ usage() {
 			exit ${2:-0}
 			;;
 		backup)
-			echo "`basename $0` backup - Perform a base backup"
+			echo "$(basename $0) backup - Perform a base backup"
 			echo
-			echo "usage: `basename $0` backup [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: $(basename $0) backup [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -D dir               Path to \$PGDATA"
@@ -117,9 +117,9 @@ usage() {
 			exit ${2:-0}
 			;;
 		restore)
-			echo "`basename $0` restore - Restore a base backup and prepare PITR"
+			echo "$(basename $0) restore - Restore a base backup and prepare PITR"
 			echo
-			echo "usage: `basename $0` restore [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: $(basename $0) restore [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo " options:"
 			echo "    -D dir               Path to target \$PGDATA"
@@ -142,9 +142,9 @@ usage() {
 			exit ${2:-0}
 			;;
 		purge)
-			echo "`basename $0` purge - Clean old base backups and archived WAL files"
+			echo "$(basename $0) purge - Clean old base backups and archived WAL files"
 			echo
-			echo "usage: `basename $0` purge [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: $(basename $0) purge [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -m count               Keep this number of backups"
@@ -160,9 +160,9 @@ usage() {
 			exit ${2:-0}
 			;;
 		check)
-			echo "`basename $0` check - Verify configuration and backups integrity"
+			echo "$(basename $0) check - Verify configuration and backups integrity"
 			echo
-			echo "usage: `basename $0` check [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: $(basename $0) check [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -C conf                Configuration file"
@@ -182,9 +182,9 @@ usage() {
 			exit ${2:-0}
 			;;
 		configure)
-			echo "`basename $0` configure - Create a configuration file from the command line"
+			echo "$(basename $0) configure - Create a configuration file from the command line"
 			echo
-			echo "usage: `basename $0` configure [options] [[user@]host:]/path/to/backups"
+			echo "usage: $(basename $0) configure [options] [[user@]host:]/path/to/backups"
 			echo
 			echo "options:"
 			echo "    -o config_file         Output configuration file"
@@ -210,9 +210,9 @@ usage() {
 			exit ${2:-0}
 			;;
 		help)
-			echo "`basename $0` help - Print help, optionnally for an action"
+			echo "$(basename $0) help - Print help, optionnally for an action"
 			echo
-			echo "usage: `basename $0` help [options] [action]"
+			echo "usage: $(basename $0) help [options] [action]"
 			echo
 			echo "options:"
 			echo "    -?                     Print help"
@@ -222,9 +222,9 @@ usage() {
 	esac
 
 	# Fallback to the main command usage
-	echo "`basename $0` $version - PostgreSQL Point In Time Recovery made easy"
+	echo "$(basename $0) $version - PostgreSQL Point In Time Recovery made easy"
 	echo
-	echo "usage: `basename $0` [options] action [args]"
+	echo "usage: $(basename $0) [options] action [args]"
 	echo
 	echo "options:"
 	echo "    -f file      Path to the configuration file"
@@ -587,7 +587,7 @@ check_and_fix_directory() {
 		fi
 
 		# Check permissions
-		dperms=`stat -c %a -- "$dir" 2>/dev/null` || die "Unable to get permissions of $dir"
+		dperms=$(stat -c %a -- "$dir" 2>/dev/null) || die "Unable to get permissions of $dir"
 
 		if [ "$dperms" != "700" ]; then
 			if [ "$dry_run" != "yes" ]; then
@@ -599,10 +599,10 @@ check_and_fix_directory() {
 
 	if [ "$dry_run" != "yes" ]; then
 		# Check owner
-		downer=`stat -c %U -- "$dir" 2>/dev/null` || die "Unable to get owner of $dir"
+		downer=$(stat -c %U -- "$dir" 2>/dev/null) || die "Unable to get owner of $dir"
 
 		if [ "$downer" != "$PGOWNER" ]; then
-			if [ "`id -u`" = 0 ]; then
+			if [ "$(id -u)" = 0 ]; then
 				info "setting owner of $dir"
 				chown -- "$PGOWNER:" "$dir" || die "could not change owner of $dir to $PGOWNER"
 			else
@@ -1376,7 +1376,7 @@ case $action in
 		fi
 
 		# Prepare the text will put in the backup_label
-		label_text="pitrery_${version}_`date +%s`"
+		label_text="pitrery_${version}_$(date +%s)"
 
 		# Prepare psql command line. Starting from 9.6 .psqlrc is sourced with
 		# psql -c or -f, so we force -X
@@ -1582,10 +1582,10 @@ case $action in
 			# backup_label that will be archived after pg_stop_backup
 			# completes
 			if (( $pg_version >= 80400 )); then
-				start_backup_label_file=`"${psql_command[@]}" -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}', true)) as i;" $psql_condb`
+				start_backup_label_file=$("${psql_command[@]}" -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}', true)) as i;" $psql_condb)
 				rc=$?
 			else
-				start_backup_label_file=`"${psql_command[@]}" -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}')) as i;" $psql_condb`
+				start_backup_label_file=$("${psql_command[@]}" -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}')) as i;" $psql_condb)
 				rc=$?
 			fi
 
@@ -1628,7 +1628,7 @@ case $action in
 			"tar")
 				# Tar $PGDATA
 				info "backing up PGDATA with tar"
-				was=`pwd`
+				was=$(pwd)
 				if ! cd -- "$PGDATA"; then
 					die_and_hook "could not change current directory to $PGDATA"
 				fi
@@ -1697,7 +1697,7 @@ case $action in
 
 					# Change directory to the parent directory or the tablespace to be
 					# able to tar only the base directory
-					was=`pwd`
+					was=$(pwd)
 					if ! cd -- "$location"; then
 						die_and_hook "could not change current directory to $location"
 					fi
@@ -1962,10 +1962,10 @@ case $action in
 
 		# Ask PostgreSQL where are its configuration file. When they are
 		# outside PGDATA, copy them in the backup
-		_pgdata=`readlink -f -- "$PGDATA"`
+		_pgdata=$(readlink -f -- "$PGDATA")
 
 		while read -r -d '' f; do
-			file=`readlink -f -- "$f"`
+			file=$(readlink -f -- "$f")
 			if [[ ! $file =~ ^"$_pgdata" ]]; then
 				# the file in not inside PGDATA, copy it
 				destdir=$backup_dir/conf
@@ -2484,7 +2484,7 @@ case $action in
 			"tar")
 				# pgdata
 				info "extracting PGDATA to $PGDATA"
-				was=`pwd`
+				was=$(pwd)
 				if ! cd -- "$PGDATA"; then
 					die_and_hook "could not change current directory to $PGDATA"
 				fi
@@ -2613,7 +2613,7 @@ case $action in
 		fi
 
 		# change owner of PGDATA to the target owner
-		if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+		if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ]; then
 			info "setting owner of PGDATA ($PGDATA)"
 			if ! chown -R -- "$PGOWNER:" "$PGDATA"; then
 				die "could not change owner of PGDATA to $PGOWNER"
@@ -2637,7 +2637,7 @@ case $action in
 
 				# Ensure the new link has the correct owner, the chown -R
 				# issued after extraction will not do it
-				if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+				if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ]; then
 					chown -h -- "$PGOWNER:" "$PGDATA/pg_tblspc/$oid"
 				fi
 			fi
@@ -2646,7 +2646,7 @@ case $action in
 			case $storage in
 				"tar")
 					info "extracting tablespace \"${name}\" to $tbldir"
-					was=`pwd`
+					was=$(pwd)
 					if ! cd -- "$tbldir"; then
 						die_and_hook "could not change current directory to $tbldir"
 					fi
@@ -2719,7 +2719,7 @@ case $action in
 			esac
 
 			# change owner of the tablespace files to the target owner
-			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+			if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ]; then
 				info "setting owner of tablespace \"$name\" ($tbldir)"
 				if ! chown -R -- "$PGOWNER:" "$tbldir"; then
 					die "could not change owner of tablespace \"$name\" to $PGOWNER"
@@ -2788,7 +2788,7 @@ case $action in
 			if ! ln -sf -- "$PGWAL" "$PGDATA/pg_${xlog_or_wal}"; then
 				die "could not create $PGDATA/pg_${xlog_or_wal} symbolic link"
 			fi
-			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+			if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ]; then
 				if ! chown -h -- "$PGOWNER:" "$PGDATA/pg_${xlog_or_wal}"; then
 					die "could not change owner of pg_${xlog_or_wal} symbolic link to $PGOWNER"
 				fi
@@ -2805,7 +2805,7 @@ case $action in
 				die "could not set permissions of $PGDATA/pg_${xlog_or_wal} and $PGDATA/pg_${xlog_or_wal}/archive_status"
 			fi
 
-			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+			if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ]; then
 				if ! chown -R -- "$PGOWNER:" "$PGDATA/pg_${xlog_or_wal}"; then
 					die "could not change owner of $dir to $PGOWNER"
 				fi
@@ -2898,7 +2898,7 @@ case $action in
 
 			# Ensure recovery file as the correct owner so that PostgreSQL can
 			# rename it at the end of the recovery
-			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ] && [ -n "$recovery_file" ]; then
+			if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ] && [ -n "$recovery_file" ]; then
 				if ! chown -R -- "$PGOWNER:" "$PGDATA/$recovery_file"; then
 					die "could not change owner of $recovery_file to $PGOWNER"
 				fi
@@ -2931,7 +2931,7 @@ case $action in
 
 			# Ensure signal file as the correct owner so that PostgreSQL can
 			# delete it at the end of the recovery
-			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ] && [ -n "$restore_mode_file" ]; then
+			if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ] && [ -n "$restore_mode_file" ]; then
 				if ! chown -R -- "$PGOWNER:" "$PGDATA/$restore_mode_file"; then
 					die "could not change owner of $restore_mode_file to $PGOWNER"
 				fi
@@ -2989,7 +2989,7 @@ case $action in
 				fi
 			done
 
-			if [ "`id -u`" = 0 ] && [ "`id -un`" != "$PGOWNER" ]; then
+			if [ "$(id -u)" = 0 ] && [ "$(id -un)" != "$PGOWNER" ]; then
 				chown -- "$PGOWNER:" "$updsql" 2>/dev/null
 			fi
 		fi
