@@ -826,7 +826,8 @@ output_param() {
 	echo "${param}=\"${value}\""
 
 	if [ -n "$file" ]; then
-		local tmpfile=$(mktemp -t pitr_config_sed.XXXXXXXXXX) ||
+		local tmpfile
+		tmpfile=$(mktemp -t pitr_config_sed.XXXXXXXXXX) ||
 			error "Failed to create temporary file"
 
 		# Replace the parameter with sed, the value is quoted so that
