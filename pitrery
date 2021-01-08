@@ -77,11 +77,12 @@ out_rc=0
 rsync_opts=""
 
 usage() {
+	prg_name=$(basename $0)
 	case $1 in
 		list)
-			echo "$(basename $0) list - Display information about backups"
+			echo "${prg_name} list - Display information about backups"
 			echo
-			echo "usage: $(basename $0) list [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: ${prg_name} list [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -j              Return the information in JSON format"
@@ -92,9 +93,9 @@ usage() {
 			exit ${2:-0}
 			;;
 		backup)
-			echo "$(basename $0) backup - Perform a base backup"
+			echo "${prg_name} backup - Perform a base backup"
 			echo
-			echo "usage: $(basename $0) backup [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: ${prg_name} backup [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -D dir               Path to \$PGDATA"
@@ -117,9 +118,9 @@ usage() {
 			exit ${2:-0}
 			;;
 		restore)
-			echo "$(basename $0) restore - Restore a base backup and prepare PITR"
+			echo "${prg_name} restore - Restore a base backup and prepare PITR"
 			echo
-			echo "usage: $(basename $0) restore [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: ${prg_name} restore [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo " options:"
 			echo "    -D dir               Path to target \$PGDATA"
@@ -142,9 +143,9 @@ usage() {
 			exit ${2:-0}
 			;;
 		purge)
-			echo "$(basename $0) purge - Clean old base backups and archived WAL files"
+			echo "${prg_name} purge - Clean old base backups and archived WAL files"
 			echo
-			echo "usage: $(basename $0) purge [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: ${prg_name} purge [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -m count               Keep this number of backups"
@@ -160,9 +161,9 @@ usage() {
 			exit ${2:-0}
 			;;
 		check)
-			echo "$(basename $0) check - Verify configuration and backups integrity"
+			echo "${prg_name} check - Verify configuration and backups integrity"
 			echo
-			echo "usage: $(basename $0) check [options] [[[user@]host:]/path/to/backups]"
+			echo "usage: ${prg_name} check [options] [[[user@]host:]/path/to/backups]"
 			echo
 			echo "options:"
 			echo "    -C conf                Configuration file"
@@ -182,9 +183,9 @@ usage() {
 			exit ${2:-0}
 			;;
 		configure)
-			echo "$(basename $0) configure - Create a configuration file from the command line"
+			echo "${prg_name} configure - Create a configuration file from the command line"
 			echo
-			echo "usage: $(basename $0) configure [options] [[user@]host:]/path/to/backups"
+			echo "usage: ${prg_name} configure [options] [[user@]host:]/path/to/backups"
 			echo
 			echo "options:"
 			echo "    -o config_file         Output configuration file"
@@ -210,9 +211,9 @@ usage() {
 			exit ${2:-0}
 			;;
 		help)
-			echo "$(basename $0) help - Print help, optionnally for an action"
+			echo "${prg_name} help - Print help, optionnally for an action"
 			echo
-			echo "usage: $(basename $0) help [options] [action]"
+			echo "usage: ${prg_name} help [options] [action]"
 			echo
 			echo "options:"
 			echo "    -?                     Print help"
@@ -222,9 +223,9 @@ usage() {
 	esac
 
 	# Fallback to the main command usage
-	echo "$(basename $0) $version - PostgreSQL Point In Time Recovery made easy"
+	echo "${prg_name} $version - PostgreSQL Point In Time Recovery made easy"
 	echo
-	echo "usage: $(basename $0) [options] action [args]"
+	echo "usage: ${prg_name} [options] action [args]"
 	echo
 	echo "options:"
 	echo "    -f file      Path to the configuration file"
@@ -403,7 +404,7 @@ parse_target_uri() {
 		archive_local="no"
 
 		# Wrap IPv6 addresses with brackets
-		echo $archive_host | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
+		echo "$archive_host" | grep -qi '^[0123456789abcdef:]*:[0123456789abcdef:]*$' && archive_host="[${archive_host}]"
 
 		# Add a shortcut for ssh/rsync commands
 		archive_ssh_target="${archive_user:+$archive_user@}$archive_host"
@@ -487,13 +488,13 @@ stop_backup() {
 
 		echo "select labelfile, spcmapfile from pg_stop_backup(false);" >&${COPROC[1]}
 		if [ $? != 0 ]; then
-			check_psql_stderr || cat $psql_stderr
+			check_psql_stderr || cat "$psql_stderr"
 			die_and_hook "could not stop backup process"
 		fi
 
 		result=$(get_psql_output)
 		if [ -z "$result" ]; then
-			check_psql_stderr || cat $psql_stderr
+			check_psql_stderr || cat "$psql_stderr"
 			die_and_hook "error while stopping the backup process"
 		fi
 
@@ -505,13 +506,13 @@ stop_backup() {
 		# part of the output of pg_stop_backup().
 		echo "select to_char(now(), 'YYYY-MM-DD HH24:MI:SS TZ');" >&${COPROC[1]}
 		if [ $? != 0 ]; then
-			check_psql_stderr || cat $psql_stderr
+			check_psql_stderr || cat "$psql_stderr"
 			die_and_hook "could not get the stop time of the backup"
 		fi
 
 		stop_time=$(get_psql_output)
 		if [ -z "$stop_time" ]; then
-			check_psql_stderr || cat $psql_stderr
+			check_psql_stderr || cat "$psql_stderr"
 			die_and_hook "could not get the stop time of the backup"
 		fi
 
@@ -783,9 +784,9 @@ check_postgresql_config() {
 		fi
 
 		# wal_level must be different than minimal
-		if [ -n "$wal_level" ] && [ $wal_level = "minimal" ]; then
-			if (( $pg_version >= 90000 )); then
-				if (( $pg_version < 90600 )); then
+		if [ -n "$wal_level" ] && [ "$wal_level" = "minimal" ]; then
+			if (( "$pg_version" >= 90000 )); then
+				if (( "$pg_version" < 90600 )); then
 					error "wal_level must be set at least to archive"
 				else
 					# archive and hot_standby levels have been merged into
@@ -795,7 +796,7 @@ check_postgresql_config() {
 			fi
 		fi
 
-		if [ -n "$archive_mode" ] && [ $archive_mode = "off" ]; then
+		if [ -n "$archive_mode" ] && [ "$archive_mode" = "off" ]; then
 			error "archive_mode must be set to on"
 		fi
 
@@ -1393,7 +1394,7 @@ case $action in
 		export PITRERY_HOOK="pre_backup"
 		export PITRERY_BACKUP_DIR=$backup_dir
 		export PITRERY_PSQL="${psql_command[@]}"
-		export PITRERY_DATABASE=$psql_condb
+		export PITRERY_DATABASE="$psql_condb"
 		export PITRERY_BACKUP_LOCAL=$backup_local
 		export PITRERY_SSH_TARGET=$backup_ssh_target
 
@@ -1522,7 +1523,7 @@ case $action in
 				die_and_hook "could not create temporary file"
 			fi
 
-			coproc "${psql_command[@]}" -At $psql_condb 2>$psql_stderr
+			coproc "${psql_command[@]}" -At "$psql_condb" 2>$psql_stderr
 
 			get_psql_output() {
 				# First wait for output to be ready on the fd. When there is
@@ -1557,7 +1558,7 @@ case $action in
 			# Check if the connection works by getting the pid of the backend
 			echo 'select pg_backend_pid();' >&${COPROC[1]} # 2>/dev/null
 			if [ $? != 0 ]; then
-				check_psql_stderr || cat $psql_stderr
+				check_psql_stderr || cat "$psql_stderr"
 				die_and_hook "could not check connection to PostgreSQL"
 			fi
 			psql_pid=$(get_psql_output)
@@ -1565,13 +1566,13 @@ case $action in
 			# Start the base backup
 			echo "select pg_start_backup('${label_text}', true, false);"  >&${COPROC[1]}
 			if [ $? != 0 ]; then
-				check_psql_stderr || cat $psql_stderr
+				check_psql_stderr || cat "$psql_stderr"
 				die_and_hook "could not start backup process (command sending)"
 			fi
 
 			start_backup_lsn=$(get_psql_output)
 			if [ -z "$start_backup_lsn" ]; then
-				check_psql_stderr || cat $psql_stderr
+				check_psql_stderr || cat "$psql_stderr"
 				die_and_hook "could not start backup process (empty output)"
 			fi
 		else
@@ -1582,10 +1583,10 @@ case $action in
 			# backup_label that will be archived after pg_stop_backup
 			# completes
 			if (( $pg_version >= 80400 )); then
-				start_backup_label_file=$("${psql_command[@]}" -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}', true)) as i;" $psql_condb)
+				start_backup_label_file=$("${psql_command[@]}" -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}', true)) as i;" "$psql_condb")
 				rc=$?
 			else
-				start_backup_label_file=$("${psql_command[@]}" -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}')) as i;" $psql_condb)
+				start_backup_label_file=$("${psql_command[@]}" -Atc "select i.file_name ||'.'|| lpad(upper(to_hex(i.file_offset)), 8, '0') || '.backup' from pg_${xlog_or_wal}file_name_offset(pg_start_backup('${label_text}')) as i;" "$psql_condb")
 				rc=$?
 			fi
 
@@ -1771,13 +1772,13 @@ case $action in
 
 				info "transferring data from $PGDATA"
 				if [ "$backup_local" = "yes" ]; then
-					rsync $rsync_opts -aq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_dir/pgdata/"
+					rsync "$rsync_opts" -aq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_dir/pgdata/"
 					rc=$?
 					if [ $rc != 0 ] && [ $rc != 24 ]; then
 						die_and_hook "rsync of PGDATA failed with exit code $rc"
 					fi
 				else
-					rsync $rsync_opts -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_ssh_target:$(qw "$backup_dir/pgdata/")"
+					rsync "$rsync_opts" -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_ssh_target:$(qw "$backup_dir/pgdata/")"
 					rc=$?
 					if [ $rc != 0 ] && [ $rc != 24 ]; then
 						die_and_hook "rsync of PGDATA failed with exit code $rc"
@@ -1812,13 +1813,13 @@ case $action in
 					# rsync
 					info "transferring data from $location"
 					if [ "$backup_local" = "yes" ]; then
-						rsync $rsync_opts -aq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_dir/tblspc/$_name/"
+						rsync "$rsync_opts" -aq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_dir/tblspc/$_name/"
 						rc=$?
 						if [ $rc != 0 ] && [ $rc != 24 ]; then
 								die_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 							fi
 					else
-						rsync $rsync_opts -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
+						rsync "$rsync_opts" -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
 						rc=$?
 						if [ $rc != 0 ] && [ $rc != 24 ]; then
 								die_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
@@ -1943,7 +1944,7 @@ case $action in
 		# Convert the stop time to UTC, this make it easier when searching for
 		# a proper backup when restoring
 		if [ -n "$stop_time" ]; then
-			timestamp=$("${psql_command[@]}" -Atc "SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '${stop_time}');" $psql_condb) ||
+			timestamp=$("${psql_command[@]}" -Atc "SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '${stop_time}');" "$psql_condb") ||
 				warn "could not get the stop time timestamp from PostgreSQL"
 		else
 			die_and_hook "Failed to get STOP TIME from '$backup_file'"
@@ -1956,7 +1957,7 @@ case $action in
 		# we do not have to uncompress a WAL file to find out its
 		# size.
 		if (( $pg_version >= 110000 )); then
-			wal_segsize=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'" $psql_condb) ||
+			wal_segsize=$("${psql_command[@]}" -Atc "SELECT setting FROM pg_settings WHERE name = 'wal_segment_size'" "$psql_condb") ||
 				warn "could not get the size of a WAL segment from PostgreSQL"
 		fi
 
@@ -2541,13 +2542,13 @@ case $action in
 				init_rsync_opts
 
 				if [ "$backup_local" = "yes" ]; then
-					rsync $rsync_opts -aq --delete -- "$backup_dir/pgdata/" "$PGDATA/"
+					rsync "$rsync_opts" -aq --delete -- "$backup_dir/pgdata/" "$PGDATA/"
 					rc=$?
 					if [ $rc != 0 ] && [ $rc != 24 ]; then
 						die "rsync of PGDATA failed with exit code $rc"
 					fi
 				else
-					rsync $rsync_opts -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/pgdata/")" "$PGDATA/"
+					rsync "$rsync_opts" -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/pgdata/")" "$PGDATA/"
 					rc=$?
 					if [ $rc != 0 ] && [ $rc != 24 ]; then
 						die "rsync of PGDATA failed with exit code $rc"
@@ -2698,13 +2699,13 @@ case $action in
 				"rsync")
 					info "transferring tablespace \"${name}\" to $tbldir with rsync"
 					if [ "$backup_local" = "yes" ]; then
-						rsync $rsync_opts -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
+						rsync "$rsync_opts" -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
 						rc=$?
 						if [ $rc != 0 ] && [ $rc != 24 ]; then
 							die "rsync of tablespace \"${name}\" failed with exit code $rc"
 						fi
 					else
-						rsync $rsync_opts -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
+						rsync "$rsync_opts" -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
 						rc=$?
 						if [ $rc != 0 ] && [ $rc != 24 ]; then
 							die "rsync of tablespace \"${name}\" failed with exit code $rc"

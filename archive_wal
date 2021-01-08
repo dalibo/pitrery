@@ -13,7 +13,7 @@
 #     notice, this list of conditions and the following disclaimer in the
 #     documentation and/or other materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR
+# THIS SOFTWARE IS PROVIDED BY THE AUTHORS ''AS IS'' AND ANY EXPRESS OR
 # IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
 # OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
 # IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
@@ -72,9 +72,9 @@ warn() {
 
 # Script help
 usage() {
-	echo "`basename $0` Archive a WAL segment"
+	echo "$(basename $0) Archive a WAL segment"
 	echo
-	echo "usage: `basename $0` [options] walfile"
+	echo "usage: $(basename $0) [options] walfile"
 	echo
 	echo "options:"
 	echo "    -C conf        configuration file"
