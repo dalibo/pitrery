@@ -28,7 +28,7 @@ jobs:
       - checkout
       - run:
           name: Shellcheck code analysis
-          command: shellcheck -e SC2002,SC2004,SC2005,SC2006,SC2086,SC1117,SC2119,SC2129,SC2162,SC2181,SC2230 -e SC1090,SC2034,SC2038,SC2046,SC2120,SC2124,SC2128,SC2153,SC2174,SC2178,SC2198,SC2206,SC2207 -f gcc pitrery archive_wal restore_wal
+          command: shellcheck -e SC2002,SC2004,SC2005,SC2006,SC2086,SC1117,SC2119,SC2129,SC2162,SC2181,SC2230 -e SC1090,SC2034,SC2038,SC2120,SC2124,SC2128,SC2153,SC2174,SC2178,SC2198,SC2206,SC2207 -f gcc pitrery archive_wal restore_wal
 
 workflows:
   version: 2

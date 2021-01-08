@@ -259,7 +259,7 @@ if [ "$SYSLOG" = "yes" ]; then
 fi
 
 # Print a message when alias used
-if [ $(basename $0) = 'archive_xlog' ]; then
+if [ "$(basename $0)" = 'archive_xlog' ]; then
 	warn "'archive_xlog' is now an alias for 'archive_wal', which will disappear in a next release."
 	warn "We advise you to use 'archive_wal' as soon as possible."
 fi
