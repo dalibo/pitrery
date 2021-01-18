@@ -13,7 +13,7 @@
 #     notice, this list of conditions and the following disclaimer in the
 #     documentation and/or other materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR
+# THIS SOFTWARE IS PROVIDED BY THE AUTHORS ''AS IS'' AND ANY EXPRESS OR
 # IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
 # OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
 # IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
@@ -67,7 +67,7 @@ warn() {
 usage() {
 	echo "$(basename $0) - Restore a WAL segment"
 	echo
-	echo "usage: `basename $0` [options] walfile destination"
+	echo "usage: $(basename $0) [options] walfile destination"
 	echo "options:"
 	echo "    -C conf                Configuration file"
 	echo "    -a [[user@]host:]/dir  Place to get the archive"
@@ -217,7 +217,7 @@ if [ "$SYSLOG" = "yes" ]; then
 fi
 
 # Print a message when alias used
-if [ $(basename $0) = 'restore_xlog' ]; then
+if [ "$(basename $0)" = 'restore_xlog' ]; then
 	warn "'restore_xlog' is now an alias for 'restore_wal', which will disappear in a next release."
 	warn "We advise you to use 'restore_wal' as soon as possible."
 fi

@@ -13,7 +13,7 @@
 #     notice, this list of conditions and the following disclaimer in the
 #     documentation and/or other materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE AUTHORS ``AS IS'' AND ANY EXPRESS OR
+# THIS SOFTWARE IS PROVIDED BY THE AUTHORS ''AS IS'' AND ANY EXPRESS OR
 # IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
 # OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
 # IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
@@ -62,7 +62,7 @@ now() {
 
 error() {
 	echo "$(now)ERROR: $1" 1>&2
-	[ -n "$tmpfile" ] && rm -f -- "$tmpfile"
+	[ -n "$tmp_file" ] && rm -f -- "$tmp_file"
 	exit ${2:-1}
 }
 
@@ -72,9 +72,9 @@ warn() {
 
 # Script help
 usage() {
-	echo "`basename $0` Archive a WAL segment"
+	echo "$(basename $0) Archive a WAL segment"
 	echo
-	echo "usage: `basename $0` [options] walfile"
+	echo "usage: $(basename $0) [options] walfile"
 	echo
 	echo "options:"
 	echo "    -C conf        configuration file"
@@ -259,7 +259,7 @@ if [ "$SYSLOG" = "yes" ]; then
 fi
 
 # Print a message when alias used
-if [ $(basename $0) = 'archive_xlog' ]; then
+if [ "$(basename $0)" = 'archive_xlog' ]; then
 	warn "'archive_xlog' is now an alias for 'archive_wal', which will disappear in a next release."
 	warn "We advise you to use 'archive_wal' as soon as possible."
 fi
@@ -431,7 +431,7 @@ else
 		0) ;;
 		1) error "Unable to copy $wal to ${archive_ssh_target}:$archive_dir" $rc;;
 		2) error "Unable to create target directory" $rc;;
-		3) error "'$dest_file' already exists on $dest_host, refusing to overwrite it" $rc;;
+		3) error "'$dest_file' already exists on $backup_host, refusing to overwrite it" $rc;;
 		4) warn "Could not change mode of $dest_path to $ARCHIVE_FILE_CHMOD";;
 		5) error "SSH error on ${archive_host}" $rc;;
 		*) error "Unexpected return code while copying the file" 100

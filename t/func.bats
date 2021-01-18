@@ -8,7 +8,13 @@ setup () {
 
 @test "First dummy check - trying to run help action" {
 	run pitrery help
-	[ "${lines[0]}" == 'pitrery 3.2 - PostgreSQL Point In Time Recovery made easy' ]
+	[ "${lines[0]}" == 'pitrery 3.3 - PostgreSQL Point In Time Recovery made easy' ]
+	echo "output = ${output}"
+}
+
+@test "Testing list configuration files" {
+	run pitrery -l
+	[ "$status" -eq 0 ]
 	echo "output = ${output}"
 }
 
@@ -170,6 +176,12 @@ setup () {
 	[[ "${output[2]}" == "$PITRERY_BACKUP_DIR"* ]]
 }
 
+@test "Testing list in JSON format" {
+	json_list=$(pitrery -f $PITRERY_LOCAL_CONF list -j)
+	# need jq to be installed, PR in docker-labs-sdk
+	# echo "${json_list}" | jq -e .
+}
+
 @test "Testing backup check with backup count" {
 	run pitrery check -C $PITRERY_LOCAL_CONF -B -m 2
 	[ "$status" -eq 0 ]
@@ -272,7 +284,6 @@ setup () {
 	recovery_status=$(${PGBIN}/psql -p 5433 -Atc 'SELECT pg_is_in_recovery()')
 	[[ "$recovery_status" == "t"* ]]
 	repli_state=$(${PGBIN}/psql -p 5432 -Atc "SELECT state from pg_stat_replication")
-	${PGBIN}/psql -p 5432 -Atc "SELECT * from pg_stat_replication" >&3
 	[[ "$repli_state" == "streaming"* ]]
 	# destroy restored instance
 	${PGBIN}/pg_ctl stop -w -D ${PGDATA}_2 3>&-
