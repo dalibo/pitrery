@@ -1772,13 +1772,13 @@ case $action in
 
 				info "transferring data from $PGDATA"
 				if [ "$backup_local" = "yes" ]; then
-					rsync "$rsync_opts" -aq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_dir/pgdata/"
+					rsync $rsync_opts -aq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_dir/pgdata/"
 					rc=$?
 					if [ $rc != 0 ] && [ $rc != 24 ]; then
 						die_and_hook "rsync of PGDATA failed with exit code $rc"
 					fi
 				else
-					rsync "$rsync_opts" -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_ssh_target:$(qw "$backup_dir/pgdata/")"
+					rsync $rsync_opts -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' --exclude "pg_${xlog_or_wal}" --exclude 'pg_replslot/*' --exclude 'postmaster.*' --exclude 'restored_config_files' --exclude 'backup_label.old' --exclude '*.sql' "${rsync_link[@]}" -- "$PGDATA/" "$backup_ssh_target:$(qw "$backup_dir/pgdata/")"
 					rc=$?
 					if [ $rc != 0 ] && [ $rc != 24 ]; then
 						die_and_hook "rsync of PGDATA failed with exit code $rc"
@@ -1813,13 +1813,13 @@ case $action in
 					# rsync
 					info "transferring data from $location"
 					if [ "$backup_local" = "yes" ]; then
-						rsync "$rsync_opts" -aq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_dir/tblspc/$_name/"
+						rsync $rsync_opts -aq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_dir/tblspc/$_name/"
 						rc=$?
 						if [ $rc != 0 ] && [ $rc != 24 ]; then
 								die_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
 							fi
 					else
-						rsync "$rsync_opts" -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
+						rsync $rsync_opts -e "ssh -o Compression=no" -zaq --delete-excluded --exclude 'pgsql_tmp' "${rsync_link[@]}" -- "$location/" "$backup_ssh_target:$(qw "$backup_dir/tblspc/$_name/")"
 						rc=$?
 						if [ $rc != 0 ] && [ $rc != 24 ]; then
 								die_and_hook "rsync of tablespace \"$name\" failed with exit code $rc"
@@ -2542,13 +2542,13 @@ case $action in
 				init_rsync_opts
 
 				if [ "$backup_local" = "yes" ]; then
-					rsync "$rsync_opts" -aq --delete -- "$backup_dir/pgdata/" "$PGDATA/"
+					rsync $rsync_opts -aq --delete -- "$backup_dir/pgdata/" "$PGDATA/"
 					rc=$?
 					if [ $rc != 0 ] && [ $rc != 24 ]; then
 						die "rsync of PGDATA failed with exit code $rc"
 					fi
 				else
-					rsync "$rsync_opts" -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/pgdata/")" "$PGDATA/"
+					rsync $rsync_opts -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/pgdata/")" "$PGDATA/"
 					rc=$?
 					if [ $rc != 0 ] && [ $rc != 24 ]; then
 						die "rsync of PGDATA failed with exit code $rc"
@@ -2699,13 +2699,13 @@ case $action in
 				"rsync")
 					info "transferring tablespace \"${name}\" to $tbldir with rsync"
 					if [ "$backup_local" = "yes" ]; then
-						rsync "$rsync_opts" -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
+						rsync $rsync_opts -aq --delete -- "$backup_dir/tblspc/${_name}/" "$tbldir/"
 						rc=$?
 						if [ $rc != 0 ] && [ $rc != 24 ]; then
 							die "rsync of tablespace \"${name}\" failed with exit code $rc"
 						fi
 					else
-						rsync "$rsync_opts" -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
+						rsync $rsync_opts -e "ssh -o Compression=no" -za --delete -- "$backup_ssh_target:$(qw "$backup_dir/tblspc/${_name}/")" "$tbldir/"
 						rc=$?
 						if [ $rc != 0 ] && [ $rc != 24 ]; then
 							die "rsync of tablespace \"${name}\" failed with exit code $rc"
