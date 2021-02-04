@@ -2,7 +2,7 @@
 .\" First parameter, NAME, should be all caps
 .\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
 .\" other parameters are allowed: see man(7), man(1)
-.TH ARCHIVE_WAL 1 "October 11, 2015"
+.TH ARCHIVE_WAL 1 "February 3, 2021"
 .\" Please adjust this date whenever revising the manpage.
 .\"
 .\" Some roff macros, for reference:
@@ -27,7 +27,7 @@ archive_wal \- save WAL segment files for point-in-time recovery
 .SH DESCRIPTION
 The \fBarchive_wal\fP script may be used as the \fIarchive_command\fP in
 \fIpostgresql.conf\fP to copy and optionally compress completed WAL segment
-files to a local or remote archive location.  It is not required to use this
+files to a local or remote archive location. It is not required to use this
 script as your \fIarchive_command\fP when using \fBpitrery\fP for backup and
 restore operations, but it does make it a bit easier to keep all of the
 relevant configuration for storing and retrieving WAL segment files in the
@@ -41,24 +41,24 @@ The following options are available:
 .TP
 .BI "\-C " conf
 Use option settings from the specified configuration file instead of the
-default \fIpitrery.conf\fP file.  This may be a full path to the file to use,
+default \fIpitrery.conf\fP file. This may be a full path to the file to use,
 or the name of a configuration file in \fI/etc/pitrery\fP.
 
 .TP
 .BI "\-a " [[user@]host:]/dir
 The directory on the (local or remote) host where WAL segment files will be
-stored.  This will override the \fBARCHIVE_DIR\fP option from the
-configuration file.  When the host name is omited, the archiving is local.
+stored. This will override the \fBARCHIVE_DIR\fP option from the
+configuration file. When the host name is omited, the archiving is local.
 
 .TP
 .B \-X
-Do not compress WAL segment files.  This will override the
+Do not compress WAL segment files. This will override the
 \fBARCHIVE_COMPRESS\fP option from the configuration file (forcing it to be
 "no").
 
 .TP
 .B \-O
-Do not overwrite the destination file if it exists.  This will force
+Do not overwrite the destination file if it exists. This will force
 the \fBARCHIVE_OVERWRITE\fP option from the configuration file to "no".
 
 .TP
@@ -74,24 +74,24 @@ option does not apply on local archiving.
 .B \-F
 Force an immediate flush of the archived file to disk before returning
 success. It may slow down the archiving process but ensure archives
-are not corrupted in case of a power loss on the destination. This will force the
-\fARCHIVE_FLUSH\fP option from the configuration file to "yes".
+are not corrupted in case of a power loss on the destination. This will force
+the \fARCHIVE_FLUSH\fP option from the configuration file to "yes".
 
 .TP
 .BI "\-c " command
-The command to use for compressing WAL segment files.  This will override
+The command to use for compressing WAL segment files. This will override
 the \fBARCHIVE_COMPRESS_BIN\fP option from the configuration file.
 
 .TP
 .BI "\-s " suffix
-The compressed file suffix to use (e.g., gz, bz2, xz).  This will override
+The compressed file suffix to use (e.g., gz, bz2, xz). This will override
 the \fBARCHIVE_COMPRESS_SUFFIX\fP option from the configuration file.
 
 .TP
 .BI \-E
-Encrypt the file using GnuPG.  The list of recipients must given using
-the \fB-r\fP option.  When this option is used, compression is
-disabled, as GunPG already compresses the output.  This will override
+Encrypt the file using GnuPG. The list of recipients must given using
+the \fB-r\fP option. When this option is used, compression is
+disabled, as GunPG already compresses the output. This will override
 the \fBARCHIVE_ENCRYPT\fP option from the configuration file.
 
 .TP
@@ -103,33 +103,33 @@ configuration file.
 
 .TP
 .B \-S
-Send messages to the \fBsyslog\fP(3) instead of \fBstdio\fP(3).  This will
+Send messages to the \fBsyslog\fP(3) instead of \fBstdio\fP(3). This will
 override the \fBSYSLOG\fP option from the configuration file (forcing it to
-be "yes").  Messages sent to \fIstdout\fP will be logged with \fBLOG_INFO\fP
+be "yes"). Messages sent to \fIstdout\fP will be logged with \fBLOG_INFO\fP
 priority, while messages to \fIstderr\fP will be logged with \fBLOG_ERR\fP
 priority.
 
 .TP
 .BI "\-f " facility
-Specify the \fBsyslog\fP facility to use.  This will override the
-\fBSYSLOG_FACILITY\fP option from the configuration file.  Defaults to use
-\fBlocal0\fP if not otherwise explicitly set.  See \fBlogger\fP(1) for details
+Specify the \fBsyslog\fP facility to use. This will override the
+\fBSYSLOG_FACILITY\fP option from the configuration file. Defaults to use
+\fBlocal0\fP if not otherwise explicitly set. See \fBlogger\fP(1) for details
 of the valid facility strings that can be used here.
 
 .TP
 .BI "\-t " ident
-An identifier to prefix \fBsyslog\fP output with.  This will override the
-\fBSYSLOG_IDENT\fP option from the configuration file.  Defaults to use the
+An identifier to prefix \fBsyslog\fP output with. This will override the
+\fBSYSLOG_IDENT\fP option from the configuration file. Defaults to use the
 string "postgres" if not otherwise explicitly set.
 
 .TP
 .BI "\-m " mode
-Set the permissions of the archived file to this mode (e.g. \fBchmod\fP).  The value
-must be in octal form.
+Set the permissions of the archived file to this mode (e.g. \fBchmod\fP).
+The value must be in octal form.
 
 .TP
 .B \-T
-Timestamp the log messages.  This will override the \fBLOG_TIMESTAMP\fP option
+Timestamp the log messages. This will override the \fBLOG_TIMESTAMP\fP option
 from the configuration file (forcing it to be "yes").
 
 .TP
@@ -171,8 +171,8 @@ A minimal \fIpostgresql.conf\fP configuration for WAL archiving with
 
 The \fIpitrery.conf\fP that will be used should be configured suitably before
 these changes are made to the \fBpostgres\fP configuration and the postmaster
-is restarted or reloaded.  Once the above configuration is active, the
-\fBarchive_wal\fP script may be called at any time.  See \fBpitrery\fP(1)
+is restarted or reloaded. Once the above configuration is active, the
+\fBarchive_wal\fP script may be called at any time. See \fBpitrery\fP(1)
 for details of the configuration options available there.
 
 

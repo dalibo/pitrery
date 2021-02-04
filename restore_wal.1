@@ -2,7 +2,7 @@
 .\" First parameter, NAME, should be all caps
 .\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
 .\" other parameters are allowed: see man(7), man(1)
-.TH RESTORE_WAL 1 "October 11, 2015"
+.TH RESTORE_WAL 1 "February 3, 2021"
 .\" Please adjust this date whenever revising the manpage.
 .\"
 .\" Some roff macros, for reference:
@@ -26,10 +26,10 @@ restore_wal \- retrieve WAL segment files during database recovery
 
 .SH DESCRIPTION
 The \fBrestore_wal\fP script is the default action that is used for the
-\fBpostgres\fP(1) \fIrestore_command\fP in \fIrecovery.conf\fP by
-\fBpitrery\ restore\fP.  It is responsible for retrieving the archived WAL
-segments that are needed during the recovery operation.
-
+\fBpostgres\fP(1) \fIrestore_command\fP in \fIpostgresql.conf\fP (PG>=12) or in 
+\fIrecovery.conf\fP (PG<=11) by \fBpitrery\ restore\fP. It is responsible
+for retrieving the archived WAL segments that are needed during the
+recovery operation.
 
 .SH OPTIONS
 The following options are available:
@@ -37,55 +37,55 @@ The following options are available:
 .TP
 .BI "\-C " conf
 Use option settings from the specified configuration file instead of the
-default \fIpitrery.conf\fP file.  This may be a full path to the file to use,
+default \fIpitrery.conf\fP file. This may be a full path to the file to use,
 or the name of a configuration file in \fI/etc/pitrery\fP.
 
 .TP
 .BI "\-a " [[user@]host:]/dir
 The directory on the (local or remote) host where WAL segment files will be
-stored.  This will override the \fBARCHIVE_DIR\fP option from the
-configuration file.  When the host name is omited, the archiving is local.
+stored. This will override the \fBARCHIVE_DIR\fP option from the
+configuration file. When the host name is omited, the archiving is local.
 
 .TP
 .B \-X
-Retrieve WAL segment files that are not compressed.  This will override the
+Retrieve WAL segment files that are not compressed. This will override the
 \fBARCHIVE_COMPRESS\fP option from the configuration file (forcing it to be
 "no").
 
 .TP
 .BI "\-c " command
-The command to use for uncompressing WAL segment files.  This will override
+The command to use for uncompressing WAL segment files. This will override
 the \fBARCHIVE_UNCOMPRESS_BIN\fP option from the configuration file.
 
 .TP
 .BI "\-s " suffix
-The compressed file suffix to expect (e.g., gz, bz2, xz).  This will override
+The compressed file suffix to expect (e.g., gz, bz2, xz). This will override
 the \fBARCHIVE_COMPRESS_SUFFIX\fP option from the configuration file.
 
 .TP
 .B \-S
-Send messages to the \fBsyslog\fP(3) instead of \fBstdio\fP(3).  This will
+Send messages to the \fBsyslog\fP(3) instead of \fBstdio\fP(3). This will
 override the \fBSYSLOG\fP option from the configuration file (forcing it to
-be "yes").  Messages sent to \fIstdout\fP will be logged with \fBLOG_INFO\fP
+be "yes"). Messages sent to \fIstdout\fP will be logged with \fBLOG_INFO\fP
 priority, while messages to \fIstderr\fP will be logged with \fBLOG_ERR\fP
 priority.
 
 .TP
 .BI "\-f " facility
-Specify the \fBsyslog\fP facility to use.  This will override the
-\fBSYSLOG_FACILITY\fP option from the configuration file.  Defaults to use
-\fBlocal0\fP if not otherwise explicitly set.  See \fBlogger\fP(1) for details
+Specify the \fBsyslog\fP facility to use. This will override the
+\fBSYSLOG_FACILITY\fP option from the configuration file. Defaults to use
+\fBlocal0\fP if not otherwise explicitly set. See \fBlogger\fP(1) for details
 of the valid facility strings that can be used here.
 
 .TP
 .BI "\-t " ident
-An identifier to prefix \fBsyslog\fP output with.  This will override the
-\fBSYSLOG_IDENT\fP option from the configuration file.  Defaults to use the
+An identifier to prefix \fBsyslog\fP output with. This will override the
+\fBSYSLOG_IDENT\fP option from the configuration file. Defaults to use the
 string "postgres" if not otherwise explicitly set.
 
 .TP
 .B \-T
-Timestamp the log messages.  This will override the \fBLOG_TIMESTAMP\fP option
+Timestamp the log messages. This will override the \fBLOG_TIMESTAMP\fP option
 from the configuration file (forcing it to be "yes").
 
 .TP
@@ -96,12 +96,14 @@ Output the brief help summarising the above options.
 .I walfile
 The name of the WAL segment to restore, relative to the configured
 archive directory. It must be set to \fB%f\fP inside
-\fIrecovery.conf\fP when configuring restore_command.
+\fIpostgresql.conf\fP (PG>=12) or in \fIrecovery.conf\fP (PG<=11)
+when configuring restore_command.
 
 .TP
 .I destination
 The target path where to restore the file. It must be set to \fB%p\fP
-inside \fIrecovery.conf\fP when configuring restore_command.
+inside \fIpostgresql.conf\fP (PG>=12) or in \fIrecovery.conf\fP (PG<=11)
+when configuring restore_command.
 
 .SH FILES
 .TP
@@ -109,10 +111,28 @@ inside \fIrecovery.conf\fP when configuring restore_command.
 The default \fBrestore_wal\fP configuration file if not explicitly specified.
 
 .TP
-.I $PGATA/recovery.conf
-The file created in the \fBPGDATA\fP directory by \fBpitrery\ restore\fP which
-configures if and/or how to use \fBrestore_wal\fP to retrieve any needed WAL
-segment files during database recovery.
+.I $PGDATA/postgresql.conf
+For a PostgreSQL instance \fBv.12 or higher\fP, the file to which the
+recovery configuration keys are written by \fBpitrery\ restore\fP, which allows
+\fBrestore_wal\fP to be used to recover any WAL segment files needed during
+database recovery.
+
+.TP
+.I $PGDATA/recovery.signal
+For a PostgreSQL instance \fBv.12 or higher\fP, this file is used to start the
+server in targeted \fBrecovery\fP mode.
+
+.TP
+.I $PGDATA/standby.signal
+For a PostgreSQL instance \fBv.12 or higher\fP, this file is used to start the
+server in targeted \fBstandby\fP mode.
+
+.TP
+.I $PGDATA/recovery.conf
+For a PostgreSQL instance \fBv.11 or lower\fP, the file created in the
+\fBPGDATA\fP directory by \fBpitrery\ restore\fP which configures if and/or
+how to use \fBrestore_wal\fP to retrieve any needed WAL segment files
+during database recovery.
 
 
 .SH SEE ALSO
