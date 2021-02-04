@@ -973,6 +973,12 @@ This is the command that PostgreSQL will use to attempt to retrieve archived
 WAL segment files needed during recovery.
 If not set, the default is to use \fBrestore_wal\fP(1).
 
+.TP
+.B RESTORE_MODE
+Which mode to use when the cluster starts after its restore, "recovery" or
+"standby" are the two choices. If not set, the default is to use
+\fBrecovery\fP mode.
+
 
 .SS Purge configuration
 These variables are used to configure the \fBpurge\fP action operation.
@@ -1147,8 +1153,8 @@ https://github.com/dalibo/pitrery/labels/bug
 
 
 .SH SEE ALSO
-.BR archive_wal (1),
-.BR restore_wal (1).
+.BR archive_wal(1),
+.BR restore_wal(1).
 
 
 .SH AUTHOR
