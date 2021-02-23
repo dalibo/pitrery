@@ -173,6 +173,13 @@ https://apt.dalibo.org/labs/
 
 Use the suitable tool to install it.
 
+By default :
+
+* scripts are installed in `/usr/bin`
+
+* configuration samples are installed in `/etc/pitrery`
+
+* manual pages are installed in `/usr/share/man/man1`
 
 Command invocation and syntax
 =============================
@@ -389,9 +396,9 @@ restore action to get archived segments.
 
 The `archive_wal` script uses the configuration file named `pitrery.conf`.
 By default the location of the configuration file is :
-`/usr/local/etc/pitrery/pitrery.conf`, which can be overridden on
-the command line with `-C` option. The following parameters can be
-configured:
+`/usr/local/etc/pitrery/pitrery.conf` (`/etc/pitrery/pitrery.conf` when
+installed from packages), which can be overridden on the command line with
+`-C` option. The following parameters can be configured:
 
 * `ARCHIVE_DIR` is the target directory where to put files.
 
