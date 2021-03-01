@@ -46,7 +46,7 @@ Time Recovery, comes from this feature of PostgreSQL.
 
 Finally, these features of PostgreSQL are used to create standby
 servers. When the WAL files are applied to another server, created
-from a base base backup, as soon as they are archived, we get a
+from a base backup, as soon as they are archived, we get a
 replicated server.  While it is possible to setup replication with
 pitrery, it is not its purpose. One can do both: backups with pitrery
 and replication with other tools.
@@ -131,7 +131,7 @@ GNU make is also needed to install manpages from the source tarball.
 Installation from the sources
 -----------------------------
 
-The latest version of can be downloaded from:
+The latest version of pitrery can be downloaded from:
 
 https://github.com/dalibo/pitrery/releases
 
@@ -173,6 +173,13 @@ https://apt.dalibo.org/labs/
 
 Use the suitable tool to install it.
 
+By default :
+
+* scripts are installed in `/usr/bin`
+
+* configuration samples are installed in `/etc/pitrery`
+
+* manual pages are installed in `/usr/share/man/man1`
 
 Command invocation and syntax
 =============================
@@ -389,9 +396,9 @@ restore action to get archived segments.
 
 The `archive_wal` script uses the configuration file named `pitrery.conf`.
 By default the location of the configuration file is :
-`/usr/local/etc/pitrery/pitrery.conf`, which can be overridden on
-the command line with `-C` option. The following parameters can be
-configured:
+`/usr/local/etc/pitrery/pitrery.conf` (`/etc/pitrery/pitrery.conf` when
+installed from packages), which can be overridden on the command line with
+`-C` option. The following parameters can be configured:
 
 * `ARCHIVE_DIR` is the target directory where to put files.
 
@@ -405,7 +412,7 @@ configured:
 
 * `ARCHIVE_COMPRESS` controls if the segment is compressed. Compression
   is enabled by default, it can be disabled on busy servers doing a
-  lot write transactions, this can avoid contention on archiving.
+  lot of write transactions, this can avoid contention on archiving.
 
 * `ARCHIVE_COMPRESS_BIN` holds the command to commpress a segment.
 
@@ -497,7 +504,7 @@ The first parameters configure how to connect to the PostgreSQL server
 to backup.  It is needed to run `pg_start_backup()` and
 `pg_stop_backup()` to let us tell PostgreSQL a backup is being
 run. `pitrery` uses the client tools of PostgreSQL, so the usual
-environment varibles are used to:
+environment variables are used to:
 
 * `PGDATA` is the path to the directory storing the cluster
 
