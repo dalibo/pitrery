@@ -24,6 +24,10 @@ pitrery \- Manage point-in-time recovery for PostgreSQL
 .I action
 .RI [ args ]
 
+The command needs to be written in a specific order: pitrery options should be
+stated first, and the action options should be stated after the action
+keywords. This is important since some switches are the same in both lists of
+options, but with different meanings.
 
 .SH DESCRIPTION
 The purpose of \fBpitrery\fP is to make it easy to manage the archiving of
