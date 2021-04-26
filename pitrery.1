@@ -24,6 +24,10 @@ pitrery \- Manage point-in-time recovery for PostgreSQL
 .I action
 .RI [ args ]
 
+The command needs to be written in a specific order: pitrery options should be
+stated first, and the action options should be stated after the action
+keywords. This is important since some switches are the same in both lists of
+options, but with different meanings.
 
 .SH DESCRIPTION
 The purpose of \fBpitrery\fP is to make it easy to manage the archiving of
@@ -57,7 +61,7 @@ coherently in a single location.
 The following options are available:
 
 .TP
-.BI "\-f " conf
+.BI "\-f, \-c " conf
 Use option settings from the specified configuration file instead of the
 default \fIpitrery.conf\fP file. This may be a full path to the file to use,
 or the name of a configuration file in \fI/etc/pitrery\fP.
