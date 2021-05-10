@@ -46,6 +46,7 @@ PGOWNER=$(id -un)
 OVERWRITE="no"
 RESTORE_COMMAND=
 RESTORE_MODE="recovery"
+RECOVERY_END_COMMAND=
 PURGE_KEEP_COUNT=
 PURGE_OLDER_THAN=
 RSYNC_WHOLEFILE="no"
@@ -135,6 +136,7 @@ usage() {
 			echo "    -e compress_suffix   Suffix added by the compression program"
 			echo "    -r command           Command line to use in restore_command"
 			echo "    -C config            Configuration file for restore_wal in restore_command"
+			echo "    -y command           Command line to use in recovery_end_command"
 			echo "    -m restore_mode      restore either in \"standby\" or \"recovery\" mode"
 			echo "    -T                   Timestamp log messages"
 			echo
@@ -2213,7 +2215,7 @@ case $action in
 		load_config
 
 		# Parse args after action: they should take precedence over the configuration
-		while getopts "D:x:d:O:t:nRc:e:m:r:C:T?" arg 2>/dev/null; do
+		while getopts "D:x:d:O:t:nRc:e:m:r:C:y:T?" arg 2>/dev/null; do
 			case $arg in
 				D) PGDATA=$OPTARG;;
 				x) PGWAL=$OPTARG;;
@@ -2227,6 +2229,7 @@ case $action in
 				m) RESTORE_MODE="$OPTARG";;
 				r) RESTORE_COMMAND="$OPTARG";;
 				C) restore_wal_config=$OPTARG;;
+				y) RECOVERY_END_COMMAND="$OPTARG";;
 				T) LOG_TIMESTAMP="yes";;
 				'?') usage "restore";;
 			esac
@@ -2448,6 +2451,7 @@ case $action in
 		[ -n "$RESTORE_MODE" ] && info "  restore_mode = '$RESTORE_MODE'"
 		info "  restore_command = '$RESTORE_COMMAND'"
 		[ -n "$recovery_target_time" ] && info "  recovery_target_time = '$recovery_target_time'"
+		[ -n "$RECOVERY_END_COMMAND" ] && info "  recovery_end_command = '$RECOVERY_END_COMMAND'"
 		info
 
 		# Check if tablespace relocation list have duplicates
@@ -2845,6 +2849,14 @@ case $action in
 				echo "#recovery_target_time = ''            # e.g. '2019-11-03 22:39:00 EST'" >> "$PGDATA/recovery.conf"
 			fi
 
+			if (( 10#$pgvers >= 804 )); then
+				if  [ -n "$RECOVERY_END_COMMAND" ]; then
+					echo "recovery_end_command = '${RECOVERY_END_COMMAND}'" >> "$PGDATA/recovery.conf"
+				else
+					echo "#recovery_end_command = ''" >> "$PGDATA/recovery.conf"
+				fi
+			fi
+
 			# Add all possible parameters for recovery, commented out.
 			case $pgvers in
 				802|803)
@@ -2853,13 +2865,11 @@ case $action in
 					echo "#recovery_target_timeline = ''        # number or 'latest'"
 					;;
 				804)
-					echo "#recovery_end_command = ''"
 					echo "#recovery_target_xid = ''             # 'number'"
 					echo "#recovery_target_inclusive = 'true'   # 'true' or 'false'"
 					echo "#recovery_target_timeline = ''        # number or 'latest'"
 					;;
 				901|902|903)
-					echo "#recovery_end_command = ''"
 					echo "#recovery_target_name = ''            # e.g. 'daily backup 2019-11-03'"
 					echo "#recovery_target_xid = ''"
 					echo "#recovery_target_inclusive = true"
@@ -2867,7 +2877,6 @@ case $action in
 					echo "#pause_at_recovery_target = true"
 					;;
 				904)
-					echo "#recovery_end_command = ''"
 					echo "#recovery_target_name = ''            # e.g. 'daily backup 2019-11-03'"
 					echo "#recovery_target_xid = ''"
 					echo "#recovery_target_inclusive = true"
@@ -2876,7 +2885,6 @@ case $action in
 					echo "#pause_at_recovery_target = true"
 					;;
 				905|906)
-					echo "#recovery_end_command = ''"
 					echo "#recovery_target_name = ''            # e.g. 'daily backup 2019-11-03'"
 					echo "#recovery_target_xid = ''"
 					echo "#recovery_target_inclusive = true"
@@ -2885,7 +2893,6 @@ case $action in
 					echo "#recovery_target_action = 'pause'"
 					;;
 				1000|1100)
-					echo "#recovery_end_command = ''"
 					echo "#recovery_target_name = ''            # e.g. 'daily backup 2019-11-03'"
 					echo "#recovery_target_xid = ''"
 					echo "#recovery_target_lsn = ''             # e.g. '0/70006B8'"
@@ -2964,7 +2971,11 @@ case $action in
 
 			case $pgvers in
 				1200|1300)
-					echo "#recovery_end_command = ''"
+					if  [ -n "$RECOVERY_END_COMMAND" ]; then
+						echo "recovery_end_command = '${RECOVERY_END_COMMAND}'"
+					else
+						echo "#recovery_end_command = ''"
+					fi
 					echo "#recovery_target_name = ''  # e.g. 'daily backup 2019-11-07'"
 					echo "#recovery_target_xid = ''"
 					echo "#recovery_target_lsn = ''   # e.g. '0/70006B8'"
@@ -4278,6 +4289,12 @@ case $action in
 # Use "recovery" (default) to restore the cluster at a given point in time
 # Use "standby" for the creation of the standby cluster
 #RESTORE_MODE="recovery"
+
+# This parameter specifies, in PostgreSQL version 8.4 and greater, a
+# shell command that will be executed once only at the end of
+# recovery. Any %r is replaced by the name of the file containing the
+# last valid restart point, like in archive_cleanup_command.
+#RECOVERY_END_COMMAND=
 
 # The old backups can be removed by setting one of those two
 # parameters, one can keep at most PURGE_KEEP_COUNT backups or keep
