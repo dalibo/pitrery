@@ -22,7 +22,7 @@ jobs:
           command: "sudo -su postgres PGVERSION=<< parameters.pgversion >> ./script/funcenv"
 
   shellcheck:
-    docker: [image: "dalibo/labs-sdk:buster"]
+    docker: [image: "dalibo/buildpack:alpine"]
     working_directory: /tmp/project/
     steps:
       - checkout
