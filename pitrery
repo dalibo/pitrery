@@ -644,7 +644,7 @@ check_remote_directory() {
 
 	dest_exists=$(ssh -n -- "$ssh_target" "[ -e $(qw "$dest_dir") ] || echo 'ko'")
 	if [ $? = 0 ]; then
-		if [ -n "$dest_exists" ]; then
+		if [ -z "$dest_exists" ]; then
 			dest_isdir=$(ssh -n -- "$ssh_target" "[ -d $(qw "$dest_dir") ] || echo 'ko'")
 			if [ $? = 0 ]; then
 				if [ -z "$dest_isdir" ]; then
