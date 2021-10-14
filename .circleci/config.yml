@@ -10,7 +10,7 @@ jobs:
       pgversion:
         description: "PostgreSQL dotted major version"
         type: string
-    docker: [image: "dalibo/labs-sdk:<< parameters.dist >>"]
+    docker: [image: "dalibo/buildpack-postgres:<< parameters.dist >>"]
     working_directory: /tmp/project/
     steps:
       - checkout

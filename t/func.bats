@@ -178,8 +178,7 @@ setup () {
 
 @test "Testing list in JSON format" {
 	json_list=$(pitrery -f $PITRERY_LOCAL_CONF list -j)
-	# need jq to be installed, PR in docker-labs-sdk
-	# echo "${json_list}" | jq -e .
+	echo "${json_list}" | jq -e .
 }
 
 @test "Testing backup check with backup count" {
