@@ -6,7 +6,7 @@ jobs:
       dist:
         description: "Execution Linux distribution"
         type: enum
-        enum: [centos6, centos7, stretch, buster]
+        enum: [centos6, centos7, stretch, buster, bullseye]
       pgversion:
         description: "PostgreSQL dotted major version"
         type: string
@@ -34,6 +34,10 @@ workflows:
   version: 2
   pipeline:
     jobs:
+    - tests:
+        name: bullseye-14
+        dist: bullseye
+        pgversion: "14"
     - tests:
         name: buster-13
         dist: buster
