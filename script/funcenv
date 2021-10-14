@@ -14,6 +14,7 @@ export PATH=/usr/local/bin:$PATH:.
 
 teardown() {
 	exit_code=$?
+	trap - EXIT INT TERM
 
 	# If not on CI and we are docker entrypoint (PID 1), let's wait forever on
 	# error. This allows user to enter the container and debug after a build
