@@ -81,4 +81,8 @@ mkdir -p $PITRERY_BACKUP_DIR
 ${PGBIN}/psql -c "SELECT pg_switch_${xlog_or_wal}()"
 
 # run bats tests
-bats -t t/func.bats
+if [ $# -gt 0 ] ; then
+	"$@"
+else
+	bats --tap t/func.bats
+fi
