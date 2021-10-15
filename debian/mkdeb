@@ -5,7 +5,7 @@
 # injects debian related files and build.
 #
 # This script handle the process of updating the package. First by reproducing a
-# clean working environment for the last debianized version, then fetch lastest
+# clean working environment for the last debianized version, then fetch latest
 # tarball and update the debianization. Finally, new package is built and
 # changes are pushed back to versionned source-tree;
 
