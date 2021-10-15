@@ -10,7 +10,7 @@ buster:
 	git commit changelog -m "Debianize latest version for $@"
 
 .PHONY: push
-push: push-buster push-stretch push-jessie
+push: push-bullseye push-buster push-stretch push-jessie
 push-%:
 	./push $*
 
