@@ -1,6 +1,6 @@
 #!/bin/bash -eux
 
-cd $(readlink -m $0/..)
+cd $(readlink -m "$0/..")
 SPEC=pitrery.spec
 
 #       B U I L D
@@ -11,9 +11,11 @@ rpmbuild \
     --undefine _disable_source_fetch \
     -ba ${SPEC}
 
-#       T E S T
-
 VERSION=$(rpmspec --query --queryformat '%{VERSION}-%{RELEASE}' ${SPEC})
 ln -nfvs "noarch/pitrery-${VERSION}.noarch.rpm" pitrery-last.rpm
+chown -R "$(stat -c %u:%g $SPEC)" noarch/ pitrery-last.rpm
+
+#       T E S T
+
 sudo yum install -y pitrery-last.rpm
 /usr/bin/pitrery -V

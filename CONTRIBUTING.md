@@ -33,8 +33,8 @@ pitrery scripts must be available in `$BINDIR` (default: `/usr/local/bin`).
 - Attach tar.gz and .tar.gz.asc to the GitHub release.
 - Build and push deb with `make -C debian/ build push` (make sure DEBFULLNAME
   and DEBEMAIL env variable are defined and correspond to your gpg signing key).
-- Update and commit rpm/pitrery.spec. Build and push with `make -C rpm/ build
-  push`.
+- Update and commit rpm/pitrery.spec. Build and push with `make -C rpm/
+  release`.
 - Push these commits.
 - Update website in `gh-pages` branch.
   - Create news entry.
