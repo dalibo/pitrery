@@ -2,8 +2,8 @@ version: "2"
 
 services:
   centos7:
-    image: rpmbuild/centos7
+    image: dalibo/buildpack-pkg:centos7
     volumes:
     - .:/srv
     working_dir: /srv
-    command: [/srv/pkg]
+    command: [/srv/mkrpm]

@@ -3,15 +3,9 @@
 cd $(readlink -m $0/..)
 SPEC=pitrery.spec
 
-#       S E T U P
-
-# Trim .centos prefix added by rpmbuild docker image.
-sudo sed -i /^%dist/s/.centos// /etc/rpm/macros.dist
-cat /etc/rpm/macros.dist
-sudo yum-builddep -y ${SPEC}
-
 #       B U I L D
 
+sudo yum-builddep -y ${SPEC}
 rpmbuild \
     --define "_rpmdir ${PWD}" \
     --undefine _disable_source_fetch \
