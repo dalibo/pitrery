@@ -14,6 +14,6 @@ rpmbuild \
 #       T E S T
 
 VERSION=$(rpmspec --query --queryformat '%{VERSION}-%{RELEASE}' ${SPEC})
-ln -nfvs noarch/pitrery-${VERSION}*.noarch.rpm last-build.rpm
-sudo yum install -y last-build.rpm
+ln -nfvs "noarch/pitrery-${VERSION}.noarch.rpm" pitrery-last.rpm
+sudo yum install -y pitrery-last.rpm
 /usr/bin/pitrery -V
