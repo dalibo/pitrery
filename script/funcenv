@@ -14,6 +14,7 @@ export PATH=/usr/local/bin:$PATH:.
 
 teardown() {
 	exit_code=$?
+	trap - EXIT INT TERM
 
 	# If not on CI and we are docker entrypoint (PID 1), let's wait forever on
 	# error. This allows user to enter the container and debug after a build
@@ -80,4 +81,8 @@ mkdir -p $PITRERY_BACKUP_DIR
 ${PGBIN}/psql -c "SELECT pg_switch_${xlog_or_wal}()"
 
 # run bats tests
-bats -t t/func.bats
+if [ $# -gt 0 ] ; then
+	"$@"
+else
+	bats --tap t/func.bats
+fi

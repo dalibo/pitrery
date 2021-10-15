@@ -2059,7 +2059,8 @@ case $action in
 
 			# Save the end of backup timestamp to a file
 			if [ -n "$timestamp" ]; then
-				echo "$timestamp" > "$backup_dir/backup_timestamp" || warn "could not save timestamp"
+				# Since PG14, EPOCH includes microsecnds. Drop them before saving.
+				echo "${timestamp%.*}" > "$backup_dir/backup_timestamp" || warn "could not save timestamp"
 			fi
 
 			# Save the size of a WAL segment for later check actions
@@ -2120,7 +2121,8 @@ case $action in
 
 			# Save the end of backup timestamp to a file
 			if [ -n "$timestamp" ]; then
-				ssh -n -- "$backup_ssh_target" "echo '$timestamp' > $(qw "$backup_dir/backup_timestamp")" 2>/dev/null ||
+				# Since PG14, EPOCH includes microsecnds. Drop them before saving.
+				ssh -n -- "$backup_ssh_target" "echo '${timestamp%.*}' > $(qw "$backup_dir/backup_timestamp")" 2>/dev/null ||
 					warn "could not save timestamp"
 			fi
 
