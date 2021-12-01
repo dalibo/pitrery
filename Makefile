@@ -43,7 +43,7 @@ disttag: checkversion
 	git commit -m "Version $(VERSION)" config.mk $(SRCS) CHANGELOG t/func.bats
 	git diff --quiet  # Require clean worktree.
 	git tag --sign v$(VERSION) --message="Version $(VERSION)"
-	git push --tags $(DISTREMOTE)
+	git push --follow-tags $(DISTREMOTE)
 
 options:
 	@echo ${NAME} ${VERSION} install options:
