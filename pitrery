@@ -244,6 +244,10 @@ usage() {
 	echo "    configure - Create a configuration file from the command line"
 	echo "    help - Print help, optionnally for an action"
 	echo
+	echo "WARNING:"
+	echo "    Pitrery development is stopped as of january 2022."
+	echo "    Please consider moving to another backup tool."
+	echo
 	exit ${2:-0}
 }
 
@@ -1044,6 +1048,8 @@ if [ "$action" = "help" ]; then
 
 	usage "${@:$OPTIND:1}"
 fi
+
+warn "Pitrery is now deprecated. Consider moving to another backup tool."
 
 # Check if the config option is a path or just a name in the
 # configuration directory.  Prepend the configuration directory and

@@ -82,6 +82,10 @@ usage() {
 	echo "    -V                     Display the version and exit"
 	echo "    -?                     Print help"
 	echo
+	echo "WARNING:"
+	echo "    Pitrery development is stopped as of january 2022."
+	echo "    Please consider moving to another backup tool."
+	echo
 	exit $1
 }
 
@@ -185,6 +189,8 @@ while getopts "C:a:Xc:s:Sf:t:TV?" opt; do
 	*) error "Unknown error while processing options";;
 	esac
 done
+
+warn "Pitrery is now deprecated. Consider moving to another backup tool."
 
 # Check if the config option is a path or just a name in the
 # configuration directory.  Prepend the configuration directory and

@@ -1,6 +1,12 @@
 pitrery: Point-In-Time Recovery (PITR) tools for PostgreSQL
 ===========================================================
 
+WARNING : PITRERY IS DEPRECATED
+-------------------------------
+
+As of january 2022, pitrery development is stopped. Please move to another
+backup solution like pgBackrest or barman for example.
+
 
 FEATURES
 --------

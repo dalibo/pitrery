@@ -77,10 +77,10 @@ setup () {
 	IFS=$'\n'
 	output=(${output})
 	unset IFS
-	[ "${#output[@]}" -eq 2 ]
-	[[ "${output[1]}" == "$PITRERY_BACKUP_DIR"* ]]
+	[ "${#output[@]}" -eq 3 ]
+	[[ "${output[2]}" == "$PITRERY_BACKUP_DIR"* ]]
 
-	for line in "${lines[@]:1}"; do
+	for line in "${lines[@]:2}"; do
 		BKPDIR=$(echo ${line}|cut -d" " -f1)
 		check_backup_content ${BKPDIR}
 	done
@@ -115,9 +115,9 @@ setup () {
 	IFS=$'\n'
 	output=(${output})
 	unset IFS
-	[ "${#output[@]}" -eq 3 ]
-	[[ "${output[1]}" == "$PITRERY_BACKUP_DIR"* ]]
+	[ "${#output[@]}" -eq 4 ]
 	[[ "${output[2]}" == "$PITRERY_BACKUP_DIR"* ]]
+	[[ "${output[3]}" == "$PITRERY_BACKUP_DIR"* ]]
 }
 
 @test "Testing purge after second backup with local config" {
@@ -149,9 +149,9 @@ setup () {
 	IFS=$'\n'
 	output=(${output})
 	unset IFS
-	[ "${#output[@]}" -eq 4 ]
-	[[ "${output[1]}" == "$PITRERY_BACKUP_DIR"* ]]
+	[ "${#output[@]}" -eq 5 ]
 	[[ "${output[2]}" == "$PITRERY_BACKUP_DIR"* ]]
+	[[ "${output[3]}" == "$PITRERY_BACKUP_DIR"* ]]
 }
 
 @test "Testing purge after third backup with local config" {
@@ -171,9 +171,9 @@ setup () {
 	IFS=$'\n'
 	output=(${output})
 	unset IFS
-	[ "${#output[@]}" -eq 3 ]
-	[[ "${output[1]}" == "$PITRERY_BACKUP_DIR"* ]]
+	[ "${#output[@]}" -eq 4 ]
 	[[ "${output[2]}" == "$PITRERY_BACKUP_DIR"* ]]
+	[[ "${output[3]}" == "$PITRERY_BACKUP_DIR"* ]]
 }
 
 @test "Testing list in JSON format" {
