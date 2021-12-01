@@ -39,30 +39,21 @@ workflows:
         dist: bullseye
         pgversion: "14"
     - tests:
-        name: buster-13
+        name: buster-12
         dist: buster
-        pgversion: "13"
+        pgversion: "12"
     - tests:
         name: stretch-96
         dist: stretch
         pgversion: "9.6"
-        filters:
-          branches:
-            only: master
     - tests:
         name: centos8-13
         dist: centos8
         pgversion: "13"
-        filters:
-          branches:
-            only: master
     - tests:
         name: centos7-10
         dist: centos7
         pgversion: "10"
-        filters:
-          branches:
-            only: master
     - tests:
         name: centos6-95
         dist: centos6
