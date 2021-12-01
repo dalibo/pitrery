@@ -39,7 +39,7 @@ distsign: $(DIST)
 
 disttag: checkversion
 	git fetch $(DISTREMOTE) $(BRANCH)
-	git diff --quiet FETCH_HEAD..HEAD
+	git status --porcelain=v2 --branch | grep -qE "# branch.ab .+ -0"
 	git commit -m "Version $(VERSION)" config.mk $(SRCS) CHANGELOG
 	git diff --quiet  # Require clean worktree.
 	git tag --sign v$(VERSION) --message="Version $(VERSION)"
