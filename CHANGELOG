@@ -1,3 +1,11 @@
+pitrery 3.4
+===========
+
+  * Support Postgres 14.
+  * Packages for CentOS 8, Debian buster and bullseye.
+  * Allow to customize recovery_end_commend.
+  * Fix rsync options protection.
+
 pitrery 3.3
 ===========
 
