@@ -1,3 +1,9 @@
+pitrery (3.4-1) buster; urgency=medium
+
+  * New upstream release
+
+ -- Étienne BERSAC <etienne.bersac@dalibo.com>  Wed, 01 Dec 2021 13:18:58 +0000
+
 pitrery (3.3-1) buster; urgency=medium
 
   * New upstream release
