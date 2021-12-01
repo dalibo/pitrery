@@ -1,7 +1,7 @@
 %global confdir %{_sysconfdir}/pitrery
 
 Name:           pitrery
-Version:        3.3
+Version:        3.4
 Release:        1%{dist}
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
@@ -48,6 +48,13 @@ make install DESTDIR=%{buildroot} PREFIX=%{_prefix} SYSCONFDIR=%{confdir}
 %doc %{_mandir}/man1/restore_wal.1.gz
 
 %changelog
+* Wed Dec  1 2021 Étienne BERSAC <etienne.bersac@dalibo.com> - 3.4-1
+- Release 3.4
+- Support Postgres 14.
+- Packages for CentOS 8, Debian buster and bullseye.
+- Allow to customize recovery_end_commend.
+- Fix rsync options protection.
+
 * Thu Jan 07 2021 Thibaut MADELAINE <thibaut.madelaine@dalibo.com> - 3.3-1
 - Release 3.3
 - [Bugfix] pitrery restore: could not get the ending timestamp (#138)
