@@ -2,7 +2,7 @@
 
 Name:           pitrery
 Version:        3.3
-Release:        1
+Release:        1%{dist}
 Summary:        Point-In-Time Recovery tools for PostgreSQL
 License:        BSD
 Group:          Applications/Databases

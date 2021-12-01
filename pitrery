@@ -1009,7 +1009,7 @@ while getopts "c:f:lV?" opt; do
 		l) # List the configuration files and exit
 			info "listing configuration files in $config_dir"
 			if [ -d "$config_dir" ]; then
-				find "$config_dir" -mindepth 1 -maxdepth 1 -name '*.conf' | xargs -i basename '{}' .conf
+				find "$config_dir" -mindepth 1 -maxdepth 1 -name '*.conf' | xargs -I '{}' basename '{}' .conf
 			fi
 			exit 0
 			;;
@@ -2100,7 +2100,7 @@ case $action in
 			echo "workdir: $(pwd)" > "$backup_dir/backup_command" 2>/dev/null
 			echo "command: $0" "$@" >> "$backup_dir/backup_command" 2>/dev/null
 			echo "libpq exported variables:" >> "$backup_dir/backup_command" 2>/dev/null
-			env | grep ^PG 2>/dev/null >> "$backup_dir/backup_command" 2>/dev/null
+			env | grep ^PG >> "$backup_dir/backup_command" 2>/dev/null
 
 			if [ -f "$config" ]; then
 				echo "config: $config" >> "$backup_dir/backup_command" 2>/dev/null
