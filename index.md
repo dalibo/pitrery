@@ -6,6 +6,13 @@ title: pitrery - Home
 Welcome
 =======
 
+Warning : Pitrery is deprecated
+-------------------------------
+
+As of january 2022, pitrery development stops. Please consider moving to another
+backup tool like pgBackrest or barman.
+
+
 Introduction
 ------------
 
