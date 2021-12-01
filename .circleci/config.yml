@@ -6,7 +6,7 @@ jobs:
       dist:
         description: "Execution Linux distribution"
         type: enum
-        enum: [centos6, centos7, stretch, buster, bullseye]
+        enum: [centos6, centos7, centos8, stretch, buster, bullseye]
       pgversion:
         description: "PostgreSQL dotted major version"
         type: string
@@ -50,8 +50,8 @@ workflows:
           branches:
             only: master
     - tests:
-        name: centos7-13
-        dist: centos7
+        name: centos8-13
+        dist: centos8
         pgversion: "13"
         filters:
           branches:
