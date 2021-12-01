@@ -12,6 +12,7 @@ release: speccheck
 	$(MAKE) centos8 push-centos8
 
 centos%:
+	docker pull dalibo/buildpack-pkg:$@
 	docker run --rm \
 		--volume $${PWD}/..:/src \
 		dalibo/buildpack-pkg:$@ \
