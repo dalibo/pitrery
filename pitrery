@@ -2100,7 +2100,7 @@ case $action in
 			echo "workdir: $(pwd)" > "$backup_dir/backup_command" 2>/dev/null
 			echo "command: $0" "$@" >> "$backup_dir/backup_command" 2>/dev/null
 			echo "libpq exported variables:" >> "$backup_dir/backup_command" 2>/dev/null
-			env | grep ^PG 2>/dev/null >> "$backup_dir/backup_command" 2>/dev/null
+			env | grep ^PG >> "$backup_dir/backup_command" 2>/dev/null
 
 			if [ -f "$config" ]; then
 				echo "config: $config" >> "$backup_dir/backup_command" 2>/dev/null
