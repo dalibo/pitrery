@@ -6,11 +6,15 @@ title: pitrery - Home
 Welcome
 =======
 
-Warning : Pitrery is deprecated
--------------------------------
+Warning : Pitrery is in Maintainance-only mode
+----------------------------------------------
 
-As of january 2022, pitrery development stops. Please consider moving to another
-backup tool like pgBackrest or barman.
+After 10 years of development, pitrery development status is now Long Term
+Support (LTS). Pitrery won't have new features but bug fixes and security fixes.
+Pitrery will supports PostgreSQL version from 9 up to 14. PostgreSQL 15 and
+following won't be officially supported.
+
+LTS period will end as of december 2026.
 
 
 Introduction
