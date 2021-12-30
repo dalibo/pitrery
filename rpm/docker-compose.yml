@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  rhel8: &rhel
+    image: dalibo/buildpack-pkg:rockylinux8
+    working_dir: /src
+    volumes:
+    - ../:/src
+    command: /src/rpm/mkrpm
+
+  rhel7:
+    <<: *rhel
+    image: dalibo/buildpack-pkg:centos7
