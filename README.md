@@ -1,13 +1,15 @@
 pitrery: Point-In-Time Recovery (PITR) tools for PostgreSQL
 ===========================================================
 
-WARNING : PITRERY IS IN MAINTAINANCE-ONLY MODE
+WARNING : PITRERY IS IN MAINTENANCE-ONLY MODE
 ----------------------------------------------
 
-After 10 years of development, pitrery development status is now Long Term
-Support (LTS). Pitrery won't have new features but bug fixes and security fixes.
-Pitrery will supports PostgreSQL version from 9 up to 14. PostgreSQL 15 and
-following won't be officially supported.
+After 10 years of development, pitrery's development status is now Long Term
+Support (LTS). New features will no longer be added to Pitrery. We will
+continue to develop bug fixes and security fixes if need be.
+
+Pitrery supports PostgreSQL versions from 9 up to 14 but will not work on
+PostgreSQL 15 and following because the backup API has evolved.
 
 LTS period will end as of december 2026.
 
